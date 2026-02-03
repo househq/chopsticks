@@ -1,3 +1,7 @@
+// src/tools/voice/domain.js
+// CONTROLLER LAYER — wraps pure domain mutations + persistence
+// No self-imports. No side effects outside storage writes.
+
 import { loadGuildData, saveGuildData } from "../../utils/storage.js";
 import { ensureVoiceState } from "./state.js";
 import {
@@ -6,16 +10,11 @@ import {
   domainRemoveLobby,
   domainSetLobbyEnabled,
   domainResetVoice
-} from "./domain.js";
+} from "./domain.logic.js";
 
 /* ---------- ADD LOBBY ---------- */
 
-export async function addLobby(
-  guildId,
-  channelId,
-  categoryId,
-  template
-) {
+export async function addLobby(guildId, channelId, categoryId, template) {
   const data = loadGuildData(guildId);
   ensureVoiceState(data);
   validateVoiceState(data);
@@ -32,7 +31,7 @@ export async function addLobby(
   return { ok: true };
 }
 
-/* ---------- REMOVE ---------- */
+/* ---------- REMOVE LOBBY ---------- */
 
 export async function removeLobby(guildId, channelId) {
   const data = loadGuildData(guildId);
@@ -48,11 +47,7 @@ export async function removeLobby(guildId, channelId) {
 
 /* ---------- ENABLE / DISABLE ---------- */
 
-export async function setLobbyEnabled(
-  guildId,
-  channelId,
-  enabled
-) {
+export async function setLobbyEnabled(guildId, channelId, enabled) {
   const data = loadGuildData(guildId);
   ensureVoiceState(data);
   validateVoiceState(data);
@@ -77,6 +72,7 @@ export async function resetVoice(guildId) {
 
   domainResetVoice(data.voice);
   saveGuildData(guildId, data);
+  return { ok: true };
 }
 
 /* ---------- STATUS ---------- */
@@ -85,5 +81,5 @@ export async function getStatus(guildId) {
   const data = loadGuildData(guildId);
   ensureVoiceState(data);
   validateVoiceState(data);
-  return data.voice;
+  return { ok: true, voice: data.voice };
 }

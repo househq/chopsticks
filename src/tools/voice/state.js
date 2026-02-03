@@ -1,5 +1,7 @@
-// src/tools/voice/state.js
-import { loadGuildData, saveGuildData } from "../../utils/storage.js";
+import {
+  getVoiceState,
+  saveVoiceState
+} from "./schema.js";
 
 /* ---------- LOCKS (PROCESS-LOCAL) ---------- */
 
@@ -20,27 +22,48 @@ export function releaseCreationLock(guildId, userId) {
   creationLocks.delete(lockKey(guildId, userId));
 }
 
-/* ---------- TEMP CHANNEL HELPERS ---------- */
+/* ---------- STATE ACCESS ---------- */
 
-export function registerTempChannel(guildId, channelId, ownerId, lobbyId) {
-  const data = loadGuildData(guildId);
-  data.voice.tempChannels[channelId] = {
+export function ensureVoiceState(_) {
+  // NO-OP BY DESIGN
+  // Schema is authoritative
+}
+
+/* ---------- TEMP CHANNEL MUTATION (SCHEMA-SAFE) ---------- */
+
+export function registerTempChannel(
+  guildId,
+  channelId,
+  ownerId,
+  lobbyId
+) {
+  const voice = getVoiceState(guildId);
+
+  if (!voice.lobbies[lobbyId]) return;
+
+  voice.tempChannels[channelId] = {
     ownerId,
     lobbyId
   };
-  saveGuildData(guildId, data);
+
+  saveVoiceState(guildId, voice);
 }
 
 export function removeTempChannel(guildId, channelId) {
-  const data = loadGuildData(guildId);
-  delete data.voice.tempChannels[channelId];
-  saveGuildData(guildId, data);
+  const voice = getVoiceState(guildId);
+
+  if (voice.tempChannels[channelId]) {
+    delete voice.tempChannels[channelId];
+    saveVoiceState(guildId, voice);
+  }
 }
 
 export function findUserTempChannel(guildId, userId, lobbyId) {
-  const data = loadGuildData(guildId);
+  const voice = getVoiceState(guildId);
 
-  for (const [channelId, temp] of Object.entries(data.voice.tempChannels)) {
+  for (const [channelId, temp] of Object.entries(
+    voice.tempChannels
+  )) {
     if (
       temp.ownerId === userId &&
       temp.lobbyId === lobbyId
@@ -50,11 +73,4 @@ export function findUserTempChannel(guildId, userId, lobbyId) {
   }
 
   return null;
-}
-export function ensureVoiceState(data) {
-  if (!data.voice) {
-    data.voice = { lobbies: {}, tempChannels: {} };
-  }
-  if (!data.voice.lobbies) data.voice.lobbies = {};
-  if (!data.voice.tempChannels) data.voice.tempChannels = {};
 }
