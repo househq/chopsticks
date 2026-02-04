@@ -1,85 +1,59 @@
 // src/tools/voice/domain.js
-// CONTROLLER LAYER — wraps pure domain mutations + persistence
-// No self-imports. No side effects outside storage writes.
+// AUTHORITATIVE VOICE DOMAIN — persistence-backed
+// NO Discord.js calls
 
-import { loadGuildData, saveGuildData } from "../../utils/storage.js";
-import { ensureVoiceState } from "./state.js";
 import {
-  validateVoiceState,
-  domainAddLobby,
-  domainRemoveLobby,
-  domainSetLobbyEnabled,
-  domainResetVoice
-} from "./domain.logic.js";
+  getVoiceState,
+  saveVoiceState
+} from "./schema.js";
 
-/* ---------- ADD LOBBY ---------- */
+export function addLobby(guildId, channelId, categoryId, template) {
+  const voice = getVoiceState(guildId);
 
-export async function addLobby(guildId, channelId, categoryId, template) {
-  const data = loadGuildData(guildId);
-  ensureVoiceState(data);
-  validateVoiceState(data);
+  voice.lobbies ??= {};
+  voice.tempChannels ??= {};
 
-  const result = domainAddLobby(data.voice, {
+  voice.lobbies[channelId] = {
     channelId,
     categoryId,
-    template
+    nameTemplate: template,
+    enabled: true
+  };
+
+  saveVoiceState(guildId, voice);
+  return { ok: true, action: "add", channelId };
+}
+
+export function removeLobby(guildId, channelId) {
+  const voice = getVoiceState(guildId);
+  delete voice.lobbies?.[channelId];
+  saveVoiceState(guildId, voice);
+  return { ok: true, action: "remove", channelId };
+}
+
+export function setLobbyEnabled(guildId, channelId, enabled) {
+  const voice = getVoiceState(guildId);
+  if (!voice.lobbies?.[channelId]) {
+    return { ok: false, error: "lobby-not-found" };
+  }
+
+  voice.lobbies[channelId].enabled = enabled;
+  saveVoiceState(guildId, voice);
+  return { ok: true, action: enabled ? "enable" : "disable", channelId };
+}
+
+export function getStatus(guildId) {
+  const voice = getVoiceState(guildId);
+  return {
+    lobbies: voice.lobbies ?? {},
+    tempChannels: voice.tempChannels ?? {}
+  };
+}
+
+export function resetVoice(guildId) {
+  saveVoiceState(guildId, {
+    lobbies: {},
+    tempChannels: {}
   });
-
-  if (!result.ok) return result;
-
-  saveGuildData(guildId, data);
-  return { ok: true };
-}
-
-/* ---------- REMOVE LOBBY ---------- */
-
-export async function removeLobby(guildId, channelId) {
-  const data = loadGuildData(guildId);
-  ensureVoiceState(data);
-  validateVoiceState(data);
-
-  const result = domainRemoveLobby(data.voice, { channelId });
-  if (!result.ok) return result;
-
-  saveGuildData(guildId, data);
-  return { ok: true };
-}
-
-/* ---------- ENABLE / DISABLE ---------- */
-
-export async function setLobbyEnabled(guildId, channelId, enabled) {
-  const data = loadGuildData(guildId);
-  ensureVoiceState(data);
-  validateVoiceState(data);
-
-  const result = domainSetLobbyEnabled(data.voice, {
-    channelId,
-    enabled
-  });
-
-  if (!result.ok || result.noop) return result;
-
-  saveGuildData(guildId, data);
-  return { ok: true };
-}
-
-/* ---------- RESET ---------- */
-
-export async function resetVoice(guildId) {
-  const data = loadGuildData(guildId);
-  ensureVoiceState(data);
-  validateVoiceState(data);
-
-  domainResetVoice(data.voice);
-  saveGuildData(guildId, data);
-  return { ok: true };
-}
-
-/* ---------- STATUS ---------- */
-
-export async function getStatus(guildId) {
-  const data = loadGuildData(guildId);
-  ensureVoiceState(data);
-  validateVoiceState(data);
-  return { ok: true, voice: data.voice };
+  return { ok: true, action: "reset" };
 }

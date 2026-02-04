@@ -1,88 +1,82 @@
-import {
-  ChannelType,
-  PermissionsBitField
-} from "discord.js";
+// events/voiceStateUpdate.js
+// EXECUTION-ONLY EVENT HANDLER
+// No direct domain mutation. No persistence.
 
+import { ChannelType, PermissionsBitField } from "discord.js";
+import { loadGuildData } from "../utils/storage.js";
 import {
-  loadGuildData,
-  saveGuildData
-} from "../utils/storage.js";
+  registerTempChannel,
+  removeTempChannel,
+  findUserTempChannel
+} from "../tools/voice/state.js";
 
 export default {
   name: "voiceStateUpdate",
 
   async execute(oldState, newState) {
-    const guild = newState.guild || oldState.guild;
+    const guild = newState.guild ?? oldState.guild;
     if (!guild) return;
 
-    const guildId = guild.id;
-    const member = newState.member || oldState.member;
+    const member = newState.member ?? oldState.member;
     if (!member) return;
 
-    const oldChannel = oldState.channel;
-    const newChannel = newState.channel;
+    const oldChannel = oldState.channel ?? null;
+    const newChannel = newState.channel ?? null;
 
     if (oldChannel?.id === newChannel?.id) return;
 
-    const data = loadGuildData(guildId);
-    const voice = data.voice;
+    const data = loadGuildData(guild.id);
+    if (!data || !data.voice) return;
 
-    /* -------------------------------------------------
-     * LEAVE TEMP CHANNEL (runs FIRST, before join logic)
-     * ------------------------------------------------- */
+    const voice = data.voice;
+    voice.tempChannels ??= {};
+    voice.lobbies ??= {};
+
+    /* ---------- LEAVE TEMP ---------- */
 
     if (oldChannel && voice.tempChannels[oldChannel.id]) {
-      const channel = guild.channels.cache.get(oldChannel.id);
+      const channel = guild.channels.cache.get(oldChannel.id) ?? null;
+      const empty = channel ? channel.members.size === 0 : true;
 
-      if (!channel) {
-        delete voice.tempChannels[oldChannel.id];
-        saveGuildData(guildId, data);
-      } else {
-        // if owner moved AND channel is now empty → delete
-        const temp = voice.tempChannels[oldChannel.id];
-
-        if (
-          temp.ownerId === member.id &&
-          channel.members.size === 0
-        ) {
-          delete voice.tempChannels[oldChannel.id];
-          saveGuildData(guildId, data);
+      if (!channel || empty) {
+        removeTempChannel(guild.id, oldChannel.id);
+        if (channel) {
           await channel.delete().catch(() => {});
         }
       }
     }
 
-    /* -----------------
-     * JOIN LOBBY
-     * ----------------- */
+    /* ---------- JOIN LOBBY ---------- */
 
-    if (
-      newChannel &&
-      voice.lobbies[newChannel.id] &&
-      voice.lobbies[newChannel.id].enabled === true
-    ) {
-      const lobby = voice.lobbies[newChannel.id];
-      const category = guild.channels.cache.get(lobby.categoryId);
+    if (!newChannel) return;
 
-      if (!category || category.type !== ChannelType.GuildCategory) return;
+    const lobby = voice.lobbies[newChannel.id];
+    if (!lobby || lobby.enabled !== true) return;
 
-      // prevent multi-temp ownership
-      for (const [id, temp] of Object.entries(voice.tempChannels)) {
-        if (temp.ownerId === member.id) {
-          const existing = guild.channels.cache.get(id);
-          if (existing) {
-            await member.voice.setChannel(existing).catch(() => {});
-            return;
-          }
-        }
+    const category = guild.channels.cache.get(lobby.categoryId) ?? null;
+    if (!category || category.type !== ChannelType.GuildCategory) return;
+
+    const existing = findUserTempChannel(
+      guild.id,
+      member.id,
+      newChannel.id
+    );
+
+    if (existing) {
+      const ch = guild.channels.cache.get(existing) ?? null;
+      if (ch) {
+        await member.voice.setChannel(ch).catch(() => {});
+        return;
       }
+    }
 
-      const name = lobby.nameTemplate.replace(
-        "{user}",
-        member.displayName
-      );
+    const name =
+      typeof lobby.nameTemplate === "string"
+        ? lobby.nameTemplate.replace("{user}", member.displayName)
+        : member.displayName;
 
-      const channel = await guild.channels.create({
+    const channel = await guild.channels
+      .create({
         name,
         type: ChannelType.GuildVoice,
         parent: category.id,
@@ -95,16 +89,18 @@ export default {
             ]
           }
         ]
-      });
+      })
+      .catch(() => null);
 
-      voice.tempChannels[channel.id] = {
-        ownerId: member.id,
-        lobbyId: newChannel.id
-      };
+    if (!channel) return;
 
-      saveGuildData(guildId, data);
+    registerTempChannel(
+      guild.id,
+      channel.id,
+      member.id,
+      newChannel.id
+    );
 
-      await member.voice.setChannel(channel).catch(() => {});
-    }
+    await member.voice.setChannel(channel).catch(() => {});
   }
 };

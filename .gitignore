@@ -1,10 +1,16 @@
-# temp / debug dumps
-*_dump.txt
-*_TREE.txt
-*_index.js.txt
-*_storage.js.txt
-*_voice*.txt
+# debug dumps
+*.txt
 _runtime.log
+_TREE.txt
+_chopsticks_dump.txt
 
 # backups
 data.backup.*/
+data.backup.*
+
+# runtime data
+data/
+.env
+
+# node
+node_modules/

@@ -1,0 +1,19 @@
+server:
+  port: 8080
+
+spring:
+  main:
+    banner-mode: "off"
+  config:
+    import: "optional:configserver:"
+  cloud:
+    config:
+      enabled: false
+
+lavalink:
+  server:
+    password: "youshallnotpass"
+
+logging:
+  level:
+    root: INFO

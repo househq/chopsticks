@@ -1,27 +1,35 @@
 // src/deploy-commands.js
+import "dotenv/config";
 import { REST, Routes } from "discord.js";
-import { config } from "dotenv";
-import { voiceCommand } from "./tools/voice/commands.js";
+import { loadCommands } from "./utils/loadCommands.js";
 
-config();
+const TOKEN = process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
 
-const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
+if (!TOKEN) throw new Error("DISCORD_TOKEN missing");
+if (!CLIENT_ID) throw new Error("CLIENT_ID missing");
 
-const commands = [
-  voiceCommand.data.toJSON()
-];
+const rest = new REST({ version: "10" }).setToken(TOKEN);
 
-(async () => {
+const loaded = await loadCommands();
+const payload = [];
+
+for (const [name, cmd] of loaded.entries()) {
   try {
-    console.log("Deploying GLOBAL commands...");
-
-    await rest.put(
-      Routes.applicationCommands(process.env.CLIENT_ID),
-      { body: commands }
-    );
-
-    console.log("Global commands deployed.");
+    const json = cmd.data.toJSON();
+    payload.push(json);
   } catch (err) {
-    console.error(err);
+    console.error("\n=== COMMAND SERIALIZATION FAILURE ===");
+    console.error(`Command: /${name}`);
+    console.error("Raw builder:", cmd.data);
+    console.error("Error:", err);
+    process.exit(1);
   }
-})();
+}
+
+await rest.put(
+  Routes.applicationCommands(CLIENT_ID),
+  { body: payload }
+);
+
+console.log(`Deployed ${payload.length} global commands`);
