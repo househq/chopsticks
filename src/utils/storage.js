@@ -54,7 +54,6 @@ function normalizeData(input) {
   const rev = Number.isInteger(raw.rev) && raw.rev >= 0 ? raw.rev : 0;
   out.rev = rev;
 
-  // Remove legacy top-level keys once migrated.
   if ("lobbies" in out) delete out.lobbies;
   if ("tempChannels" in out) delete out.tempChannels;
 
@@ -70,7 +69,6 @@ function detectNeedsMigration(raw, normalized) {
   if (!isPlainObject(raw.voice.tempChannels)) return true;
   if ("lobbies" in raw || "tempChannels" in raw) return true;
 
-  // Compare minimal keys to detect schema normalization adjustments.
   if (normalized.schemaVersion !== raw.schemaVersion) return true;
   if (normalized.rev !== raw.rev) return true;
   return false;
@@ -101,27 +99,39 @@ function readGuildDataWithFallback(file) {
   return { data: baseData(), needsWrite: true };
 }
 
+function uniqueTmpName(file) {
+  const rand = Math.random().toString(16).slice(2);
+  return `${file}.${process.pid}.${Date.now()}.${rand}.tmp`;
+}
+
 function writeAtomicJson(file, data) {
-  const tmp = `${file}.tmp`;
+  const tmp = uniqueTmpName(file);
   const bak = `${file}.bak`;
   const json = JSON.stringify(data, null, 2);
 
-  const fd = fs.openSync(tmp, "w");
-  try {
-    fs.writeFileSync(fd, json, "utf8");
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
-  }
+  ensureDir();
 
+  // write tmp (unique per write to prevent rename races)
+  fs.writeFileSync(tmp, json, { encoding: "utf8", flag: "wx" });
+
+  // best-effort fsync (dir fsync is not portable; file fsync is enough here)
+  try {
+    const fd = fs.openSync(tmp, "r");
+    try {
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {}
+
+  // best-effort backup of last good file
   if (fs.existsSync(file)) {
     try {
       fs.copyFileSync(file, bak);
-    } catch {
-      // Best-effort backup.
-    }
+    } catch {}
   }
 
+  // atomic replace on same filesystem
   fs.renameSync(tmp, file);
 }
 
@@ -158,9 +168,7 @@ export function ensureGuildData(guildId) {
   if (needsWrite) {
     try {
       saveGuildData(guildId, data);
-    } catch {
-      // If a concurrent writer wins, caller can re-load.
-    }
+    } catch {}
   }
   return data;
 }

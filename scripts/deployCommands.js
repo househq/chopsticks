@@ -1,58 +1,77 @@
-// scripts/deployCommands.js
-import "dotenv/config";
+import { REST, Routes } from "discord.js";
+import { config } from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { REST, Routes } from "discord.js";
 
-const TOKEN = process.env.DISCORD_TOKEN;
+config();
+
+const DEPLOY_MODE = (process.env.DEPLOY_MODE || "guild").toLowerCase(); // "guild" | "global"
+const TARGET = (process.env.DEPLOY_TARGET || "dev").toLowerCase(); // "dev" | "prod"
+
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
-if (!TOKEN) throw new Error("DISCORD_TOKEN missing");
+if (!DISCORD_TOKEN) throw new Error("DISCORD_TOKEN missing");
 if (!CLIENT_ID) throw new Error("CLIENT_ID missing");
 
-// DEPLOY_MODE: "guild" (default) or "global"
-const MODE = (process.env.DEPLOY_MODE || "guild").toLowerCase();
-if (MODE !== "guild" && MODE !== "global") {
-  throw new Error('DEPLOY_MODE must be "guild" or "global"');
+const DEV_GUILD_ID = process.env.DEV_GUILD_ID || process.env.GUILD_ID || "";
+const PROD_GUILD_ID = process.env.PROD_GUILD_ID || "";
+
+function resolveGuildId() {
+  if (TARGET === "prod") {
+    if (!PROD_GUILD_ID) throw new Error("PROD_GUILD_ID missing");
+    return PROD_GUILD_ID;
+  }
+  if (!DEV_GUILD_ID) throw new Error("DEV_GUILD_ID (or GUILD_ID) missing");
+  return DEV_GUILD_ID;
 }
 
-const GUILD_ID = process.env.GUILD_ID || process.env.DEV_GUILD_ID || "";
-if (MODE === "guild" && !GUILD_ID) {
-  throw new Error("DEV_GUILD_ID (or GUILD_ID) missing for guild deploy");
-}
-
-const commandsDir = path.join(process.cwd(), "src", "commands");
-if (!fs.existsSync(commandsDir)) throw new Error(`Missing: ${commandsDir}`);
-
-const files = fs
-  .readdirSync(commandsDir, { withFileTypes: true })
+const commandsPath = path.join(process.cwd(), "src", "commands");
+const commandFiles = fs
+  .readdirSync(commandsPath, { withFileTypes: true })
   .filter(d => d.isFile() && d.name.endsWith(".js"))
   .map(d => d.name)
   .sort();
 
-const payload = [];
+const commands = [];
 
-for (const file of files) {
-  const fullPath = path.join(commandsDir, file);
+for (const file of commandFiles) {
+  const filePath = path.join(commandsPath, file);
 
-  const mod = await import(pathToFileURL(fullPath).href);
+  let mod;
+  try {
+    mod = await import(pathToFileURL(filePath).href);
+  } catch (err) {
+    console.error(`[deploy] failed to import ${file}`, err);
+    continue;
+  }
+
   const cmd =
     mod.default ??
     (mod.data && mod.execute ? { data: mod.data, execute: mod.execute } : null);
 
   if (!cmd?.data?.toJSON) continue;
 
-  payload.push(cmd.data.toJSON());
+  commands.push(cmd.data.toJSON());
   console.log(`✅ Loaded command: ${cmd.data.name}`);
 }
 
-const rest = new REST({ version: "10" }).setToken(TOKEN);
+const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
 
-if (MODE === "global") {
-  await rest.put(Routes.applicationCommands(CLIENT_ID), { body: payload });
-  console.log(`✅ Commands deployed globally (${payload.length})`);
-} else {
-  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: payload });
-  console.log(`✅ Commands deployed to guild ${GUILD_ID} (${payload.length})`);
-}
+(async () => {
+  console.log(`📤 Deploying ${commands.length} commands...`);
+
+  if (DEPLOY_MODE === "global") {
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+    console.log("✅ Commands deployed globally");
+    return;
+  }
+
+  const guildId = resolveGuildId();
+  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: commands });
+  console.log(`✅ Commands deployed to guild ${guildId} (${commands.length})`);
+})().catch(err => {
+  console.error("❌ Deployment failed:", err);
+  process.exitCode = 1;
+});

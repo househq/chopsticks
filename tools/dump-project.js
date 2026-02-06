@@ -1,62 +1,67 @@
+// src/dump-project.js
 import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = process.cwd();
 const OUT = path.join(ROOT, "PROJECT_DUMP.txt");
 
-const EXCLUDE_DIRS = new Set([
-  "node_modules",
-  ".git",
-  ".next",
-  "dist",
-  "build",
-  "coverage"
-]);
+const SKIP_DIRS = new Set(["node_modules", ".git", "data", "logs", "dist", "build"]);
+const SKIP_FILES = new Set([".env", "PROJECT_DUMP.txt"]);
 
-const EXCLUDE_FILES = new Set([
-  "package-lock.json",
-  "yarn.lock",
-  "pnpm-lock.yaml"
-]);
+function isTextFile(p) {
+  const ext = path.extname(p).toLowerCase();
+  if (!ext) return true;
+  return [
+    ".js", ".cjs", ".mjs", ".json", ".yml", ".yaml", ".md", ".txt",
+    ".ts", ".tsx", ".sh", ".bash", ".zsh", ".toml", ".ini", ".env.example"
+  ].includes(ext);
+}
 
-const ALLOWED_EXT = new Set([
-  ".js",
-  ".ts",
-  ".json",
-  ".md",
-  ".env",
-  ".env.example"
-]);
-
-let output = "";
-
-function walk(dir) {
+function walk(dir, out = []) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
-
   for (const e of entries) {
+    if (e.name.startsWith(".")) {
+      if (e.name !== ".github") continue;
+    }
     const full = path.join(dir, e.name);
     const rel = path.relative(ROOT, full);
 
     if (e.isDirectory()) {
-      if (EXCLUDE_DIRS.has(e.name)) continue;
-      walk(full);
+      if (SKIP_DIRS.has(e.name)) continue;
+      walk(full, out);
       continue;
     }
 
-    if (EXCLUDE_FILES.has(e.name)) continue;
-    if (!ALLOWED_EXT.has(path.extname(e.name))) continue;
+    if (SKIP_FILES.has(e.name)) continue;
+    if (!isTextFile(full)) continue;
 
-    const content = fs.readFileSync(full, "utf8");
-
-    output += "\n";
-    output += "============================================================\n";
-    output += `FILE: ${rel}\n`;
-    output += "============================================================\n";
-    output += content + "\n";
+    out.push(rel);
   }
+  return out;
 }
 
-walk(ROOT);
-fs.writeFileSync(OUT, output);
+function readSafe(rel) {
+  const p = path.join(ROOT, rel);
+  const buf = fs.readFileSync(p);
+  // Hard cap per file to avoid massive dumps
+  const max = 200_000;
+  const sliced = buf.length > max ? buf.subarray(0, max) : buf;
+  const text = sliced.toString("utf8");
+  const suffix = buf.length > max ? "\n\n/* TRUNCATED */\n" : "\n";
+  return text + suffix;
+}
 
-console.log("PROJECT_DUMP.txt written");
+const files = walk(ROOT).sort();
+
+let dump = "";
+dump += `# Chopsticks Project Dump\n`;
+dump += `# Root: ${ROOT}\n`;
+dump += `# Files: ${files.length}\n\n`;
+
+for (const rel of files) {
+  dump += `\n\n===== FILE: ${rel} =====\n\n`;
+  dump += readSafe(rel);
+}
+
+fs.writeFileSync(OUT, dump, "utf8");
+console.log(`Wrote ${OUT} (${files.length} files)`);

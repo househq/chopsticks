@@ -1,15 +1,10 @@
-version: '3.8'
-
 services:
   lavalink:
-    image: fredboat/lavalink:4.0.0
+    image: ghcr.io/lavalink-devs/lavalink:4
     container_name: lavalink-chopsticks
     restart: unless-stopped
     ports:
       - "2333:2333"
-    environment:
-      - SERVER_PORT=2333
-      - LAVALINK_SERVER_PASSWORD=youshallnotpass
-      - LAVALINK_SERVER_OPEN=false
     volumes:
-      - ./lavalink/config/:/opt/Lavalink/
+      - ./lavalink/config/application.yml:/opt/Lavalink/application.yml:ro
+      - ./lavalink/config/plugins:/opt/Lavalink/plugins:ro
