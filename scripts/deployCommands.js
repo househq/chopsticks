@@ -16,30 +16,37 @@ const commands = [];
 
 for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file);
-  const module = await import(`file://${filePath}`);
   
-  const cmd = module.default ?? (module.data && module.execute ? { data: module.data, execute: module.execute } : null);
-  
-  if (cmd && cmd.data) {
-    commands.push(cmd.data.toJSON());
+  try {
+    const module = await import(`file://${filePath}`);
+    
+    const cmd = module.default ?? (module.data && module.execute ? { data: module.data, execute: module.execute } : null);
+    
+    if (cmd && cmd.data) {
+      const json = cmd.data.toJSON();
+      commands.push(json);
+      console.log(`✅ Loaded command: ${cmd.data.name}`);
+    }
+  } catch (err) {
+    console.error(`❌ Failed to load ${file}:`, err.message);
+    console.error("Full error:", err);
   }
 }
 
 const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
-
 const CLIENT_ID = process.env.CLIENT_ID;
 
 (async () => {
   try {
-    console.log(`Deploying ${commands.length} global commands...`);
+    console.log(`📤 Deploying ${commands.length} commands...`);
 
     await rest.put(
       Routes.applicationCommands(CLIENT_ID),
       { body: commands }
     );
 
-    console.log("✅ Global commands deployed");
+    console.log("✅ Commands deployed globally");
   } catch (error) {
-    console.error(error);
+    console.error("❌ Deployment failed:", error);
   }
 })();

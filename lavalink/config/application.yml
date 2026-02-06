@@ -1,15 +1,10 @@
+# lavalink/config/application.yml
 server:
   port: 2333
-
-spring:
-  cloud:
-    config:
-      enabled: false
-
+  address: 0.0.0.0
 lavalink:
   server:
     password: "youshallnotpass"
-
     sources:
       youtube: true
       bandcamp: true
@@ -17,18 +12,22 @@ lavalink:
       twitch: true
       vimeo: true
       http: true
-
+      local: false
     bufferDurationMs: 400
     youtubePlaylistLoadLimit: 6
     playerUpdateInterval: 5
     youtubeSearchEnabled: true
     soundcloudSearchEnabled: true
-
+    gc-warnings: true
 metrics:
   prometheus:
     enabled: false
-
+    endpoint: /metrics
+sentry:
+  dsn: ""
 logging:
+  file:
+    path: ./logs/
   level:
     root: INFO
     lavalink: INFO

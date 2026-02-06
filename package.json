@@ -3,20 +3,20 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "lavalink": "java -jar lavalink/Lavalink.jar",
-    "control": "node src/control/controlServer.js",
+    "deploy": "node src/deploy-commands.js",
+    "clear": "node src/clear-commands.js",
     "bot": "node src/index.js",
-    "worker": "node src/workers/workers.js",
-    "pm2:start": "pm2 start ecosystem.config.js",
-    "pm2:stop": "pm2 stop ecosystem.config.js",
-    "pm2:restart": "pm2 restart ecosystem.config.js",
-    "pm2:logs": "pm2 logs",
-    "deploy": "node scripts/deployCommands.js"
+    "docker:lavalink": "docker compose -f docker-compose.lavalink.yml up -d",
+    "start": "npm run docker:lavalink && npm run bot",
+    "dev": "npm run deploy && npm run bot"
   },
   "dependencies": {
+    "async": "^3.2.6",
     "discord.js": "^14.16.0",
     "dotenv": "^16.4.5",
-    "lavalink-client": "^2.8.0"
+    "lavalink-client": "^2.7.7",
+    "undici": "^6.2.1",
+    "ws": "^8.14.2"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

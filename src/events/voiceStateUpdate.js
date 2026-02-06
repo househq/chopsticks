@@ -7,7 +7,9 @@ import { loadGuildData } from "../utils/storage.js";
 import {
   registerTempChannel,
   removeTempChannel,
-  findUserTempChannel
+  findUserTempChannel,
+  acquireCreationLock,
+  releaseCreationLock
 } from "../tools/voice/state.js";
 
 export default {
@@ -56,51 +58,59 @@ export default {
     const category = guild.channels.cache.get(lobby.categoryId) ?? null;
     if (!category || category.type !== ChannelType.GuildCategory) return;
 
-    const existing = findUserTempChannel(
-      guild.id,
-      member.id,
-      newChannel.id
-    );
+    const lockKey = `${newChannel.id}:${member.id}`;
+    const acquired = acquireCreationLock(guild.id, lockKey);
+    if (!acquired) return;
 
-    if (existing) {
-      const ch = guild.channels.cache.get(existing) ?? null;
-      if (ch) {
-        await member.voice.setChannel(ch).catch(() => {});
-        return;
+    try {
+      const existing = findUserTempChannel(
+        guild.id,
+        member.id,
+        newChannel.id
+      );
+
+      if (existing) {
+        const ch = guild.channels.cache.get(existing) ?? null;
+        if (ch) {
+          await member.voice.setChannel(ch).catch(() => {});
+          return;
+        }
       }
+
+      const name =
+        typeof lobby.nameTemplate === "string"
+          ? lobby.nameTemplate.replace("{user}", member.displayName)
+          : member.displayName;
+
+      const channel = await guild.channels
+        .create({
+          name,
+          type: ChannelType.GuildVoice,
+          parent: category.id,
+          permissionOverwrites: [
+            {
+              id: member.id,
+              allow: [
+                PermissionsBitField.Flags.ManageChannels,
+                PermissionsBitField.Flags.MoveMembers
+              ]
+            }
+          ]
+        })
+        .catch(() => null);
+
+      if (!channel) return;
+
+      registerTempChannel(
+        guild.id,
+        channel.id,
+        member.id,
+        newChannel.id
+      );
+
+      await member.voice.setChannel(channel).catch(() => {});
+    } finally {
+      releaseCreationLock(guild.id, lockKey);
     }
-
-    const name =
-      typeof lobby.nameTemplate === "string"
-        ? lobby.nameTemplate.replace("{user}", member.displayName)
-        : member.displayName;
-
-    const channel = await guild.channels
-      .create({
-        name,
-        type: ChannelType.GuildVoice,
-        parent: category.id,
-        permissionOverwrites: [
-          {
-            id: member.id,
-            allow: [
-              PermissionsBitField.Flags.ManageChannels,
-              PermissionsBitField.Flags.MoveMembers
-            ]
-          }
-        ]
-      })
-      .catch(() => null);
-
-    if (!channel) return;
-
-    registerTempChannel(
-      guild.id,
-      channel.id,
-      member.id,
-      newChannel.id
-    );
-
-    await member.voice.setChannel(channel).catch(() => {});
   }
 };
