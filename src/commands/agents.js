@@ -278,6 +278,9 @@ export async function execute(interaction) {
       return;
     }
 
+    // Defer reply because verification may take time
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
     const plan = await mgr.buildDeployPlan(guildId, desiredTotal); // Now async
 
     const lines = [];
@@ -307,7 +310,7 @@ export async function execute(interaction) {
         lines.push("4. Rerun `/agents deploy`.");
     }
 
-    await interaction.reply({ flags: MessageFlags.Ephemeral, content: lines.join("\n").slice(0, 1900) });
+    await interaction.editReply({ content: lines.join("\n").slice(0, 1900) });
     return;
   }
 

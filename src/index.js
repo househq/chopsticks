@@ -391,12 +391,21 @@ client.once(Events.ClientReady, async () => {
       // Get the guild to verify all agents' membership
       const guild = await client.guilds.fetch(guildId).catch(() => null);
       if (guild) {
-        // For each agent in liveAgents, verify if they're actually in the guild
+        // Collect all bot user IDs to check
+        const agentsToCheck = [];
         for (const agent of this.liveAgents.values()) {
-          if (agent.guildIds?.has?.(guildId)) {
-            // Try to fetch guild member to verify
-            const member = await guild.members.fetch(agent.botUserId).catch(() => null);
-            if (!member) {
+          if (agent.guildIds?.has?.(guildId) && agent.botUserId) {
+            agentsToCheck.push(agent);
+          }
+        }
+
+        if (agentsToCheck.length > 0) {
+          // Fetch all members at once (more efficient than one-by-one)
+          const members = await guild.members.fetch({ user: agentsToCheck.map(a => a.botUserId) }).catch(() => new Map());
+          
+          // Check which agents are missing
+          for (const agent of agentsToCheck) {
+            if (!members.has(agent.botUserId)) {
               // Bot was kicked but we didn't know
               agent.guildIds.delete(guildId);
               console.log(`[DEPLOY_VERIFY] Agent ${agent.agentId} is no longer in guild ${guildId} (was kicked)`);
