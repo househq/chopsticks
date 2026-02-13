@@ -171,7 +171,8 @@ export async function ensureSchema() {
         tag TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'active',
         created_at BIGINT NOT NULL,
-        updated_at BIGINT NOT NULL
+        updated_at BIGINT NOT NULL,
+        pool_id TEXT DEFAULT 'pool_goot27'
       );
     `;
     logger.info("ensureSchema: Executing SQL:", { sql: createTableSql });
@@ -180,6 +181,63 @@ export async function ensureSchema() {
   } catch (err) {
     logger.error("Error creating agent_bots table:", { error: err.message });
     throw err;
+  }
+
+  // New agent_pools table - manages pool ownership and visibility
+  try {
+    logger.info("Attempting to create agent_pools table...");
+    const createPoolsTableSql = `
+      CREATE TABLE IF NOT EXISTS agent_pools (
+        pool_id TEXT PRIMARY KEY,
+        owner_user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        visibility TEXT NOT NULL DEFAULT 'private',
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL,
+        meta JSONB
+      );
+    `;
+    logger.info("ensureSchema: Executing SQL:", { sql: createPoolsTableSql });
+    await p.query(createPoolsTableSql);
+    logger.info("agent_pools table created or already exists.");
+  } catch (err) {
+    logger.error("Error creating agent_pools table:", { error: err.message });
+    throw err;
+  }
+
+  // Create default pool for goot27 if it doesn't exist
+  try {
+    logger.info("Ensuring default pool_goot27 exists...");
+    const ensureDefaultPoolSql = `
+      INSERT INTO agent_pools (pool_id, owner_user_id, name, visibility, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (pool_id) DO NOTHING;
+    `;
+    const now = Date.now();
+    await p.query(ensureDefaultPoolSql, [
+      'pool_goot27',
+      '1122800062628634684', // goot27's Discord ID
+      'Official Chopsticks Pool',
+      'public',
+      now,
+      now
+    ]);
+    logger.info("Default pool_goot27 ensured.");
+  } catch (err) {
+    logger.error("Error ensuring default pool:", { error: err.message });
+    // Don't throw - pool might already exist
+  }
+
+  // Create indices for performance
+  try {
+    logger.info("Creating indices for agent_pools...");
+    await p.query('CREATE INDEX IF NOT EXISTS idx_agent_bots_pool_id ON agent_bots(pool_id);');
+    await p.query('CREATE INDEX IF NOT EXISTS idx_agent_pools_owner ON agent_pools(owner_user_id);');
+    await p.query('CREATE INDEX IF NOT EXISTS idx_agent_pools_visibility ON agent_pools(visibility);');
+    logger.info("Indices created.");
+  } catch (err) {
+    logger.error("Error creating indices:", { error: err.message });
+    // Don't throw - indices might already exist
   }
 
   // New agent_runners table
@@ -212,6 +270,40 @@ export async function ensureSchema() {
   } catch (err) {
     logger.error("Error altering agent_bots table:", { error: err.message });
     throw err;
+  }
+
+  // Migration: Add pool_id to existing agent_bots if not present
+  try {
+    logger.info("Attempting to add pool_id column to agent_bots if not exists...");
+    const addPoolIdSql = `
+      ALTER TABLE agent_bots
+      ADD COLUMN IF NOT EXISTS pool_id TEXT DEFAULT 'pool_goot27';
+    `;
+    await p.query(addPoolIdSql);
+    logger.info("pool_id column ensured in agent_bots.");
+  } catch (err) {
+    logger.error("Error adding pool_id to agent_bots:", { error: err.message });
+    // Don't throw - column might already exist
+  }
+
+  // Migration: Add selected_pool_id to guild_settings
+  try {
+    logger.info("Attempting to add selected_pool_id column to guild_settings...");
+    // First, check if the data column exists and is JSONB
+    const checkColumnSql = `
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'guild_settings';
+    `;
+    const columnResult = await p.query(checkColumnSql);
+    const hasDataColumn = columnResult.rows.some(r => r.column_name === 'data');
+    
+    if (hasDataColumn) {
+      // Guild settings uses JSONB data column, we'll store selected_pool_id there
+      logger.info("Guild settings uses JSONB data column. Pool selection will be stored in data.selectedPoolId");
+    }
+  } catch (err) {
+    logger.error("Error checking guild_settings structure:", { error: err.message });
   }
 }
 
@@ -556,4 +648,126 @@ export async function saveGuildDataPg(guildId, data, normalizeFn, mergeOnConflic
   }
 
   return toWrite;
+}
+
+// ==================== POOL MANAGEMENT ====================
+
+export async function createPool(poolId, ownerUserId, name, visibility = 'private') {
+  const p = getPool();
+  const now = Date.now();
+  const createPoolSql = `
+    INSERT INTO agent_pools (pool_id, owner_user_id, name, visibility, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING pool_id, owner_user_id, name, visibility, created_at, updated_at;
+  `;
+  logger.info("createPool: Executing SQL", { sql: createPoolSql, poolId, ownerUserId, name, visibility });
+  const res = await p.query(createPoolSql, [poolId, ownerUserId, name, visibility, now, now]);
+  return res.rows[0];
+}
+
+export async function fetchPool(poolId) {
+  const p = getPool();
+  const fetchSql = "SELECT pool_id, owner_user_id, name, visibility, created_at, updated_at, meta FROM agent_pools WHERE pool_id = $1";
+  logger.info("fetchPool: Executing SQL", { sql: fetchSql, poolId });
+  const res = await p.query(fetchSql, [poolId]);
+  return res.rows[0] || null;
+}
+
+export async function fetchPools(visibility = null) {
+  const p = getPool();
+  let fetchSql = "SELECT pool_id, owner_user_id, name, visibility, created_at, updated_at FROM agent_pools";
+  const params = [];
+  
+  if (visibility) {
+    fetchSql += " WHERE visibility = $1";
+    params.push(visibility);
+  }
+  
+  fetchSql += " ORDER BY created_at DESC";
+  logger.info("fetchPools: Executing SQL", { sql: fetchSql, visibility });
+  const res = await p.query(fetchSql, params);
+  return res.rows;
+}
+
+export async function fetchPoolsByOwner(ownerUserId) {
+  const p = getPool();
+  const fetchSql = "SELECT pool_id, owner_user_id, name, visibility, created_at, updated_at FROM agent_pools WHERE owner_user_id = $1 ORDER BY created_at DESC";
+  logger.info("fetchPoolsByOwner: Executing SQL", { sql: fetchSql, ownerUserId });
+  const res = await p.query(fetchSql, [ownerUserId]);
+  return res.rows;
+}
+
+export async function updatePool(poolId, updates) {
+  const p = getPool();
+  const now = Date.now();
+  const fields = [];
+  const values = [];
+  let idx = 1;
+  
+  if (updates.name !== undefined) {
+    fields.push(`name = $${idx++}`);
+    values.push(updates.name);
+  }
+  if (updates.visibility !== undefined) {
+    fields.push(`visibility = $${idx++}`);
+    values.push(updates.visibility);
+  }
+  if (updates.meta !== undefined) {
+    fields.push(`meta = $${idx++}`);
+    values.push(updates.meta);
+  }
+  
+  fields.push(`updated_at = $${idx++}`);
+  values.push(now);
+  
+  values.push(poolId);
+  
+  const updateSql = `UPDATE agent_pools SET ${fields.join(', ')} WHERE pool_id = $${idx} RETURNING pool_id`;
+  logger.info("updatePool: Executing SQL", { sql: updateSql, poolId });
+  const res = await p.query(updateSql, values);
+  return res.rowCount > 0;
+}
+
+export async function deletePool(poolId) {
+  const p = getPool();
+  const deleteSql = "DELETE FROM agent_pools WHERE pool_id = $1 RETURNING pool_id";
+  logger.info("deletePool: Executing SQL", { sql: deleteSql, poolId });
+  const res = await p.query(deleteSql, [poolId]);
+  return res.rowCount > 0;
+}
+
+export async function fetchAgentsByPool(poolId) {
+  const p = getPool();
+  const fetchSql = "SELECT agent_id, client_id, tag, status, created_at, updated_at, profile FROM agent_bots WHERE pool_id = $1 ORDER BY created_at DESC";
+  logger.info("fetchAgentsByPool: Executing SQL", { sql: fetchSql, poolId });
+  const res = await p.query(fetchSql, [poolId]);
+  return res.rows.map(row => ({
+    ...row,
+    created_at: Number(row.created_at),
+    updated_at: Number(row.updated_at)
+  }));
+}
+
+export async function countAgentsByPool(poolId) {
+  const p = getPool();
+  const countSql = "SELECT COUNT(*) as count FROM agent_bots WHERE pool_id = $1 AND status = 'active'";
+  logger.info("countAgentsByPool: Executing SQL", { sql: countSql, poolId });
+  const res = await p.query(countSql, [poolId]);
+  return Number(res.rows[0]?.count || 0);
+}
+
+export async function getGuildSelectedPool(guildId) {
+  const data = await loadGuildDataPg(guildId, () => ({ selectedPoolId: 'pool_goot27' }));
+  return data.selectedPoolId || 'pool_goot27';
+}
+
+export async function setGuildSelectedPool(guildId, poolId) {
+  const data = await loadGuildDataPg(guildId, () => ({ selectedPoolId: 'pool_goot27' }));
+  data.selectedPoolId = poolId;
+  return await saveGuildDataPg(
+    guildId,
+    data,
+    d => d,
+    (current, incoming) => ({ ...current, selectedPoolId: incoming.selectedPoolId })
+  );
 }
