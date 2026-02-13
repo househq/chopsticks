@@ -367,6 +367,50 @@ client.once(Events.ClientReady, async () => {
 
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
+
+  /* ===================== TRACK BOT REMOVALS ===================== */
+  // When any bot (including agents) leaves a guild, update agent tracking
+  client.on(Events.GuildDelete, async guild => {
+    try {
+      // Check if any agent was in this guild and remove it
+      for (const agent of mgr.liveAgents.values()) {
+        if (agent.guildIds?.has?.(guild.id)) {
+          agent.guildIds.delete(guild.id);
+          console.log(`[GUILD_DELETE] Removed agent ${agent.agentId} from guild ${guild.id}`);
+        }
+      }
+    } catch (err) {
+      console.error("[GUILD_DELETE] Error:", err.message);
+    }
+  });
+
+  // Also verify agent guild membership when deploy is called
+  const originalBuildDeployPlan = mgr.buildDeployPlan.bind(mgr);
+  mgr.buildDeployPlan = async function(guildId, desiredCount) {
+    try {
+      // Get the guild to verify all agents' membership
+      const guild = await client.guilds.fetch(guildId).catch(() => null);
+      if (guild) {
+        // For each agent in liveAgents, verify if they're actually in the guild
+        for (const agent of this.liveAgents.values()) {
+          if (agent.guildIds?.has?.(guildId)) {
+            // Try to fetch guild member to verify
+            const member = await guild.members.fetch(agent.botUserId).catch(() => null);
+            if (!member) {
+              // Bot was kicked but we didn't know
+              agent.guildIds.delete(guildId);
+              console.log(`[DEPLOY_VERIFY] Agent ${agent.agentId} is no longer in guild ${guildId} (was kicked)`);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[DEPLOY_VERIFY] Error verifying agent membership:", err.message);
+    }
+    
+    // Call original method
+    return originalBuildDeployPlan(guildId, desiredCount);
+  };
 });
 
 /* ===================== PREFIX COMMANDS ===================== */
