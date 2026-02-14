@@ -12,8 +12,12 @@ import {
   acquireCreationLock,
   releaseCreationLock,
   canCreateTempChannel,
-  markTempChannelCreated
+  markTempChannelCreated,
+  getTempChannelRecord,
+  transferTempChannelOwner
 } from "../tools/voice/state.js";
+import { ownerPermissionFlags, ownerPermissionOverwrite } from "../tools/voice/ownerPerms.js";
+import { deliverVoiceRoomDashboard } from "../tools/voice/panel.js";
 
 export default {
   name: "voiceStateUpdate",
@@ -48,6 +52,12 @@ export default {
     if (oldChannel && voice.tempChannels[oldChannel.id]) {
       const channelId = oldChannel.id;
       const cleanup = async () => {
+        const tempRecord = getTempChannelRecord(guild.id, channelId, voice);
+        if (!tempRecord) {
+          log("temp channel record missing", { channelId });
+          return;
+        }
+
         const channel =
           guild.channels.cache.get(channelId) ??
           (await guild.channels.fetch(channelId).catch(() => null));
@@ -56,9 +66,61 @@ export default {
           log("temp channel missing, cleaned", { channelId });
           return;
         }
-        const humans = Array.from(channel.members.values()).filter(m => !m.user?.bot).length;
-        if (humans > 0) {
-          log("temp channel not empty", { channelId, humans });
+        const humans = Array.from(channel.members.values()).filter(m => !m.user?.bot);
+        if (humans.length > 0) {
+          // Owner left a room that still has users: auto-handoff ownership.
+          if (tempRecord.ownerId === member.id) {
+            const successor = humans[0];
+            if (successor) {
+              const moved = await transferTempChannelOwner(
+                guild.id,
+                channelId,
+                successor.id,
+                voice
+              );
+
+              if (moved.ok && moved.changed) {
+                const lobby = voice.lobbies?.[tempRecord.lobbyId];
+                const ownerOverwrite = ownerPermissionOverwrite(lobby?.ownerPermissions);
+                await channel.permissionOverwrites
+                  .edit(successor.id, ownerOverwrite)
+                  .catch(() => {});
+
+                // Remove explicit owner perms from previous owner to avoid stale grants.
+                if (channel.permissionOverwrites.cache.has(member.id)) {
+                  await channel.permissionOverwrites.delete(member.id).catch(() => {});
+                }
+
+                if (lobby?.nameTemplate?.includes?.("{user}")) {
+                  const nextName = lobby.nameTemplate
+                    .replace("{user}", successor.displayName)
+                    .slice(0, 90);
+                  if (nextName && nextName !== channel.name) {
+                    await channel.setName(nextName).catch(() => {});
+                  }
+                }
+
+                log("temp ownership transferred", {
+                  channelId,
+                  from: member.id,
+                  to: successor.id
+                });
+
+                await deliverVoiceRoomDashboard({
+                  guild,
+                  member: successor,
+                  roomChannel: channel,
+                  tempRecord: { ...tempRecord, ownerId: successor.id },
+                  lobby,
+                  voice,
+                  modeOverride: null,
+                  reason: "ownership-transfer"
+                }).catch(() => {});
+              }
+            }
+          }
+
+          log("temp channel not empty", { channelId, humans: humans.length });
           return;
         }
         await removeTempChannel(guild.id, channelId, voice);
@@ -220,10 +282,15 @@ export default {
           permissionOverwrites: [
             {
               id: member.id,
-              allow: [
-                PermissionsBitField.Flags.ManageChannels,
-                PermissionsBitField.Flags.MoveMembers
-              ]
+              allow: (() => {
+                const flags = ownerPermissionFlags(lobby.ownerPermissions);
+                return flags.length
+                  ? flags
+                  : [
+                      PermissionsBitField.Flags.ManageChannels,
+                      PermissionsBitField.Flags.MoveMembers
+                    ];
+              })()
             }
           ]
         })
@@ -252,6 +319,16 @@ export default {
       await member.fetch().catch(() => null);
       if (member.voice.channelId === newChannel.id) {
         await member.voice.setChannel(channel).catch(() => {});
+        await deliverVoiceRoomDashboard({
+          guild,
+          member,
+          roomChannel: channel,
+          tempRecord: voice.tempChannels[channel.id],
+          lobby,
+          voice,
+          modeOverride: null,
+          reason: "created"
+        }).catch(() => {});
       } else {
         log("user left voice during creation", { userId: member.id });
         // User left - cleanup the just-created channel

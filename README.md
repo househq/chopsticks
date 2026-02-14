@@ -12,7 +12,7 @@ Chopsticks is a Docker-first, self-hosted Discord bot platform with:
 - Maturity baseline: Levels 0-2 hardening in progress/completed artifacts are in-repo
 - Agent protocol version: `1.0.0`
 - Max agents per guild: `49` (enforced)
-- Contract/unit tests: `47 passing`
+- Contract/unit tests: `60 passing`
 - Primary runtime target: Docker Compose production stack
 
 See `SYSTEM_STATUS.md`, `MATURITY.md`, `LEVEL_1_COMPLETION_REPORT.md`, and `LEVEL_2_COMPLETION_REPORT.md` for detailed status.
@@ -75,6 +75,19 @@ Operational notes:
 - Agent runner requires `AGENT_CONTROL_URL` and Lavalink env (`LAVALINK_HOST`, `LAVALINK_PORT`, `LAVALINK_PASSWORD`)
 - Agent readiness is required for music allocation
 - If all agents are busy, deploy more or retry after session release
+
+## VoiceMaster (Custom VC)
+
+Voice lobby system supports:
+- auto-create temp rooms from lobby channels
+- owner handoff/claim/transfer lifecycle
+- per-lobby owner permission templates (`Manage Channels`, `Move Members`, `Mute/Deafen`, `Priority Speaker`)
+- room controls (`/voice room_status`, `/voice room_rename`, `/voice room_limit`, `/voice room_lock`, `/voice room_unlock`, `/voice room_claim`, `/voice room_transfer`)
+- room dashboard delivery controls:
+  - manual `/voice panel`
+  - user default `/voice panel_user_default`
+  - guild default `/voice panel_guild_default`
+  - delivery modes: `temp`, `dm`, `channel`, `here`, `both`, `off`
 
 ## Testing
 

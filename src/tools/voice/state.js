@@ -34,6 +34,44 @@ export function removeTempChannel(guildId, channelId, voice) {
   return saveVoiceState(guildId, voice);
 }
 
+export function getTempChannelRecord(guildId, channelId, voice) {
+  const cache = ensureCache(guildId, voice);
+  const fromCache = cache.get(channelId);
+  if (fromCache) return fromCache;
+  const fromVoice = voice?.tempChannels?.[channelId];
+  if (!fromVoice) return null;
+  if (fromVoice?.ownerId && fromVoice?.lobbyId) {
+    cache.set(channelId, fromVoice);
+  }
+  return fromVoice ?? null;
+}
+
+export function hasUserTempChannel(guildId, userId, voice) {
+  const cache = ensureCache(guildId, voice);
+  for (const data of cache.values()) {
+    if (data?.ownerId === userId) return true;
+  }
+  return false;
+}
+
+export async function transferTempChannelOwner(guildId, channelId, newOwnerId, voice) {
+  if (!newOwnerId) return { ok: false, reason: "missing-owner" };
+  const cache = ensureCache(guildId, voice);
+  const current = cache.get(channelId) ?? voice?.tempChannels?.[channelId] ?? null;
+  if (!current) return { ok: false, reason: "missing-temp-channel" };
+  if (current.ownerId === newOwnerId) return { ok: true, changed: false };
+
+  const next = {
+    ...current,
+    ownerId: newOwnerId,
+    updatedAt: Date.now()
+  };
+  cache.set(channelId, next);
+  voice.tempChannels[channelId] = next;
+  await saveVoiceState(guildId, voice);
+  return { ok: true, changed: true, ownerId: newOwnerId };
+}
+
 export async function findUserTempChannel(guildId, userId, lobbyId, voice) {
   const channels = ensureCache(guildId, voice);
 

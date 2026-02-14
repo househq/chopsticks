@@ -11,6 +11,12 @@ import {
 import * as VoiceDomain from "./domain.js";
 import { getVoiceState } from "./schema.js";
 import { auditLog } from "../../utils/audit.js";
+import { deliverVoiceRoomDashboard } from "./panel.js";
+import {
+  OWNER_PERMISSION_FIELDS,
+  describeOwnerPermissions,
+  ownerPermissionOverwrite
+} from "./ownerPerms.js";
 
 const adminSubs = new Set([
   "add",
@@ -20,7 +26,8 @@ const adminSubs = new Set([
   "disable",
   "update",
   "status",
-  "reset"
+  "reset",
+  "panel_guild_default"
 ]);
 
 const roomSubs = new Set([
@@ -28,7 +35,10 @@ const roomSubs = new Set([
   "room_rename",
   "room_limit",
   "room_lock",
-  "room_unlock"
+  "room_unlock",
+  "room_claim",
+  "room_transfer",
+  "panel"
 ]);
 
 function hasAdmin(interaction) {
@@ -43,23 +53,32 @@ function buildErrorEmbed(message) {
   return buildEmbed("Voice error", message);
 }
 
+function lobbyErrorMessage(code) {
+  if (code === "lobby-not-found") return "That lobby is not registered.";
+  if (code === "invalid-max-channels") return "Max rooms must be 1 or higher (or 0 for unlimited).";
+  if (code === "invalid-ids") return "Invalid lobby or category selection.";
+  return "Unable to update VoiceMaster configuration.";
+}
+
 function lobbySummary(lobby, tempCount) {
   const enabled = lobby.enabled ? "✅ Enabled" : "❌ Disabled";
   const limit = Number.isFinite(lobby.userLimit) && lobby.userLimit > 0 ? lobby.userLimit : "Unlimited";
   const bitrate = Number.isFinite(lobby.bitrateKbps) ? `${lobby.bitrateKbps}kbps` : "Auto";
   const maxChannels = Number.isFinite(lobby.maxChannels) && lobby.maxChannels > 0 ? lobby.maxChannels : "Unlimited";
   const categoryLabel = lobby.categoryId ? `<#${lobby.categoryId}>` : "n/a";
+  const ownerPerms = describeOwnerPermissions(lobby.ownerPermissions);
   return [
     `**State:** ${enabled}`,
     `**Active Rooms:** ${tempCount}`,
     `**User Limit:** ${limit}`,
     `**Bitrate:** ${bitrate}`,
     `**Max Rooms:** ${maxChannels}`,
-    `**Category:** ${categoryLabel}`
+    `**Category:** ${categoryLabel}`,
+    `**Owner Powers:** ${ownerPerms}`
   ].join("\n");
 }
 
-async function getRoomContext(interaction) {
+async function getRoomContext(interaction, { requireControl = true } = {}) {
   const member = interaction.member;
   const channel = member?.voice?.channel ?? null;
   if (!channel) return { ok: false, error: "not-in-voice" };
@@ -73,9 +92,9 @@ async function getRoomContext(interaction) {
 
   const isOwner = temp.ownerId === interaction.user.id;
   const isAdmin = hasAdmin(interaction);
-  if (!isOwner && !isAdmin) return { ok: false, error: "not-owner" };
+  if (requireControl && !isOwner && !isAdmin) return { ok: false, error: "not-owner" };
 
-  return { ok: true, channel, temp, isOwner, isAdmin };
+  return { ok: true, channel, temp, isOwner, isAdmin, voice };
 }
 
 function roomErrorMessage(code) {
@@ -86,12 +105,65 @@ function roomErrorMessage(code) {
   return "Unable to complete that action.";
 }
 
+function panelDefaultErrorMessage(code, scope = "user") {
+  if (code === "invalid-mode") return "Invalid delivery mode.";
+  if (code === "invalid-auto-send") return "Auto-send value must be true or false.";
+  if (code === "invalid-user") return "Unable to resolve the member for this setting.";
+  return scope === "guild"
+    ? "Unable to save guild panel defaults."
+    : "Unable to save your panel preference.";
+}
+
+function inferPanelChannelId(interaction, mode, channel) {
+  if (channel?.id) return channel.id;
+  const needsChannel = mode === "channel" || mode === "both";
+  if (!needsChannel) return undefined;
+  if (interaction.channel?.isTextBased?.() && !interaction.channel?.isDMBased?.()) {
+    return interaction.channelId;
+  }
+  return undefined;
+}
+
+function addOwnerPermissionOptions(sub) {
+  let next = sub;
+  for (const field of OWNER_PERMISSION_FIELDS) {
+    next = next.addBooleanOption(o =>
+      o
+        .setName(field.option)
+        .setDescription(`Owner can ${field.label.toLowerCase()}`)
+    );
+  }
+  return next;
+}
+
+function readOwnerPermissionPatch(interaction) {
+  const patch = {};
+  let changed = false;
+  for (const field of OWNER_PERMISSION_FIELDS) {
+    const value = interaction.options.getBoolean(field.option);
+    if (typeof value === "boolean") {
+      patch[field.key] = value;
+      changed = true;
+    }
+  }
+  return changed ? patch : undefined;
+}
+
+const PANEL_MODE_CHOICES = [
+  { name: "Room voice chat", value: "temp" },
+  { name: "Direct message", value: "dm" },
+  { name: "Configured text channel", value: "channel" },
+  { name: "Where command was run", value: "here" },
+  { name: "DM + room/channel", value: "both" },
+  { name: "Off", value: "off" }
+];
+
 export const data = new SlashCommandBuilder()
   .setName("voice")
   .setDescription("VoiceMaster setup and room controls")
 
   .addSubcommand(sub =>
-    sub
+    addOwnerPermissionOptions(sub
       .setName("add")
       .setDescription("Register a lobby channel")
       .addChannelOption(o =>
@@ -134,10 +206,11 @@ export const data = new SlashCommandBuilder()
           .setMinValue(0)
           .setMaxValue(99)
       )
+    )
   )
 
   .addSubcommand(sub =>
-    sub
+    addOwnerPermissionOptions(sub
       .setName("setup")
       .setDescription("Create a lobby + category and register VoiceMaster")
       .addStringOption(o =>
@@ -176,6 +249,7 @@ export const data = new SlashCommandBuilder()
           .setMinValue(0)
           .setMaxValue(99)
       )
+    )
   )
 
   .addSubcommand(sub =>
@@ -218,7 +292,7 @@ export const data = new SlashCommandBuilder()
   )
 
   .addSubcommand(sub =>
-    sub
+    addOwnerPermissionOptions(sub
       .setName("update")
       .setDescription("Update lobby settings")
       .addChannelOption(o =>
@@ -254,6 +328,7 @@ export const data = new SlashCommandBuilder()
           .setMinValue(0)
           .setMaxValue(99)
       )
+    )
   )
 
   .addSubcommand(sub =>
@@ -310,6 +385,84 @@ export const data = new SlashCommandBuilder()
     sub
       .setName("room_unlock")
       .setDescription("Unlock your room")
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName("room_claim")
+      .setDescription("Claim room ownership when current owner is absent")
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName("room_transfer")
+      .setDescription("Transfer room ownership to someone in the room")
+      .addUserOption(o =>
+        o
+          .setName("user")
+          .setDescription("New room owner (must be in the same voice channel)")
+          .setRequired(true)
+      )
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName("panel")
+      .setDescription("Send a room dashboard to your chosen destination")
+      .addStringOption(o =>
+        o
+          .setName("delivery")
+          .setDescription("Where to deliver the dashboard")
+          .addChoices(...PANEL_MODE_CHOICES)
+      )
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName("panel_user_default")
+      .setDescription("Set your default room dashboard delivery")
+      .addStringOption(o =>
+        o
+          .setName("mode")
+          .setDescription("Default delivery mode")
+          .addChoices(...PANEL_MODE_CHOICES)
+          .setRequired(true)
+      )
+      .addChannelOption(o =>
+        o
+          .setName("channel")
+          .setDescription("Preferred text channel for channel/both mode")
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+      )
+      .addBooleanOption(o =>
+        o
+          .setName("auto_send_on_create")
+          .setDescription("Auto-send dashboard when your room is created")
+      )
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName("panel_guild_default")
+      .setDescription("Set guild-wide default room dashboard delivery")
+      .addStringOption(o =>
+        o
+          .setName("mode")
+          .setDescription("Default mode for members without user override")
+          .addChoices(...PANEL_MODE_CHOICES.filter(choice => choice.value !== "here"))
+          .setRequired(true)
+      )
+      .addChannelOption(o =>
+        o
+          .setName("channel")
+          .setDescription("Default text channel for channel/both mode")
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+      )
+      .addBooleanOption(o =>
+        o
+          .setName("auto_send_on_create")
+          .setDescription("Auto-send dashboard on room creation by default")
+      )
   );
 
 export async function execute(interaction) {
@@ -348,7 +501,8 @@ export async function execute(interaction) {
       {
         userLimit: interaction.options.getInteger("user_limit"),
         bitrateKbps: interaction.options.getInteger("bitrate_kbps"),
-        maxChannels: interaction.options.getInteger("max_channels")
+        maxChannels: interaction.options.getInteger("max_channels"),
+        ownerPermissions: readOwnerPermissionPatch(interaction)
       }
     );
     await auditLog({
@@ -357,6 +511,13 @@ export async function execute(interaction) {
       action: "voice.lobby.add",
       details: res
     });
+    if (!res.ok) {
+      await interaction.reply({
+        embeds: [buildErrorEmbed(lobbyErrorMessage(res.error))],
+        ephemeral: true
+      });
+      return;
+    }
     const status = res.action === "exists" ? "Lobby already registered." : "Lobby added.";
     const embed = buildEmbed(
       "Voice lobby",
@@ -373,7 +534,7 @@ export async function execute(interaction) {
       const perms = me.permissions;
       if (!perms?.has(PermissionFlagsBits.ManageChannels) || !perms?.has(PermissionFlagsBits.MoveMembers)) {
         await interaction.reply({
-          content: "Missing permissions (Manage Channels + Move Members required).",
+          embeds: [buildErrorEmbed("Missing permissions (Manage Channels + Move Members required).")],
           ephemeral: true
         });
         return;
@@ -415,7 +576,8 @@ export async function execute(interaction) {
       {
         userLimit: interaction.options.getInteger("user_limit"),
         bitrateKbps: interaction.options.getInteger("bitrate_kbps"),
-        maxChannels: interaction.options.getInteger("max_channels")
+        maxChannels: interaction.options.getInteger("max_channels"),
+        ownerPermissions: readOwnerPermissionPatch(interaction)
       }
     );
 
@@ -425,6 +587,13 @@ export async function execute(interaction) {
       action: "voice.lobby.setup",
       details: res
     });
+    if (!res.ok) {
+      await interaction.reply({
+        embeds: [buildErrorEmbed(lobbyErrorMessage(res.error))],
+        ephemeral: true
+      });
+      return;
+    }
 
     const embed = buildEmbed(
       "Voice setup",
@@ -443,6 +612,13 @@ export async function execute(interaction) {
       action: "voice.lobby.remove",
       details: res
     });
+    if (!res.ok) {
+      await interaction.reply({
+        embeds: [buildErrorEmbed(lobbyErrorMessage(res.error))],
+        ephemeral: true
+      });
+      return;
+    }
     const embed = buildEmbed("Voice lobby removed", `Lobby: <#${lobbyChannel.id}>`);
     await interaction.reply({ embeds: [embed], ephemeral: true });
     return;
@@ -461,6 +637,13 @@ export async function execute(interaction) {
       action: `voice.lobby.${sub}`,
       details: res
     });
+    if (!res.ok) {
+      await interaction.reply({
+        embeds: [buildErrorEmbed(lobbyErrorMessage(res.error))],
+        ephemeral: true
+      });
+      return;
+    }
     const embed = buildEmbed(
       "Voice lobby updated",
       `Lobby: <#${lobbyChannel.id}>\nState: ${sub === "enable" ? "enabled" : "disabled"}`
@@ -481,7 +664,8 @@ export async function execute(interaction) {
         template: interaction.options.getString("template") ?? undefined,
         userLimit: interaction.options.getInteger("user_limit"),
         bitrateKbps: interaction.options.getInteger("bitrate_kbps"),
-        maxChannels
+        maxChannels,
+        ownerPermissions: readOwnerPermissionPatch(interaction)
       }
     );
     await auditLog({
@@ -492,11 +676,7 @@ export async function execute(interaction) {
     });
     if (!res.ok) {
       await interaction.reply({
-        embeds: [buildErrorEmbed(
-          res.error === "invalid-max-channels"
-            ? "max_channels must be 1 or higher."
-            : "Unable to update lobby."
-        )],
+        embeds: [buildErrorEmbed(lobbyErrorMessage(res.error))],
         ephemeral: true
       });
       return;
@@ -518,7 +698,12 @@ export async function execute(interaction) {
       return;
     }
     const tempChannels = Object.values(res.tempChannels ?? {});
-    const embed = buildEmbed("Voice status");
+    const activeLobbyIds = new Set(tempChannels.map(t => t?.lobbyId).filter(Boolean));
+    const panelDefault = res.panel?.guildDefault ?? { mode: "temp", autoSendOnCreate: true, channelId: null };
+    const embed = buildEmbed(
+      "Voice status",
+      `Lobbies: ${entries.length}\nActive rooms: ${tempChannels.length}\nLive lobbies in use: ${activeLobbyIds.size}\nPanel default: ${panelDefault.mode} (auto-send: ${panelDefault.autoSendOnCreate ? "on" : "off"})${panelDefault.channelId ? ` in <#${panelDefault.channelId}>` : ""}`
+    );
     const maxFields = 20;
     entries.slice(0, maxFields).forEach(([channelId, lobby]) => {
       const tempCount = tempChannels.filter(temp => temp.lobbyId === channelId).length;
@@ -550,16 +735,100 @@ export async function execute(interaction) {
     return;
   }
 
+  if (sub === "panel_user_default") {
+    const mode = interaction.options.getString("mode", true);
+    const channel = interaction.options.getChannel("channel");
+    const autoSendOnCreate = interaction.options.getBoolean("auto_send_on_create");
+    const channelId = inferPanelChannelId(interaction, mode, channel);
+
+    if (mode === "channel" && !channelId) {
+      await interaction.reply({
+        embeds: [buildErrorEmbed("Choose a text channel or run this command in one.")],
+        ephemeral: true
+      });
+      return;
+    }
+
+    const result = await VoiceDomain.setPanelUserDefault(guildId, interaction.user.id, {
+      mode,
+      channelId,
+      autoSendOnCreate
+    });
+    if (!result.ok) {
+      await interaction.reply({
+        embeds: [buildErrorEmbed(panelDefaultErrorMessage(result.error, "user"))],
+        ephemeral: true
+      });
+      return;
+    }
+    await auditLog({
+      guildId,
+      userId: interaction.user.id,
+      action: "voice.panel.user-default",
+      details: result.userDefault ?? { mode, channelId, autoSendOnCreate }
+    });
+    await interaction.reply({
+      embeds: [buildEmbed("Voice panel default saved", `Mode: ${mode}\nChannel: ${channelId ? `<#${channelId}>` : "auto"}\nAuto-send on create: ${typeof autoSendOnCreate === "boolean" ? (autoSendOnCreate ? "on" : "off") : "unchanged"}`)],
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (sub === "panel_guild_default") {
+    const mode = interaction.options.getString("mode", true);
+    const channel = interaction.options.getChannel("channel");
+    const autoSendOnCreate = interaction.options.getBoolean("auto_send_on_create");
+    const channelId = inferPanelChannelId(interaction, mode, channel);
+
+    if (mode === "channel" && !channelId) {
+      await interaction.reply({
+        embeds: [buildErrorEmbed("Choose a text channel or run this command in one.")],
+        ephemeral: true
+      });
+      return;
+    }
+
+    const result = await VoiceDomain.setPanelGuildDefault(guildId, {
+      mode,
+      channelId,
+      autoSendOnCreate
+    });
+    if (!result.ok) {
+      await interaction.reply({
+        embeds: [buildErrorEmbed(panelDefaultErrorMessage(result.error, "guild"))],
+        ephemeral: true
+      });
+      return;
+    }
+    await auditLog({
+      guildId,
+      userId: interaction.user.id,
+      action: "voice.panel.guild-default",
+      details: result.panel?.guildDefault ?? { mode, channelId, autoSendOnCreate }
+    });
+    await interaction.reply({
+      embeds: [buildEmbed("Voice panel guild default saved", `Mode: ${mode}\nChannel: ${channelId ? `<#${channelId}>` : "auto"}\nAuto-send on create: ${typeof autoSendOnCreate === "boolean" ? (autoSendOnCreate ? "on" : "off") : "unchanged"}`)],
+      ephemeral: true
+    });
+    return;
+  }
+
   if (roomSubs.has(sub)) {
-    const ctx = await getRoomContext(interaction);
+    const requireControl = !new Set(["room_status", "room_claim", "panel"]).has(sub);
+    const ctx = await getRoomContext(interaction, { requireControl });
     if (!ctx.ok) {
       await interaction.reply({ embeds: [buildErrorEmbed(roomErrorMessage(ctx.error))], ephemeral: true });
       return;
     }
-    const { channel } = ctx;
+    const { channel, voice } = ctx;
     const everyoneId = interaction.guild?.roles?.everyone?.id;
 
-    if (sub === "room_status") {
+    const lobby = voice?.lobbies?.[ctx.temp.lobbyId];
+    const ownerOverwrite = ownerPermissionOverwrite(lobby?.ownerPermissions);
+
+    try {
+
+      if (sub === "room_status") {
       const lobbyId = ctx.temp.lobbyId ? `<#${ctx.temp.lobbyId}>` : "n/a";
       const limit = Number.isFinite(channel.userLimit) ? channel.userLimit : 0;
       const overwrite = everyoneId ? channel.permissionOverwrites.cache.get(everyoneId) : null;
@@ -569,6 +838,73 @@ export async function execute(interaction) {
         `Lobby: ${lobbyId}\nOwner: <@${ctx.temp.ownerId}>\nLimit: ${limit}\nLocked: ${locked ? "yes" : "no"}`
       );
       await interaction.reply({ embeds: [embed], ephemeral: true });
+      return;
+    }
+
+    if (sub === "room_claim") {
+      if (ctx.isOwner) {
+        await interaction.reply({
+          embeds: [buildErrorEmbed("You already own this room.")],
+          ephemeral: true
+        });
+        return;
+      }
+
+      const ownerPresent = channel.members.has(ctx.temp.ownerId);
+      if (ownerPresent && !ctx.isAdmin) {
+        await interaction.reply({
+          embeds: [buildErrorEmbed("Current owner is still in the room. Ask them to transfer ownership.")],
+          ephemeral: true
+        });
+        return;
+      }
+
+      const res = await VoiceDomain.transferTempOwnership(guildId, channel.id, interaction.user.id);
+      if (!res.ok) {
+        await interaction.reply({
+          embeds: [buildErrorEmbed("Unable to claim this room right now.")],
+          ephemeral: true
+        });
+        return;
+      }
+
+      await channel.permissionOverwrites
+        .edit(interaction.user.id, ownerOverwrite)
+        .catch(() => {});
+
+      if (channel.permissionOverwrites.cache.has(ctx.temp.ownerId)) {
+        await channel.permissionOverwrites.delete(ctx.temp.ownerId).catch(() => {});
+      }
+
+      if (lobby?.nameTemplate?.includes?.("{user}")) {
+        const nextName = lobby.nameTemplate.replace("{user}", interaction.member?.displayName ?? interaction.user.username).slice(0, 90);
+        if (nextName && nextName !== channel.name) {
+          await channel.setName(nextName).catch(() => {});
+        }
+      }
+
+      await auditLog({
+        guildId,
+        userId: interaction.user.id,
+        action: "voice.room.claim",
+        details: { channelId: channel.id, previousOwnerId: ctx.temp.ownerId, ownerId: interaction.user.id }
+      });
+
+      await interaction.reply({
+        embeds: [buildEmbed("Room claimed", `You now own <#${channel.id}>.`)],
+        ephemeral: true
+      });
+      await deliverVoiceRoomDashboard({
+        guild: interaction.guild,
+        member: interaction.member,
+        roomChannel: channel,
+        tempRecord: { ...ctx.temp, ownerId: interaction.user.id },
+        lobby,
+        voice,
+        modeOverride: null,
+        interactionChannel: interaction.channel,
+        reason: "ownership-transfer"
+      }).catch(() => {});
       return;
     }
 
@@ -609,6 +945,114 @@ export async function execute(interaction) {
       }
       const embed = buildEmbed("Room unlocked", "Connect permissions restored to category defaults.");
       await interaction.reply({ embeds: [embed], ephemeral: true });
+      return;
+    }
+
+    if (sub === "room_transfer") {
+      const target = interaction.options.getUser("user", true);
+      if (target.bot) {
+        await interaction.reply({
+          embeds: [buildErrorEmbed("Cannot transfer ownership to a bot.")],
+          ephemeral: true
+        });
+        return;
+      }
+      if (!channel.members.has(target.id)) {
+        await interaction.reply({
+          embeds: [buildErrorEmbed("Target user must be in your voice room.")],
+          ephemeral: true
+        });
+        return;
+      }
+
+      const res = await VoiceDomain.transferTempOwnership(guildId, channel.id, target.id);
+      if (!res.ok) {
+        await interaction.reply({
+          embeds: [buildErrorEmbed("Unable to transfer ownership right now.")],
+          ephemeral: true
+        });
+        return;
+      }
+
+      await channel.permissionOverwrites
+        .edit(target.id, ownerOverwrite)
+        .catch(() => {});
+
+      if (ctx.temp.ownerId && channel.permissionOverwrites.cache.has(ctx.temp.ownerId)) {
+        await channel.permissionOverwrites.delete(ctx.temp.ownerId).catch(() => {});
+      }
+
+      const targetMember = channel.members.get(target.id) ?? null;
+      if (lobby?.nameTemplate?.includes?.("{user}") && targetMember) {
+        const nextName = lobby.nameTemplate.replace("{user}", targetMember.displayName).slice(0, 90);
+        if (nextName && nextName !== channel.name) {
+          await channel.setName(nextName).catch(() => {});
+        }
+      }
+
+      await auditLog({
+        guildId,
+        userId: interaction.user.id,
+        action: "voice.room.transfer",
+        details: { channelId: channel.id, previousOwnerId: ctx.temp.ownerId, ownerId: target.id }
+      });
+
+      await interaction.reply({
+        embeds: [buildEmbed("Room transferred", `Ownership transferred to <@${target.id}>.`)],
+        ephemeral: true
+      });
+      if (targetMember) {
+        await deliverVoiceRoomDashboard({
+          guild: interaction.guild,
+          member: targetMember,
+          roomChannel: channel,
+          tempRecord: { ...ctx.temp, ownerId: target.id },
+          lobby,
+          voice,
+          modeOverride: null,
+          interactionChannel: interaction.channel,
+          reason: "ownership-transfer"
+        }).catch(() => {});
+      }
+      return;
+    }
+
+    if (sub === "panel") {
+      const delivery = interaction.options.getString("delivery");
+      const sent = await deliverVoiceRoomDashboard({
+        guild: interaction.guild,
+        member: interaction.member,
+        roomChannel: channel,
+        tempRecord: ctx.temp,
+        lobby,
+        voice,
+        modeOverride: delivery || null,
+        interactionChannel: interaction.channel,
+        reason: "manual"
+      });
+
+      const status = sent.ok
+        ? `Delivered (DM: ${sent.dmSent ? "yes" : "no"}, channel: ${sent.channelSent ? "yes" : "no"}).`
+        : "No destination available. Set `/voice panel_user_default` or try a different delivery mode.";
+      await interaction.reply({
+        embeds: [buildEmbed("Voice panel", status)],
+        ephemeral: true
+      });
+      return;
+    }
+    } catch {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({
+          embeds: [buildErrorEmbed("Voice room action failed. Please try again.")],
+          ephemeral: true
+        }).catch(() => {});
+      } else {
+        await interaction.reply({
+          embeds: [buildErrorEmbed("Voice room action failed. Please try again.")],
+          ephemeral: true
+        });
+      }
+      return;
     }
   }
 }
