@@ -19,7 +19,7 @@ console.log("✅ Configuration validated.");
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { Client, Collection, GatewayIntentBits, Events } from "discord.js";
+import { Client, Collection, GatewayIntentBits, Events, EmbedBuilder } from "discord.js";
 import { AgentManager } from "./agents/agentManager.js";
 // import { spawnAgentsProcess } from "./agents/spawn.js"; // No longer directly spawning agents
 import { handleButton as handleMusicButton, handleSelect as handleMusicSelect } from "./commands/music.js";
@@ -40,6 +40,9 @@ import { getPrefixCommands } from "./prefix/registry.js";
 import { canRunPrefixCommand } from "./utils/permissions.js";
 import { loadGuildData } from "./utils/storage.js";
 import { addCommandLog } from "./utils/commandlog.js";
+import { botLogger } from "./utils/modernLogger.js";
+import { trackCommand, commandCounter, agentPoolSize } from "./utils/metrics.js";
+import { checkCommandRateLimit } from "./utils/modernRateLimiter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -92,7 +95,7 @@ if (fs.existsSync(commandsPath)) {
 
     const cmd =
       mod.default ??
-      (mod.data && mod.execute ? { data: mod.data, execute: mod.execute } : null);
+      (mod.data && mod.execute ? { data: mod.data, execute: mod.execute, meta: mod.meta } : null);
 
     if (!cmd?.data?.name || typeof cmd.execute !== "function") continue;
 
@@ -137,7 +140,7 @@ if (fs.existsSync(eventsPath)) {
 
 // Dev API Imports
 import express from 'express';
-import { updateAgentBotStatus, fetchAgentBots, fetchAgentRunners, insertAgentBot, deleteAgentBot, ensureSchema } from "./utils/storage.js";
+import { updateAgentBotStatus, fetchAgentBots, fetchAgentRunners, insertAgentBot, deleteAgentBot, ensureSchema, ensureEconomySchema } from "./utils/storage.js";
 
 /* ===================== DEV API SERVER ===================== */
 const devApiApp = express();
@@ -309,6 +312,8 @@ client.once(Events.ClientReady, async () => {
   try {
     await ensureSchema();
     console.log("✅ Database schema ensured.");
+    await ensureEconomySchema();
+    console.log("✅ Economy schema ensured.");
   } catch (err) {
     console.error("❌ Database schema assurance failed:", err?.message ?? err);
     return;
@@ -554,7 +559,10 @@ client.on(Events.InteractionCreate, async interaction => {
       console.error("[select]", err?.stack ?? err?.message ?? err);
       try {
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: "Selection failed.", ephemeral: true });
+          await interaction.reply({
+            embeds: [new EmbedBuilder().setTitle("Error").setDescription("Selection failed.")],
+            ephemeral: true
+          });
         }
       } catch {}
     }
@@ -568,7 +576,10 @@ client.on(Events.InteractionCreate, async interaction => {
       console.error("[button]", err?.stack ?? err?.message ?? err);
       try {
         if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: "Button action failed.", ephemeral: true });
+          await interaction.reply({
+            embeds: [new EmbedBuilder().setTitle("Error").setDescription("Button action failed.")],
+            ephemeral: true
+          });
         }
       } catch {}
     }
@@ -577,6 +588,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   const commandName = interaction.commandName;
+  const startTime = Date.now();
   console.log(`[command:${commandName}] Received from user ${interaction.user.id} in guild ${interaction.guildId}`);
 
   const command = client.commands.get(commandName);
@@ -586,22 +598,62 @@ client.on(Events.InteractionCreate, async interaction => {
     return;
   }
 
+  const gate = await canRunCommand(interaction, commandName, command.meta || {});
+  if (!gate.ok) {
+    const reason = gate.reason || "unknown";
+    let msg = "You cannot run this command.";
+    if (reason === "disabled") msg = "This command is disabled in this server.";
+    else if (reason === "disabled-category") msg = "This command category is disabled in this server.";
+    else if (reason === "no-perms" || reason === "missing-perms" || reason === "missing-role") msg = "You do not have permission to run this command.";
+
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: msg, ephemeral: true });
+      } else {
+        await interaction.reply({ content: msg, ephemeral: true });
+      }
+    } catch {}
+    return;
+  }
+
   try {
     await command.execute(interaction);
+    
+    // Track successful command execution
+    const duration = Date.now() - startTime;
+    trackCommand(commandName, duration, "success");
+    botLogger.info({ commandName, duration }, "Command executed successfully");
+    
   } catch (error) {
-    console.error(`[command:${commandName}] Execution error:`, error?.stack ?? error?.message ?? error);
+    const duration = Date.now() - startTime;
+    trackCommand(commandName, duration, "error");
+    
+    botLogger.error({ 
+      commandName, 
+      error: error.message, 
+      stack: error.stack,
+      userId: interaction.user.id,
+      guildId: interaction.guildId
+    }, "Command execution failed");
+    
     const errorMsg = process.env.NODE_ENV === 'development' 
       ? `Command failed: ${error?.message ?? String(error)}`
-      : 'There was an error while executing this command!';
+      : "Command failed.";
     
     try {
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: errorMsg, ephemeral: true });
+        await interaction.followUp({
+          embeds: [new EmbedBuilder().setTitle("Error").setDescription(errorMsg)],
+          ephemeral: true
+        });
       } else {
-        await interaction.reply({ content: errorMsg, ephemeral: true });
+        await interaction.reply({
+          embeds: [new EmbedBuilder().setTitle("Error").setDescription(errorMsg)],
+          ephemeral: true
+        });
       }
     } catch (replyError) {
-      console.error(`[command:${commandName}] Failed to send error response:`, replyError?.message);
+      botLogger.error({ commandName, error: replyError.message }, "Failed to send error response");
     }
   }
 });

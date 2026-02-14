@@ -1,0 +1,156 @@
+import helmet from "helmet";
+import compression from "compression";
+import cors from "cors";
+import hpp from "hpp";
+import { createApiRateLimiter } from "../utils/modernRateLimiter.js";
+import { dashboardLogger } from "../utils/modernLogger.js";
+
+// Corporate-grade Express security middleware stack
+export function applySecurityMiddleware(app) {
+  // 1. Helmet - Secure HTTP headers
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        imgSrc: ["'self'", "data:", "https://cdn.discordapp.com"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+    frameguard: {
+      action: "deny",
+    },
+    referrerPolicy: {
+      policy: "strict-origin-when-cross-origin",
+    },
+  }));
+
+  // 2. CORS - Controlled cross-origin requests
+  const corsOptions = {
+    origin: process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    maxAge: 86400, // 24 hours
+  };
+  app.use(cors(corsOptions));
+
+  // 3. HPP - HTTP Parameter Pollution prevention
+  app.use(hpp());
+
+  // 4. Compression - Brotli/Gzip response compression
+  app.use(compression({
+    level: 6,
+    threshold: 1024, // Only compress responses > 1KB
+    filter: (req, res) => {
+      if (req.headers["x-no-compression"]) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+  }));
+
+  // 5. Request logging
+  app.use((req, res, next) => {
+    const start = Date.now();
+    
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      dashboardLogger.info({
+        method: req.method,
+        url: req.url,
+        status: res.statusCode,
+        duration: `${duration}ms`,
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+      }, "HTTP Request");
+    });
+    
+    next();
+  });
+
+  // 6. Rate limiting (10 req/sec per IP)
+  app.use("/api", createApiRateLimiter({
+    keyPrefix: "rl:dashboard:",
+    points: 100,
+    duration: 60,
+    blockDuration: 300,
+    keyGenerator: (req) => req.ip || req.connection.remoteAddress,
+  }));
+
+  // 7. Sensitive endpoints get stricter rate limits
+  app.use("/api/admin", createApiRateLimiter({
+    keyPrefix: "rl:admin:",
+    points: 20,
+    duration: 60,
+    blockDuration: 600,
+  }));
+
+  // 8. JSON body size limit
+  app.use((req, res, next) => {
+    if (req.is("json") && req.get("content-length") > 1048576) { // 1MB limit
+      return res.status(413).json({ error: "Payload too large" });
+    }
+    next();
+  });
+
+  // 9. Security headers for all responses
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    next();
+  });
+
+  dashboardLogger.info("Security middleware stack applied");
+}
+
+// Enhanced admin authentication middleware
+export function requireAdmin(req, res, next) {
+  if (!req.session || !req.session.user) {
+    dashboardLogger.warn({ ip: req.ip, url: req.url }, "Unauthorized admin access attempt");
+    return res.status(401).json({ error: "Unauthorized - Please login" });
+  }
+
+  const adminIds = (process.env.DASHBOARD_ADMIN_IDS || "").split(",").map(id => id.trim());
+  
+  if (!adminIds.includes(req.session.user.id)) {
+    dashboardLogger.error(
+      { userId: req.session.user.id, ip: req.ip, url: req.url },
+      "Non-admin user attempted admin action"
+    );
+    return res.status(403).json({ error: "Forbidden - Admin access required" });
+  }
+
+  next();
+}
+
+// Audit log middleware for sensitive actions
+export function auditLog(action) {
+  return (req, res, next) => {
+    dashboardLogger.info({
+      action,
+      userId: req.session?.user?.id,
+      ip: req.ip,
+      body: req.body,
+      params: req.params,
+      timestamp: new Date().toISOString(),
+    }, "Audit Log");
+    
+    next();
+  };
+}
+
+export default { applySecurityMiddleware, requireAdmin, auditLog };

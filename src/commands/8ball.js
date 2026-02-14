@@ -1,4 +1,5 @@
-import { SlashCommandBuilder, MessageFlags } from "discord.js";
+import { SlashCommandBuilder } from "discord.js";
+import { replyEmbed, Colors } from "../utils/discordOutput.js";
 
 const answers = [
   "Yes.",
@@ -20,5 +21,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const pick = answers[Math.floor(Math.random() * answers.length)];
-  await interaction.reply({ flags: MessageFlags.Ephemeral, content: `🎱 ${pick}` });
+  const q = interaction.options.getString("question", true);
+  
+  await replyEmbed(interaction, "Magic 8-Ball", `**Q:** ${q}\n**A:** ${pick}`, true);
 }

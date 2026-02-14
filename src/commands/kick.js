@@ -1,4 +1,5 @@
-import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from "discord.js";
+import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
+import { replySuccess, replyError } from "../utils/discordOutput.js";
 
 export const meta = {
   guildOnly: true,
@@ -16,9 +17,14 @@ export async function execute(interaction) {
   const reason = interaction.options.getString("reason") || "No reason";
   const member = await interaction.guild.members.fetch(user.id).catch(() => null);
   if (!member) {
-    await interaction.reply({ flags: MessageFlags.Ephemeral, content: "User not found." });
+    await replyError(interaction, "User not found.");
     return;
   }
-  await member.kick(reason).catch(() => null);
-  await interaction.reply({ flags: MessageFlags.Ephemeral, content: `Kicked ${user.tag}` });
+  
+  try {
+    await member.kick(reason);
+    await replySuccess(interaction, `Kicked **${user.tag}**\nReason: ${reason}`, false); // Public log
+  } catch (err) {
+    await replyError(interaction, `Failed to kick user: ${err.message}`);
+  }
 }

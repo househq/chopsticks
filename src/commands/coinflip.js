@@ -6,5 +6,5 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const side = Math.random() < 0.5 ? "Heads" : "Tails";
-  await interaction.reply({ flags: MessageFlags.Ephemeral, content: `🪙 ${side}` });
+  await interaction.reply({ flags: MessageFlags.Ephemeral, content: `Result: ${side}` });
 }

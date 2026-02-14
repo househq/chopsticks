@@ -45,11 +45,18 @@ for (const file of files) {
 
   const cmd =
     mod.default ??
-    (mod.data && mod.execute ? { data: mod.data, execute: mod.execute } : null);
+    (mod.data && mod.execute ? { data: mod.data, execute: mod.execute, meta: mod.meta } : null);
 
   if (!cmd?.data?.toJSON) continue;
 
   try {
+    // Apply permissions from meta to command builder
+    if (cmd.meta?.userPerms && Array.isArray(cmd.meta.userPerms) && cmd.meta.userPerms.length > 0) {
+      // Combine all required permissions with bitwise OR
+      const combinedPerms = cmd.meta.userPerms.reduce((acc, perm) => acc | perm, 0n);
+      cmd.data.setDefaultMemberPermissions(combinedPerms);
+    }
+    
     payload.push(cmd.data.toJSON());
   } catch (err) {
     console.error(`[deploy] command builder failed: ${file}`);

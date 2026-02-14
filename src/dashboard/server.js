@@ -2,12 +2,14 @@ import "dotenv/config";
 import express from "express";
 import session from "express-session";
 import { createClient } from "redis";
+import { RedisStore } from "connect-redis";
 import { request } from "undici";
 import { createRequire } from "node:module";
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { getMusicConfig, setDefaultMusicMode, setDefaultMusicVolume } from "../music/config.js";
 import { getAssistantConfig, setAssistantConfig } from "../assistant/config.js";
 import { countAssistantSessionsInGuild } from "../assistant/service.js";
@@ -17,9 +19,22 @@ import { auditLog, getAuditLog } from "../utils/audit.js";
 import { getCommandStats, getCommandStatsForGuild } from "../utils/healthServer.js";
 import { getPersistedCommandStats, getPersistedCommandStatsDaily } from "../utils/audit.js";
 import { getDashboardPerms, setDashboardPerms } from "./permissions.js";
+import { setCommandEnabled, listCommandSettings } from "../utils/permissions.js";
+import { getUserPets, createPet, deletePet, listPools, fetchPoolsByOwner, createPool } from "../utils/storage.js";
+import { applySecurityMiddleware, requireAdmin as modernRequireAdmin, auditLog as modernAudit } from "./securityMiddleware.js";
+import { dashboardLogger } from "../utils/modernLogger.js";
+import { metricsHandler, healthHandler } from "../utils/metrics.js";
 
 const app = express();
+
+// Apply modern security middleware FIRST
+applySecurityMiddleware(app);
+
 app.use(express.json({ limit: "200kb" }));
+
+// Expose metrics and health endpoints (no auth needed for Prometheus)
+app.get("/metrics", metricsHandler);
+app.get("/health", healthHandler);
 
 const DASHBOARD_PORT = Number(process.env.DASHBOARD_PORT || 8788);
 const DASHBOARD_BASE_URL = String(process.env.DASHBOARD_BASE_URL || "").trim();
@@ -39,7 +54,6 @@ let redisClient = null;
 let store = null;
 const REDIS_URL = String(process.env.REDIS_URL || "").trim();
 if (REDIS_URL) {
-  const RedisStore = createRequire(import.meta.url)("connect-redis").default;
   redisClient = createClient({ url: REDIS_URL });
   redisClient.on("error", () => {});
   redisClient.connect().catch(() => {});
@@ -252,6 +266,39 @@ function loadVoicePresetMap() {
   }
 }
 
+let commandCatalogCache = { at: 0, list: [] };
+
+async function loadCommandCatalog() {
+  const now = Date.now();
+  if (commandCatalogCache.list.length && now - commandCatalogCache.at < 60_000) {
+    return commandCatalogCache.list;
+  }
+
+  const dir = path.join(process.cwd(), "src", "commands");
+  if (!fs.existsSync(dir)) return [];
+
+  const files = fs.readdirSync(dir).filter(f => f.endsWith(".js")).sort();
+  const out = [];
+
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+    try {
+      const mod = await import(pathToFileURL(fullPath).href);
+      const cmd = mod.default ?? (mod.data && mod.execute ? { data: mod.data, meta: mod.meta } : null);
+      const name = cmd?.data?.name ?? file.replace(/\.js$/, "");
+      const description = cmd?.data?.description ?? "";
+      const category = cmd?.meta?.category ?? "general";
+      const guildOnly = Boolean(cmd?.meta?.guildOnly);
+      out.push({ name, description, category, guildOnly });
+    } catch (err) {
+      out.push({ name: file.replace(/\.js$/, ""), description: "import failed", category: "unknown", guildOnly: false });
+    }
+  }
+
+  commandCatalogCache = { at: now, list: out };
+  return out;
+}
+
 async function botGet(url) {
   const token = String(process.env.DISCORD_TOKEN || "").trim();
   if (!token) return null;
@@ -429,18 +476,92 @@ app.get("/", (req, res) => {
       async function loadGuilds() {
         const res = await fetch("/api/guilds");
         if (res.status === 401) {
-          app.innerHTML = "<p class='muted'>Login required.</p>";
+          app.innerHTML = "<div style='text-align:center; margin-top:40px;'><p class='muted'>Login required.</p></div>";
           return;
         }
+        
+        // Load User Data
+        const meRes = await fetch("/api/me");
+        const meData = await meRes.json();
+        const user = meData.user || {};
+        const pets = meData.pets || [];
+        const pools = meData.myPools || [];
+
         const data = await res.json();
         const list = data.guilds || [];
-        app.innerHTML = "<h3>Guilds</h3><div class='grid'>" + list.map(g => \`
-          <div class="card">
-            <div>\${g.name}</div>
-            <div class="muted">\${g.id}</div>
-            <button onclick="openGuild('\${g.id}')">Open</button>
+        
+        app.innerHTML = \`
+          <div style="display:flex; gap:20px; flex-direction:column;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>System Status</h3>
+                <div class="muted">Logged in as \${user.username}</div>
+              </div>
+              <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                <div class="card">
+                  <div class="muted">Active Servers</div>
+                  <div style="font-size:1.5em; font-weight:bold;">\${list.length}</div>
+                </div>
+                <div class="card">
+                  <div class="muted">Your Agent Pools</div>
+                  <div style="font-size:1.5em; font-weight:bold;">\${pools.length}</div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3>Manage Servers</h3>
+              <div class="grid">
+                \${list.map(g => \`
+                  <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                      <div style="font-weight:bold;">\${g.name}</div>
+                      <div class="muted">\${g.id}</div>
+                    </div>
+                    <button onclick="openGuild('\${g.id}')">Manage</button>
+                  </div>
+                \`).join("")}
+              </div>
+            </div>
           </div>
-        \`).join("") + "</div>";
+        \`;
+      }
+
+      function renderPet(pet) {
+        return \`
+          <div style="background:#0b0f1a; border:1px solid #2a2f3a; border-radius:6px; padding:8px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div><strong>\${pet.name}</strong> <span class="muted">(\${pet.pet_type})</span></div>
+              <div class="muted" style="font-size:0.9em;">Level \${pet.stats?.level || 1} • Mood: \${pet.stats?.mood || "Neutral"}</div>
+            </div>
+            <button onclick="releasePet('\${pet.id}')" style="background:#3f1818; border-color:#5a2525;">Release</button>
+          </div>
+        \`;
+      }
+
+      async function adoptPet() {
+        const name = document.getElementById("new-pet-name").value;
+        const type = document.getElementById("new-pet-type").value;
+        if (!name) return alert("Name is required");
+        
+        const res = await postJson("/api/me/pets", { name, type });
+        const data = await res.json();
+        if (data.ok) {
+          loadGuilds(); // Refresh
+        } else {
+          alert("Error: " + data.error);
+        }
+      }
+
+      async function releasePet(id) {
+        if (!confirm("Are you sure you want to release this pet?")) return;
+        const res = await postJson("/api/me/pets/" + id + "/delete");
+        const data = await res.json();
+        if (data.ok) {
+          loadGuilds(); // Refresh
+        } else {
+          alert("Error: " + (data.error || "failed"));
+        }
       }
 
       async function openGuild(id) {
@@ -462,6 +583,8 @@ app.get("/", (req, res) => {
         window.__auditRows = data.audit || [];
         window.__auditBefore = (data.audit && data.audit.length) ? data.audit[data.audit.length - 1].id : null;
         window.__currentGuildId = id;
+        window.__commandSettings = data.commandSettings || { disabled: {} };
+        window.__canManage = data.canManage;
         app.innerHTML = \`
           <h3>\${data.guild?.name || "Guild"} (\${id})</h3>
           <div class="card">
@@ -512,6 +635,13 @@ app.get("/", (req, res) => {
             <div class="muted">Top commands across all guilds</div>
             <div>\${renderAnalyticsTable(data.analyticsGlobal || [])}</div>
           </div>
+          <div class="card">
+            <div>Commands</div>
+            <div class="muted">Command catalog</div>
+            <div id="commands-box" class="muted">Loading...</div>
+            <button onclick="reloadCommands()">Reload</button>
+          </div>
+
           <div class="card">
             <div>Audit Log</div>
             <div class="muted">Recent admin actions</div>
@@ -719,7 +849,7 @@ app.get("/", (req, res) => {
                   <input id="mc-\${cid}" type="number" min="0" max="99" value="\${lobby.maxChannels ?? ""}" placeholder="0 = unlimited" />
                 </div>
                 <button onclick="saveLobby('\${id}','\${cid}')">Save Lobby</button>
-                <button onclick="toggleLobby('\${id}','\${cid}', ${!lobby.enabled})">\${lobby.enabled ? "Disable" : "Enable"}</button>
+                <button onclick="toggleLobby('\${id}','\${cid}', \${!lobby.enabled})">\${lobby.enabled ? "Disable" : "Enable"}</button>
                 <button onclick="removeLobby('\${id}','\${cid}')">Remove</button>
               </div>
             \`).join("")}</div>
@@ -740,6 +870,7 @@ app.get("/", (req, res) => {
           </div>
           <button onclick="loadGuilds()">Back</button>
         \`;
+        reloadCommands();
       }
 
       async function saveMusic(id) {
@@ -1040,6 +1171,41 @@ app.get("/", (req, res) => {
         \`;
       }
 
+      function renderCommandsTable(rows) {
+        if (!rows.length) return "<div class='muted'>No commands loaded.</div>";
+        const disabled = window.__commandSettings?.disabled || {};
+        const canManage = window.__canManage;
+        return \`
+          <table style="width:100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th style="text-align:left; border-bottom:1px solid #2a2f3a;">enabled</th>
+                <th style="text-align:left; border-bottom:1px solid #2a2f3a;">command</th>
+                <th style="text-align:left; border-bottom:1px solid #2a2f3a;">category</th>
+                <th style="text-align:left; border-bottom:1px solid #2a2f3a;">scope</th>
+                <th style="text-align:left; border-bottom:1px solid #2a2f3a;">description</th>
+              </tr>
+            </thead>
+            <tbody>
+              \${rows.map(r => \`
+                <tr>
+                  <td>
+                    <input type="checkbox" 
+                      \${!disabled[r.name] ? "checked" : ""} 
+                      \${canManage ? \`onclick="toggleCommand('\${r.name}', this.checked)"\` : "disabled"} 
+                    />
+                  </td>
+                  <td>\${r.name}</td>
+                  <td>\${r.category}</td>
+                  <td>\${r.guildOnly ? "guild" : "global"}</td>
+                  <td>\${r.description || ""}</td>
+                </tr>
+              \`).join("")}
+            </tbody>
+          </table>
+        \`;
+      }
+
       function renderInstancesTable(rows) {
         if (!rows.length) return "<div class='muted'>No peers configured.</div>";
         return \`
@@ -1195,6 +1361,37 @@ app.get("/", (req, res) => {
         document.getElementById("analytics-box").innerHTML = renderAnalyticsTable(data.analytics || []);
       }
 
+      async function reloadCommands() {
+        const res = await fetch("/api/commands");
+        const data = await res.json();
+        document.getElementById("commands-box").innerHTML = renderCommandsTable(data.commands || []);
+      }
+
+      async function toggleCommand(command, enabled) {
+        const guildId = window.__currentGuildId;
+        if (!guildId) return;
+        
+        // update local state immediately
+        const settings = window.__commandSettings || { disabled: {} };
+        if (enabled) {
+          delete settings.disabled[command];
+        } else {
+          settings.disabled[command] = true;
+        }
+        window.__commandSettings = settings;
+
+        const res = await postJson("/api/guild/" + guildId + "/commands/toggle", { command, enabled });
+        const data = await res.json();
+        if (!data.ok) {
+          alert("Error: " + (data.error || "failed"));
+          // revert local state
+          if (enabled) settings.disabled[command] = true;
+          else delete settings.disabled[command];
+          // re-render?
+          // reloadCommands(); // no need if we assume failure is rare, but good practice
+        }
+      }
+
       if (${authed}) loadGuilds();
     </script>
   </body>
@@ -1221,10 +1418,15 @@ app.get("/oauth/callback", async (req, res) => {
     const token = await oauthToken(code);
     req.session.accessToken = token.access_token;
     const user = await apiGet("https://discord.com/api/users/@me", token.access_token);
-    if (user?.id) req.session.userId = user.id;
+    if (user?.id) {
+      req.session.userId = user.id;
+      req.session.username = user.username;
+      req.session.avatar = user.avatar;
+    }
     res.redirect("/");
-  } catch {
-    res.status(500).send("OAuth failed.");
+  } catch (err) {
+    console.error("OAuth Error:", err);
+    res.status(500).send("OAuth failed: " + err.message);
   }
 });
 
@@ -1234,7 +1436,12 @@ app.get("/logout", (req, res) => {
   });
 });
 
-app.get("/api/guilds", requireAuth, rateLimitDashboard, async (req, res) => {
+app.get("/api/commands", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
+  const list = await loadCommandCatalog();
+  res.json({ ok: true, commands: list });
+});
+
+app.get("/api/guilds", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
   const guilds = (await apiGet("https://discord.com/api/users/@me/guilds", req.session.accessToken)) || [];
   const out = [];
   for (const g of guilds) {
@@ -1249,7 +1456,7 @@ app.get("/api/guilds", requireAuth, rateLimitDashboard, async (req, res) => {
   res.json({ ok: true, guilds: out });
 });
 
-app.get("/api/guild/:id", requireAuth, rateLimitDashboard, async (req, res) => {
+app.get("/api/guild/:id", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
   const guildId = String(req.params.id || "");
   if (!guildId || !isSnowflake(guildId)) {
     res.status(400).json({ ok: false, error: "bad-guild" });
@@ -1283,6 +1490,7 @@ app.get("/api/guild/:id", requireAuth, rateLimitDashboard, async (req, res) => {
   const sessions = await listGuildSessions(guildId);
   const assistantSessions = await listGuildAssistantSessions(guildId);
   const dashboardPerms = await getDashboardPerms(guildId);
+  const commandSettings = await listCommandSettings(guildId);
   const instances = await getInstancesStatus();
   const voicePresets = resolveVoicePresets(assistant);
   const voiceInstallPresets = Object.keys(loadVoicePresetMap());
@@ -1305,11 +1513,12 @@ app.get("/api/guild/:id", requireAuth, rateLimitDashboard, async (req, res) => {
     voiceInstallPresets,
     isAdmin: isDashboardAdmin(req),
     canManage,
-    dashboardPerms
+    dashboardPerms,
+    commandSettings
   });
 });
 
-app.get("/api/guild/:id/sessions", requireAuth, rateLimitDashboard, async (req, res) => {
+app.get("/api/guild/:id/sessions", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
   const guildId = String(req.params.id || "");
   if (!guildId || !isSnowflake(guildId)) {
     res.status(400).json({ ok: false, error: "bad-guild" });
@@ -1332,12 +1541,12 @@ app.get("/api/guild/:id/sessions", requireAuth, rateLimitDashboard, async (req, 
   res.json({ ok: true, sessions, assistantSessions });
 });
 
-app.get("/api/instances", requireAuth, rateLimitDashboard, async (req, res) => {
+app.get("/api/instances", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
   const instances = await getInstancesStatus();
   res.json({ ok: true, instances });
 });
 
-app.get("/api/guild/:id/analytics", requireAuth, rateLimitDashboard, async (req, res) => {
+app.get("/api/guild/:id/analytics", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
   const guildId = String(req.params.id || "");
   const days = Number(req.query.days || 7);
   if (!guildId || !isSnowflake(guildId)) {
@@ -1383,7 +1592,7 @@ app.get("/api/internal/status", async (req, res) => {
   });
 });
 
-app.get("/api/guild/:id/audit", requireAuth, rateLimitDashboard, async (req, res) => {
+app.get("/api/guild/:id/audit", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
   const guildId = String(req.params.id || "");
   const before = req.query.before ? Number(req.query.before) : null;
   const limit = req.query.limit ? Number(req.query.limit) : 50;
@@ -1411,9 +1620,46 @@ app.get("/api/guild/:id/audit", requireAuth, rateLimitDashboard, async (req, res
   res.json({ ok: true, audit });
 });
 
-app.get("/api/agents", requireAuth, rateLimitDashboard, async (req, res) => {
+app.get("/api/agents", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
   const data = agentManagerStatus();
   res.json(data);
+});
+
+app.get("/api/me", requireAuth, rateLimitDashboard, async (req, res) => {
+  const userId = req.session.userId;
+  const pets = await getUserPets(userId);
+  const myPools = await fetchPoolsByOwner(userId);
+  const publicPools = await listPools();
+  
+  res.json({ 
+    ok: true, 
+    user: { 
+      id: userId, 
+      username: req.session.username,
+      avatar: req.session.avatar
+    },
+    pets,
+    myPools,
+    publicPools
+  });
+});
+
+app.post("/api/me/pets", requireAuth, rateLimitDashboard, requireCsrf, async (req, res) => {
+  const { name, type } = req.body;
+  if (!name || !type) return res.status(400).json({ ok: false, error: "missing-fields" });
+  
+  // Basic validation
+  if (name.length > 32) return res.status(400).json({ ok: false, error: "name-too-long" });
+  
+  const pet = await createPet(req.session.userId, type, name);
+  res.json({ ok: true, pet });
+});
+
+app.post("/api/me/pets/:id/delete", requireAuth, rateLimitDashboard, requireCsrf, async (req, res) => {
+  const petId = req.params.id;
+  const deleted = await deletePet(petId, req.session.userId);
+  if (!deleted) return res.status(404).json({ ok: false, error: "not-found" });
+  res.json({ ok: true });
 });
 
 app.post("/api/agents/:id/disconnect", requireAuth, rateLimitDashboard, requireCsrf, requireAdmin, async (req, res) => {
@@ -2089,6 +2335,23 @@ app.post("/api/guild/:id/dashboard/permissions", requireAuth, rateLimitDashboard
     return;
   }
   await setDashboardPerms(guildId, { allowUserIds, allowRoleIds });
+  res.json({ ok: true });
+});
+
+app.post("/api/guild/:id/commands/toggle", requireAuth, rateLimitDashboard, requireCsrf, async (req, res) => {
+  const guildId = String(req.params.id || "");
+  const { command, enabled } = req.body ?? {};
+  if (!guildId || !isSnowflake(guildId) || !command) {
+    res.status(400).json({ ok: false, error: "bad-request" });
+    return;
+  }
+  const guilds = (await apiGet("https://discord.com/api/users/@me/guilds", req.session.accessToken)) || [];
+  const guild = guilds.find(g => g.id === guildId);
+  if (!guild || !manageGuildPerms(guild)) {
+    res.status(403).json({ ok: false, error: "no-permission" });
+    return;
+  }
+  await setCommandEnabled(guildId, command, Boolean(enabled));
   res.json({ ok: true });
 });
 

@@ -36,6 +36,7 @@ import {
 } from "../assistant/config.js";
 import { countAssistantSessionsInGuild } from "../assistant/service.js";
 import { auditLog } from "../utils/audit.js";
+import { replyEmbedWithJson, buildEmbed } from "../utils/discordOutput.js";
 
 export const data = new SlashCommandBuilder()
   .setName("assistant")
@@ -519,10 +520,13 @@ export async function execute(interaction) {
       });
     }
     const cfg = await getAssistantConfig(guildId);
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content: "```json\n" + JSON.stringify(cfg, null, 2) + "\n```"
-    });
+    await replyEmbedWithJson(
+      interaction,
+      "Assistant config",
+      "Config exported as attachment.",
+      cfg,
+      "assistant-config.json"
+    );
     return;
   }
 
@@ -534,10 +538,13 @@ export async function execute(interaction) {
     const action = interaction.options.getString("action", true);
     if (action === "list") {
       const cfg = await getAssistantConfig(guildId);
-      await interaction.reply({
-        flags: MessageFlags.Ephemeral,
-        content: "```json\n" + JSON.stringify(cfg.voicePresets ?? [], null, 2) + "\n```"
-      });
+      await replyEmbedWithJson(
+        interaction,
+        "Assistant presets",
+        "Presets exported as attachment.",
+        cfg.voicePresets ?? [],
+        "assistant-presets.json"
+      );
       return;
     }
     if (action === "clear") {
@@ -591,10 +598,13 @@ export async function execute(interaction) {
     const action = interaction.options.getString("action", true);
     if (action === "list") {
       const cfg = await getAssistantConfig(guildId);
-      await interaction.reply({
-        flags: MessageFlags.Ephemeral,
-        content: "```json\n" + JSON.stringify(cfg.profiles ?? {}, null, 2) + "\n```"
-      });
+      await replyEmbedWithJson(
+        interaction,
+        "Assistant profiles",
+        "Profiles exported as attachment.",
+        cfg.profiles ?? {},
+        "assistant-profiles.json"
+      );
       return;
     }
     if (action === "clear") {
@@ -658,10 +668,13 @@ export async function execute(interaction) {
     const action = interaction.options.getString("action", true);
     if (action === "list") {
       const cfg = await getAssistantConfig(guildId);
-      await interaction.reply({
-        flags: MessageFlags.Ephemeral,
-        content: "```json\n" + JSON.stringify(cfg.voicePersonalities ?? {}, null, 2) + "\n```"
-      });
+      await replyEmbedWithJson(
+        interaction,
+        "Voice personalities",
+        "Voice personalities exported as attachment.",
+        cfg.voicePersonalities ?? {},
+        "assistant-voice-personalities.json"
+      );
       return;
     }
     if (action === "clear-all") {
@@ -760,10 +773,16 @@ export async function execute(interaction) {
         pitch,
         volume
       });
-      await interaction.reply({
-        flags: MessageFlags.Ephemeral,
-        content: "```json\n" + JSON.stringify(res.settings, null, 2) + "\n```"
-      });
+      const settings = res.settings ?? {};
+      const embed = buildEmbed(
+        "Assistant session settings",
+        [
+          `speed: ${settings.speed ?? "n/a"}`,
+          `pitch: ${settings.pitch ?? "n/a"}`,
+          `volume: ${settings.volume ?? "n/a"}`
+        ].join("\n")
+      );
+      await interaction.reply({ flags: MessageFlags.Ephemeral, embeds: [embed] });
     } catch (err) {
       await interaction.reply(makeMsg("Assistant", formatAssistantError(err)));
     }

@@ -194,7 +194,7 @@ export async function execute(interaction) {
           break;
         default:
           await interaction.reply({
-            content: '❌ Unknown subcommand.',
+            content: 'Unknown subcommand.',
             ephemeral: true,
           });
       }
@@ -202,7 +202,7 @@ export async function execute(interaction) {
       console.error('[pools]', error);
       const replyMethod = interaction.deferred ? 'editReply' : 'reply';
       await interaction[replyMethod]({
-        content: `❌ Error: ${error.message}`,
+        content: `Error: ${error.message}`,
         ephemeral: true,
       }).catch(() => {});
     }
@@ -241,7 +241,7 @@ async function handleList(interaction) {
   
   if (!allPools || allPools.length === 0) {
     return interaction.editReply({
-      content: '📦 No pools found.',
+      content: 'No pools found.',
     });
   }
 
@@ -255,12 +255,12 @@ async function handleList(interaction) {
 
   if (visiblePools.length === 0) {
     return interaction.editReply({
-      content: '📦 No pools available.',
+      content: 'No pools available.',
     });
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('📦 Agent Pools')
+    .setTitle('Agent Pools')
     .setColor(0x5865f2)
     .setDescription('Available agent pools for deployments')
     .setTimestamp();
@@ -273,7 +273,7 @@ async function handleList(interaction) {
     const pool = visiblePools[i];
     const agents = allAgents[i];
     const agentCount = agents ? agents.length : 0;
-    const visIcon = pool.visibility === 'public' ? '🌐' : '🔒';
+    const visIcon = pool.visibility === 'public' ? '' : '';
     const owner = pool.owner_user_id === BOT_OWNER_ID ? 'goot27 (Master)' : `<@${pool.owner_user_id}>`;
     
     let fieldValue = `${visIcon} **${pool.visibility}** | Owner: ${owner}\n`;
@@ -306,12 +306,12 @@ async function handlePublic(interaction) {
   
   if (publicPools.length === 0) {
     return interaction.editReply({
-      content: '📦 No public pools available for contribution.',
+      content: 'No public pools available for contribution.',
     });
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('🌐 Public Pools - Available for Contribution')
+    .setTitle('Public Pools - Available for Contribution')
     .setColor(0x5865f2)
     .setDescription('Choose a pool to contribute your agents to')
     .setTimestamp();
@@ -339,7 +339,7 @@ async function handlePublic(interaction) {
   }
 
   embed.setFooter({ 
-    text: `${publicPools.length} public pool${publicPools.length === 1 ? '' : 's'} available • Contributions require approval` 
+    text: `${publicPools.length} public pool${publicPools.length === 1 ? '' : 's'} available - Contributions require approval` 
   });
 
   await interaction.editReply({ embeds: [embed] });
@@ -361,7 +361,7 @@ async function handleCreate(interaction) {
   const existing = await storageLayer.fetchPool(poolId);
   if (existing) {
     return interaction.editReply({
-      content: `❌ You already have a pool: **${existing.name}** (\`${poolId}\`)`,
+      content: `You already have a pool: **${existing.name}** (\`${poolId}\`)`,
     });
   }
 
@@ -370,17 +370,17 @@ async function handleCreate(interaction) {
   
   if (!created) {
     return interaction.editReply({
-      content: '❌ Failed to create pool. Please try again.',
+      content: 'Failed to create pool. Please try again.',
     });
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('✅ Pool Created')
+    .setTitle('Pool Created')
     .setColor(0x57f287)
     .setDescription(`Your pool **${poolName}** has been created.`)
     .addFields(
       { name: 'Pool ID', value: `\`${poolId}\``, inline: true },
-      { name: 'Visibility', value: visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
+      { name: 'Visibility', value: visibility === 'public' ? 'Public' : 'Private', inline: true },
       { name: 'Owner', value: `<@${userId}>`, inline: true }
     )
     .setFooter({ text: 'Use /agents add_token to add agents to your pool' })
@@ -401,7 +401,7 @@ async function handleView(interaction) {
   
   if (!pool) {
     return interaction.editReply({
-      content: `❌ Pool \`${poolId}\` not found.`,
+      content: `Pool \`${poolId}\` not found.`,
     });
   }
 
@@ -410,7 +410,7 @@ async function handleView(interaction) {
   
   if (!hasAccess) {
     return interaction.editReply({
-      content: `🔒 Pool \`${poolId}\` is private and you don't have access.`,
+      content: `Pool \`${poolId}\` is private and you don't have access.`,
     });
   }
 
@@ -420,12 +420,12 @@ async function handleView(interaction) {
   const activeAgents = agents ? agents.filter(a => a.status === 'active') : [];
 
   const embed = new EmbedBuilder()
-    .setTitle(`📦 ${pool.name}`)
+    .setTitle(`${pool.name}`)
     .setColor(pool.visibility === 'public' ? 0x5865f2 : 0x99aab5)
     .setDescription(`Pool ID: \`${pool.pool_id}\``)
     .addFields(
       { name: 'Owner', value: `<@${pool.owner_user_id}>`, inline: true },
-      { name: 'Visibility', value: pool.visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
+      { name: 'Visibility', value: pool.visibility === 'public' ? 'Public' : 'Private', inline: true },
       { name: 'Total Agents', value: `${agentCount}`, inline: true },
       { name: 'Active Agents', value: `${activeAgents.length}`, inline: true },
       { name: 'Created', value: `<t:${Math.floor(pool.created_at / 1000)}:R>`, inline: true }
@@ -438,7 +438,7 @@ async function handleView(interaction) {
       const agentList = agents
         .slice(0, 10) // Max 10 agents
         .map((a) => {
-          const statusIcon = a.status === 'active' ? '🟢' : '🔴';
+          const statusIcon = a.status === 'active' ? '' : '';
           return `${statusIcon} ${a.tag} (\`${a.agent_id}\`)`;
         })
         .join('\n');
@@ -469,7 +469,7 @@ async function handleSelect(interaction) {
   // Check if user is guild admin or master
   if (!isGuildAdmin(interaction.member) && !isMaster(userId)) {
     return interaction.editReply({
-      content: '❌ You need Administrator permissions to select a pool for this guild.',
+      content: 'You need Administrator permissions to select a pool for this guild.',
     });
   }
 
@@ -477,7 +477,7 @@ async function handleSelect(interaction) {
   const pool = await storageLayer.fetchPool(poolId);
   if (!pool) {
     return interaction.editReply({
-      content: `❌ Pool \`${poolId}\` not found.`,
+      content: `Pool \`${poolId}\` not found.`,
     });
   }
 
@@ -486,12 +486,12 @@ async function handleSelect(interaction) {
   await storageLayer.setGuildSelectedPool(guildId, poolId);
 
   const embed = new EmbedBuilder()
-    .setTitle('✅ Pool Selected')
+    .setTitle('Pool Selected')
     .setColor(0x57f287)
     .setDescription(`This guild will now use pool **${pool.name}** for agent deployments.`)
     .addFields(
       { name: 'Pool', value: `\`${poolId}\``, inline: true },
-      { name: 'Visibility', value: pool.visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
+      { name: 'Visibility', value: pool.visibility === 'public' ? 'Public' : 'Private', inline: true },
       { name: 'Owner', value: `<@${pool.owner_user_id}>`, inline: true }
     )
     .setFooter({ text: 'Use /agents deploy to deploy agents from this pool' })
@@ -512,17 +512,17 @@ async function handleSettings(interaction) {
   
   if (!pool) {
     return interaction.editReply({
-      content: '❌ You don\'t have a pool yet. Use `/pools create` to create one.',
+      content: 'You don\'t have a pool yet. Use `/pools create` to create one.',
     });
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('⚙️ Pool Settings')
+    .setTitle('Pool Settings')
     .setColor(0x5865f2)
     .setDescription(`Manage settings for **${pool.name}**`)
     .addFields(
       { name: 'Pool ID', value: `\`${pool.pool_id}\``, inline: true },
-      { name: 'Visibility', value: pool.visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true }
+      { name: 'Visibility', value: pool.visibility === 'public' ? 'Public' : 'Private', inline: true }
     )
     .setFooter({ text: 'Use /pools delete to remove your pool' })
     .setTimestamp();
@@ -542,14 +542,14 @@ async function handleDelete(interaction) {
   
   if (!pool) {
     return interaction.editReply({
-      content: `❌ Pool \`${poolId}\` not found.`,
+      content: `Pool \`${poolId}\` not found.`,
     });
   }
 
   // Check ownership
   if (pool.owner_user_id !== userId && !isMaster(userId)) {
     return interaction.editReply({
-      content: '❌ You can only delete pools you own.',
+      content: 'You can only delete pools you own.',
     });
   }
 
@@ -557,7 +557,7 @@ async function handleDelete(interaction) {
   const agents = await storageLayer.fetchPoolAgents(poolId);
   if (agents && agents.length > 0) {
     return interaction.editReply({
-      content: `❌ Cannot delete pool with agents. Remove all agents first (${agents.length} agents registered).`,
+      content: `Cannot delete pool with agents. Remove all agents first (${agents.length} agents registered).`,
     });
   }
 
@@ -566,12 +566,12 @@ async function handleDelete(interaction) {
   
   if (!deleted) {
     return interaction.editReply({
-      content: '❌ Failed to delete pool. Please try again.',
+      content: 'Failed to delete pool. Please try again.',
     });
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('🗑️ Pool Deleted')
+    .setTitle('Pool Deleted')
     .setColor(0xed4245)
     .setDescription(`Pool **${pool.name}** has been deleted.`)
     .addFields(
@@ -595,14 +595,14 @@ async function handleTransfer(interaction) {
   
   if (!pool) {
     return interaction.editReply({
-      content: `❌ Pool \`${poolId}\` not found.`,
+      content: `Pool \`${poolId}\` not found.`,
     });
   }
 
   // Check ownership
   if (pool.owner_user_id !== userId && !isMaster(userId)) {
     return interaction.editReply({
-      content: '❌ You can only transfer pools you own.',
+      content: 'You can only transfer pools you own.',
     });
   }
 
@@ -613,12 +613,12 @@ async function handleTransfer(interaction) {
   
   if (!updated) {
     return interaction.editReply({
-      content: '❌ Failed to transfer pool. Please try again.',
+      content: 'Failed to transfer pool. Please try again.',
     });
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('🔄 Pool Transferred')
+    .setTitle('Pool Transferred')
     .setColor(0xfee75c)
     .setDescription(`Pool **${pool.name}** has been transferred.`)
     .addFields(
@@ -647,7 +647,7 @@ async function handleContributions(interaction) {
     const userPools = await storageLayer.fetchPoolsByOwner(userId);
     if (!userPools || userPools.length === 0) {
       return interaction.editReply({
-        content: '❌ You don\'t own any pools. Create one with `/pools create`.',
+        content: 'You don\'t own any pools. Create one with `/pools create`.',
       });
     }
     poolId = userPools[0].pool_id;
@@ -656,14 +656,14 @@ async function handleContributions(interaction) {
   const pool = await storageLayer.fetchPool(poolId);
   if (!pool) {
     return interaction.editReply({
-      content: `❌ Pool \`${poolId}\` not found.`,
+      content: `Pool \`${poolId}\` not found.`,
     });
   }
   
   // Check ownership
   if (pool.owner_user_id !== userId && !isMaster(userId)) {
     return interaction.editReply({
-      content: '❌ You can only view contributions to pools you own.',
+      content: 'You can only view contributions to pools you own.',
     });
   }
   
@@ -673,12 +673,12 @@ async function handleContributions(interaction) {
   
   if (pending.length === 0) {
     return interaction.editReply({
-      content: `✅ No pending contributions for **${pool.name}**.`,
+      content: `No pending contributions for **${pool.name}**.`,
     });
   }
   
   const embed = new EmbedBuilder()
-    .setTitle(`📥 Pending Contributions - ${pool.name}`)
+    .setTitle(`Pending Contributions - ${pool.name}`)
     .setColor(0xfee75c)
     .setDescription(`Pool: \`${poolId}\``)
     .setTimestamp();
@@ -722,7 +722,7 @@ async function handleApprove(interaction) {
   
   if (!agent) {
     return interaction.editReply({
-      content: `❌ Agent \`${agentId}\` not found.`,
+      content: `Agent \`${agentId}\` not found.`,
     });
   }
   
@@ -730,13 +730,13 @@ async function handleApprove(interaction) {
   const pool = await fetchPool(agent.pool_id);
   if (!pool) {
     return interaction.editReply({
-      content: `❌ Pool not found for this agent.`,
+      content: `Pool not found for this agent.`,
     });
   }
   
   if (pool.owner_user_id !== userId && !isMaster(userId)) {
     return interaction.editReply({
-      content: '❌ You can only approve contributions to pools you own.',
+      content: 'You can only approve contributions to pools you own.',
     });
   }
   
@@ -744,13 +744,13 @@ async function handleApprove(interaction) {
   await updateAgentBotStatus(agentId, 'active');
   
   const embed = new EmbedBuilder()
-    .setTitle('✅ Contribution Approved')
+    .setTitle('Contribution Approved')
     .setColor(0x57f287)
     .setDescription(`**${agent.tag}** is now active in **${pool.name}**.`)
     .addFields(
       { name: 'Agent ID', value: `\`${agentId}\``, inline: true },
       { name: 'Pool', value: `\`${agent.pool_id}\``, inline: true },
-      { name: 'Status', value: '🟢 Active', inline: true }
+      { name: 'Status', value: 'Active', inline: true }
     )
     .setFooter({ text: 'AgentRunner will start this agent automatically' })
     .setTimestamp();
@@ -775,7 +775,7 @@ async function handleReject(interaction) {
   
   if (!agent) {
     return interaction.editReply({
-      content: `❌ Agent \`${agentId}\` not found.`,
+      content: `Agent \`${agentId}\` not found.`,
     });
   }
   
@@ -783,13 +783,13 @@ async function handleReject(interaction) {
   const pool = await fetchPool(agent.pool_id);
   if (!pool) {
     return interaction.editReply({
-      content: `❌ Pool not found for this agent.`,
+      content: `Pool not found for this agent.`,
     });
   }
   
   if (pool.owner_user_id !== userId && !isMaster(userId)) {
     return interaction.editReply({
-      content: '❌ You can only reject contributions to pools you own.',
+      content: 'You can only reject contributions to pools you own.',
     });
   }
   
@@ -797,7 +797,7 @@ async function handleReject(interaction) {
   await deleteAgentBot(agentId);
   
   const embed = new EmbedBuilder()
-    .setTitle('🗑️ Contribution Rejected')
+    .setTitle('Contribution Rejected')
     .setColor(0xed4245)
     .setDescription(`**${agent.tag}** contribution has been removed.`)
     .addFields(
@@ -816,7 +816,7 @@ async function handleAdminList(interaction) {
   
   if (!isMaster(userId)) {
     return interaction.reply({
-      content: '❌ This command is restricted to the bot master (goot27).',
+      content: 'This command is restricted to the bot master (goot27).',
       ephemeral: true,
     });
   }
@@ -827,12 +827,12 @@ async function handleAdminList(interaction) {
   
   if (!allPools || allPools.length === 0) {
     return interaction.editReply({
-      content: '📦 No pools found.',
+      content: 'No pools found.',
     });
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('🔐 All Pools (Master View)')
+    .setTitle('All Pools (Master View)')
     .setColor(0xfee75c)
     .setDescription('Complete list of all pools including private')
     .setTimestamp();
@@ -846,11 +846,9 @@ async function handleAdminList(interaction) {
     const agents = allAgents[i];
     const agentCount = agents ? agents.length : 0;
     const activeCount = agents ? agents.filter(a => a.status === 'active').length : 0;
-    const visIcon = pool.visibility === 'public' ? '🌐' : '🔒';
-    
     embed.addFields({
       name: `${pool.name} \`${pool.pool_id}\``,
-      value: `${visIcon} ${pool.visibility} | Owner: <@${pool.owner_user_id}>\nAgents: ${agentCount} (${activeCount} active)`,
+      value: `${pool.visibility} | Owner: <@${pool.owner_user_id}>\nAgents: ${agentCount} (${activeCount} active)`,
       inline: false,
     });
   }
@@ -867,7 +865,7 @@ async function handleAdminView(interaction) {
   
   if (!isMaster(userId)) {
     return interaction.reply({
-      content: '❌ This command is restricted to the bot master (goot27).',
+      content: 'This command is restricted to the bot master (goot27).',
       ephemeral: true,
     });
   }
@@ -879,7 +877,7 @@ async function handleAdminView(interaction) {
   
   if (!pool) {
     return interaction.editReply({
-      content: `❌ Pool \`${poolId}\` not found.`,
+      content: `Pool \`${poolId}\` not found.`,
     });
   }
 
@@ -888,12 +886,12 @@ async function handleAdminView(interaction) {
   const activeAgents = agents ? agents.filter(a => a.status === 'active') : [];
 
   const embed = new EmbedBuilder()
-    .setTitle(`🔐 ${pool.name} (Master View)`)
+    .setTitle(`${pool.name} (Master View)`)
     .setColor(0xfee75c)
     .setDescription(`Pool ID: \`${pool.pool_id}\``)
     .addFields(
       { name: 'Owner', value: `<@${pool.owner_user_id}>`, inline: true },
-      { name: 'Visibility', value: pool.visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
+      { name: 'Visibility', value: pool.visibility === 'public' ? 'Public' : 'Private', inline: true },
       { name: 'Total Agents', value: `${agentCount}`, inline: true },
       { name: 'Active Agents', value: `${activeAgents.length}`, inline: true },
       { name: 'Created', value: `<t:${Math.floor(pool.created_at / 1000)}:R>`, inline: true },
@@ -903,10 +901,7 @@ async function handleAdminView(interaction) {
 
   if (agentCount > 0) {
     const agentList = agents
-      .map((a) => {
-        const statusIcon = a.status === 'active' ? '🟢' : '🔴';
-        return `${statusIcon} ${a.tag} (\`${a.agent_id}\`) - Client: ${a.client_id}`;
-      })
+      .map(a => `${a.tag} (\`${a.agent_id}\`) - Client: ${a.client_id}`)
       .join('\n');
     
     embed.addFields({

@@ -44,18 +44,18 @@ function buildErrorEmbed(message) {
 }
 
 function lobbySummary(lobby, tempCount) {
-  const enabled = lobby.enabled ? "enabled" : "disabled";
-  const limit = Number.isFinite(lobby.userLimit) ? lobby.userLimit : 0;
-  const bitrate = Number.isFinite(lobby.bitrateKbps) ? `${lobby.bitrateKbps}kbps` : "auto";
-  const maxChannels = Number.isFinite(lobby.maxChannels) ? lobby.maxChannels : "unlimited";
+  const enabled = lobby.enabled ? "✅ Enabled" : "❌ Disabled";
+  const limit = Number.isFinite(lobby.userLimit) && lobby.userLimit > 0 ? lobby.userLimit : "Unlimited";
+  const bitrate = Number.isFinite(lobby.bitrateKbps) ? `${lobby.bitrateKbps}kbps` : "Auto";
+  const maxChannels = Number.isFinite(lobby.maxChannels) && lobby.maxChannels > 0 ? lobby.maxChannels : "Unlimited";
   const categoryLabel = lobby.categoryId ? `<#${lobby.categoryId}>` : "n/a";
   return [
-    `state: ${enabled}`,
-    `temp: ${tempCount}`,
-    `limit: ${limit}`,
-    `bitrate: ${bitrate}`,
-    `max: ${maxChannels}`,
-    `category: ${categoryLabel}`
+    `**State:** ${enabled}`,
+    `**Active Rooms:** ${tempCount}`,
+    `**User Limit:** ${limit}`,
+    `**Bitrate:** ${bitrate}`,
+    `**Max Rooms:** ${maxChannels}`,
+    `**Category:** ${categoryLabel}`
   ].join("\n");
 }
 

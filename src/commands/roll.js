@@ -10,5 +10,5 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction) {
   const sides = interaction.options.getInteger("sides") || 6;
   const roll = Math.floor(Math.random() * sides) + 1;
-  await interaction.reply({ flags: MessageFlags.Ephemeral, content: `🎲 ${roll} (d${sides})` });
+  await interaction.reply({ flags: MessageFlags.Ephemeral, content: `Roll: ${roll} (d${sides})` });
 }

@@ -18,9 +18,12 @@ services:
     networks:
       - chopsticks
     depends_on:
-      - postgres
-      - redis
-      - lavalink
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      lavalink:
+        condition: service_healthy
     mem_limit: 512m
     mem_reservation: 256m
     cpus: '1.0'
@@ -46,9 +49,12 @@ services:
     networks:
       - chopsticks
     depends_on:
-      - postgres
-      - lavalink
-      - bot
+      postgres:
+        condition: service_healthy
+      lavalink:
+        condition: service_healthy
+      bot:
+        condition: service_started
     mem_limit: 1g
     mem_reservation: 512m
     cpus: '1.5'
@@ -147,10 +153,11 @@ services:
     mem_reservation: 768m
     cpus: '1.5'
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:2333/version || exit 1"]
+      test: ["CMD-SHELL", "curl -f -H 'Authorization: youshallnotpass' http://localhost:2333/version || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 15s
     logging:
       driver: "json-file"
       options:
@@ -169,8 +176,11 @@ services:
     env_file: .env
     environment:
       - NODE_ENV=production
+      - STORAGE_DRIVER=postgres
+    command: ["npm", "run", "dashboard"]
+    # Ports exposed via Caddy, but kept for direct access if needed
     ports:
-      - "3000:3000"
+      - "8788:8788"
     networks:
       - chopsticks
     depends_on:
@@ -185,6 +195,31 @@ services:
         max-size: "5m"
         max-file: "2"
     profiles: ["dashboard"]  # Only start if explicitly requested
+
+  # Caddy Reverse Proxy
+  caddy:
+    image: caddy:2-alpine
+    container_name: chopsticks-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - chopsticks
+    depends_on:
+      - dashboard
+    mem_limit: 128m
+    cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    profiles: ["dashboard"]
 
   # Prometheus Metrics (Optional)
   prometheus:
@@ -217,6 +252,10 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local
   prometheus_data:
     driver: local

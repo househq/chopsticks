@@ -44,7 +44,7 @@ export async function execute(interaction) {
     const winnersCount = interaction.options.getInteger("winners", true);
     const prize = interaction.options.getString("prize", true);
     await interaction.reply({
-      content: `🎉 **GIVEAWAY** 🎉\nPrize: **${prize}**\nReact with 🎉 to enter.\nEnds in ${minutes} minutes.`,
+      content: `GIVEAWAY\nPrize: **${prize}**\nReact with the giveaway reaction to enter.\nEnds in ${minutes} minutes.`,
       fetchReply: true
     });
     const msg = await interaction.fetchReply();
@@ -54,7 +54,7 @@ export async function execute(interaction) {
       if (!m) return;
       const winners = await pickWinners(m, winnersCount);
       const text = winners.length ? winners.map(id => `<@${id}>`).join(", ") : "No entries.";
-      await m.reply(`🎉 Winner(s): ${text}`);
+      await m.reply(`Winner(s): ${text}`);
     });
     return;
   }
@@ -67,5 +67,5 @@ export async function execute(interaction) {
   }
   const winners = await pickWinners(msg, 1);
   const text = winners.length ? winners.map(id => `<@${id}>`).join(", ") : "No entries.";
-  await interaction.reply({ content: `🎉 Winner(s): ${text}` });
+  await interaction.reply({ content: `Winner(s): ${text}` });
 }

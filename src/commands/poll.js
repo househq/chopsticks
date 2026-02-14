@@ -17,7 +17,7 @@ export async function execute(interaction) {
     await interaction.reply({ content: "Provide 2-10 options.", ephemeral: true });
     return;
   }
-  const lines = opts.map((o, i) => `${emoji[i]} ${o}`).join("\n");
+  const lines = opts.map((o, i) => `${i + 1}. ${o}`).join("\n");
   await interaction.reply({ content: `**${q}**\n${lines}` });
   const msg = await interaction.fetchReply();
   for (let i = 0; i < opts.length; i++) {

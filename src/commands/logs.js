@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, AttachmentBuilder } from "discord.js";
+import { buildEmbed } from "../utils/discordOutput.js";
 import { listCommandLogs } from "../utils/commandlog.js";
 
 export const meta = {
@@ -63,8 +64,9 @@ export async function execute(interaction) {
     const ok = l.ok ? "ok" : "fail";
     return `${when} ${l.source} ${l.name} by <@${l.userId}> ${ok}`;
   });
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
-    content: lines.length ? lines.join("\n").slice(0, 1900) : "No logs."
-  });
+  const embed = buildEmbed(
+    "Command logs",
+    lines.length ? lines.join("\n").slice(0, 1900) : "No logs."
+  );
+  await interaction.reply({ flags: MessageFlags.Ephemeral, embeds: [embed] });
 }

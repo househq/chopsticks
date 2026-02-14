@@ -2,6 +2,8 @@
 
 Chopsticks is a self-hosted Discord bot built for scale with agent-backed music, VoiceMaster, dashboards, and a modular command system.
 
+**🚨 Currently at Maturity Level 0 - See [MATURITY.md](./MATURITY.md) for platform stability status**
+
 ## Highlights
 - Agent-backed music (no main-bot audio)
 - VoiceMaster join-to-create
@@ -10,7 +12,47 @@ Chopsticks is a self-hosted Discord bot built for scale with agent-backed music,
 - Dashboard with admin controls
 - Metrics + health endpoints
 
-## Quickstart (Local)
+## Quick Start
+
+The fastest way to start Chopsticks:
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env with your Discord bot token and other settings
+nano .env
+
+# Start everything (one command!)
+make start
+
+# Check health
+make health
+
+# View logs
+make logs
+```
+
+See `make help` for all available commands.
+
+## Maturity Model
+
+This project follows a strict **maturity-driven development model** to ensure platform stability before feature expansion.
+
+- **Current Level:** 0 (Running Baseline)
+- **Status:** 🔴 In Progress
+- **Next Milestone:** Complete Level 0 exit criteria
+
+**Key Rules:**
+1. No feature work until Level 0 complete
+2. No level advancement without mechanical verification
+3. Regressions block all work until fixed
+
+For details, see:
+- [MATURITY.md](./MATURITY.md) - Full maturity model with all 9 levels
+- [MATURITY_SUMMARY.md](./MATURITY_SUMMARY.md) - Quick reference
+
+## Quickstart (Local Development)
 1. Copy env:
    ```bash
    cp .env.example .env

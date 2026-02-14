@@ -1,0 +1,211 @@
+{
+  "tools": {
+    "basic_scanner": {
+      "id": "basic_scanner",
+      "name": "Basic Scanner",
+      "description": "A simple gathering tool. Detect common items.",
+      "category": "tool",
+      "rarity": "common",
+      "price": 500,
+      "sellPrice": 250,
+      "durability": 50,
+      "gatherBonus": 0,
+      "emoji": "🔍"
+    },
+    "advanced_scanner": {
+      "id": "advanced_scanner",
+      "name": "Advanced Scanner",
+      "description": "Enhanced detection range. Find rare items more often.",
+      "category": "tool",
+      "rarity": "rare",
+      "price": 5000,
+      "sellPrice": 2500,
+      "durability": 100,
+      "gatherBonus": 15,
+      "emoji": "🔬"
+    },
+    "quantum_scanner": {
+      "id": "quantum_scanner",
+      "name": "Quantum Scanner",
+      "description": "Top-tier technology. Epic and Legendary catches guaranteed.",
+      "category": "tool",
+      "rarity": "legendary",
+      "price": 50000,
+      "sellPrice": 25000,
+      "durability": 200,
+      "gatherBonus": 35,
+      "emoji": "⚛️"
+    },
+    "basic_net": {
+      "id": "basic_net",
+      "name": "Basic Net",
+      "description": "Standard gathering net. Increases yield slightly.",
+      "category": "tool",
+      "rarity": "common",
+      "price": 750,
+      "sellPrice": 375,
+      "durability": 40,
+      "gatherBonus": 5,
+      "emoji": "🪤"
+    },
+    "reinforced_net": {
+      "id": "reinforced_net",
+      "name": "Reinforced Net",
+      "description": "Durable mesh. Catch multiple items per gather.",
+      "category": "tool",
+      "rarity": "epic",
+      "price": 15000,
+      "sellPrice": 7500,
+      "durability": 150,
+      "gatherBonus": 25,
+      "emoji": "🕸️"
+    }
+  },
+  "consumables": {
+    "energy_drink": {
+      "id": "energy_drink",
+      "name": "Energy Drink",
+      "description": "Reduces /work cooldown by 50% for 1 hour.",
+      "category": "consumable",
+      "rarity": "common",
+      "price": 200,
+      "sellPrice": 100,
+      "effect": "cooldown_reduction",
+      "effectValue": 0.5,
+      "duration": 3600000,
+      "emoji": "⚡"
+    },
+    "luck_charm": {
+      "id": "luck_charm",
+      "name": "Luck Charm",
+      "description": "Increases rare item drop rate by 20% for 30 minutes.",
+      "category": "consumable",
+      "rarity": "rare",
+      "price": 1000,
+      "sellPrice": 500,
+      "effect": "luck_boost",
+      "effectValue": 0.2,
+      "duration": 1800000,
+      "emoji": "🍀"
+    },
+    "companion_treat": {
+      "id": "companion_treat",
+      "name": "Companion Treat",
+      "description": "Restores 50 hunger and 25 happiness to a companion.",
+      "category": "consumable",
+      "rarity": "common",
+      "price": 150,
+      "sellPrice": 75,
+      "effect": "companion_restore",
+      "effectValue": { "hunger": 50, "happiness": 25 },
+      "emoji": "🍖"
+    },
+    "xp_booster": {
+      "id": "xp_booster",
+      "name": "XP Booster",
+      "description": "Doubles companion XP gain for 2 hours.",
+      "category": "consumable",
+      "rarity": "epic",
+      "price": 2500,
+      "sellPrice": 1250,
+      "effect": "xp_multiplier",
+      "effectValue": 2.0,
+      "duration": 7200000,
+      "emoji": "📈"
+    },
+    "master_key": {
+      "id": "master_key",
+      "name": "Master Key",
+      "description": "Unlock premium features for 7 days without subscription.",
+      "category": "consumable",
+      "rarity": "legendary",
+      "price": 25000,
+      "sellPrice": 12500,
+      "effect": "premium_unlock",
+      "duration": 604800000,
+      "emoji": "🔑"
+    }
+  },
+  "collectibles": {
+    "data_fragment": {
+      "id": "data_fragment",
+      "name": "Data Fragment",
+      "description": "Common digital debris. Used for crafting.",
+      "category": "collectible",
+      "rarity": "common",
+      "price": 50,
+      "sellPrice": 25,
+      "emoji": "💾"
+    },
+    "corrupted_file": {
+      "id": "corrupted_file",
+      "name": "Corrupted File",
+      "description": "Strange anomaly. Collectors pay well for these.",
+      "category": "collectible",
+      "rarity": "rare",
+      "price": 500,
+      "sellPrice": 250,
+      "emoji": "📁"
+    },
+    "encryption_key": {
+      "id": "encryption_key",
+      "name": "Encryption Key",
+      "description": "Valuable security artifact. Highly sought after.",
+      "category": "collectible",
+      "rarity": "epic",
+      "price": 5000,
+      "sellPrice": 2500,
+      "emoji": "🗝️"
+    },
+    "quantum_core": {
+      "id": "quantum_core",
+      "name": "Quantum Core",
+      "description": "Legendary processor component. Extremely rare.",
+      "category": "collectible",
+      "rarity": "legendary",
+      "price": 50000,
+      "sellPrice": 25000,
+      "emoji": "💎"
+    },
+    "singularity_shard": {
+      "id": "singularity_shard",
+      "name": "Singularity Shard",
+      "description": "Mythic artifact from the AI singularity. 1 in 10,000 chance.",
+      "category": "collectible",
+      "rarity": "mythic",
+      "price": 500000,
+      "sellPrice": 250000,
+      "emoji": "✨"
+    },
+    "neural_chip": {
+      "id": "neural_chip",
+      "name": "Neural Chip",
+      "description": "AI learning module. Feed to companions for skill boosts.",
+      "category": "collectible",
+      "rarity": "rare",
+      "price": 1000,
+      "sellPrice": 500,
+      "emoji": "🧠"
+    },
+    "hologram_badge": {
+      "id": "hologram_badge",
+      "name": "Hologram Badge",
+      "description": "Flashy cosmetic token. Show off in your vault.",
+      "category": "collectible",
+      "rarity": "epic",
+      "price": 8000,
+      "sellPrice": 4000,
+      "emoji": "🏅"
+    },
+    "ancient_code": {
+      "id": "ancient_code",
+      "name": "Ancient Code",
+      "description": "Legacy software from the pre-AI era. Museum worthy.",
+      "category": "collectible",
+      "rarity": "legendary",
+      "price": 75000,
+      "sellPrice": 37500,
+      "emoji": "📜"
+    }
+  }
+}

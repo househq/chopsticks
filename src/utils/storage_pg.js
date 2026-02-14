@@ -4,7 +4,7 @@ import { logger } from "./logger.js";
 
 let pool = null;
 
-function getPool() {
+export function getPool() {
   logger.info("--> getPool() called in storage_pg.js");
   if (pool) return pool;
   const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
@@ -269,6 +269,28 @@ export async function ensureSchema() {
     logger.info("agent_bots table altered or already up-to-date.");
   } catch (err) {
     logger.error("Error altering agent_bots table:", { error: err.message });
+    throw err;
+  }
+
+  // New user_pets table
+  try {
+    logger.info("Attempting to create user_pets table...");
+    const createPetsTableSql = `
+      CREATE TABLE IF NOT EXISTS user_pets (
+        id BIGSERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        pet_type TEXT NOT NULL,
+        name TEXT,
+        stats JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `;
+    await p.query(createPetsTableSql);
+    await p.query('CREATE INDEX IF NOT EXISTS idx_user_pets_user_id ON user_pets(user_id);');
+    logger.info("user_pets table created or already exists.");
+  } catch (err) {
+    logger.error("Error creating user_pets table:", { error: err.message });
     throw err;
   }
 
@@ -781,4 +803,57 @@ export async function listPools() {
 
 export async function fetchPoolAgents(poolId) {
   return fetchAgentsByPool(poolId);
+}
+
+// ==================== PET SYSTEM ====================
+
+export async function createPet(userId, type, name) {
+  const p = getPool();
+  const sql = `
+    INSERT INTO user_pets (user_id, pet_type, name, stats)
+    VALUES ($1, $2, $3, $4)
+    RETURNING *;
+  `;
+  const stats = { level: 1, xp: 0, hunger: 100, mood: "happy" };
+  const res = await p.query(sql, [userId, type, name, stats]);
+  return res.rows[0];
+}
+
+export async function getUserPets(userId) {
+  const p = getPool();
+  const sql = "SELECT * FROM user_pets WHERE user_id = $1 ORDER BY created_at DESC";
+  const res = await p.query(sql, [userId]);
+  return res.rows;
+}
+
+export async function updatePetStats(petId, stats) {
+  const p = getPool();
+  const sql = "UPDATE user_pets SET stats = $1, updated_at = NOW() WHERE id = $2 RETURNING *";
+  const res = await p.query(sql, [stats, petId]);
+  return res.rows[0];
+}
+
+export async function deletePet(petId, userId) {
+  const p = getPool();
+  // Ensure user owns the pet
+  const sql = "DELETE FROM user_pets WHERE id = $1 AND user_id = $2 RETURNING id";
+  const res = await p.query(sql, [petId, userId]);
+  return res.rowCount > 0;
+}
+export async function ensureEconomySchema() {
+  const p = getPool();
+  const queries = [
+    `CREATE TABLE IF NOT EXISTS user_wallets (user_id TEXT PRIMARY KEY, balance BIGINT NOT NULL DEFAULT 0 CHECK (balance >= 0), bank BIGINT NOT NULL DEFAULT 0 CHECK (bank >= 0), bank_capacity BIGINT NOT NULL DEFAULT 10000, total_earned BIGINT NOT NULL DEFAULT 0, total_spent BIGINT NOT NULL DEFAULT 0, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_wallets_balance ON user_wallets(balance DESC)`,
+    `CREATE TABLE IF NOT EXISTS user_inventory (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL, item_id TEXT NOT NULL, quantity INT NOT NULL DEFAULT 1 CHECK (quantity > 0), metadata JSONB DEFAULT '{}', acquired_at BIGINT NOT NULL, UNIQUE(user_id, item_id))`,
+    `CREATE INDEX IF NOT EXISTS idx_inventory_user ON user_inventory(user_id)`,
+    `CREATE TABLE IF NOT EXISTS user_streaks (user_id TEXT PRIMARY KEY, daily_streak INT NOT NULL DEFAULT 0, weekly_streak INT NOT NULL DEFAULT 0, last_daily BIGINT, last_weekly BIGINT, longest_daily INT NOT NULL DEFAULT 0, longest_weekly INT NOT NULL DEFAULT 0, streak_multiplier DECIMAL(3,2) NOT NULL DEFAULT 1.00 CHECK (streak_multiplier >= 1.00 AND streak_multiplier <= 5.00))`,
+    `CREATE TABLE IF NOT EXISTS transaction_log (id SERIAL PRIMARY KEY, from_user TEXT, to_user TEXT, amount BIGINT NOT NULL, reason TEXT NOT NULL, metadata JSONB DEFAULT '{}', timestamp BIGINT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_transactions_time ON transaction_log(timestamp DESC)`
+  ];
+  
+  for (const query of queries) {
+    await p.query(query);
+  }
+  logger.info('Economy schema ensured');
 }

@@ -1,7 +1,6 @@
 import {
   SlashCommandBuilder,
-  PermissionFlagsBits,
-  MessageFlags
+  PermissionFlagsBits
 } from "discord.js";
 import {
   setCommandRoles,
@@ -11,6 +10,7 @@ import {
   setCategoryEnabled,
   listCommandSettings
 } from "../utils/permissions.js";
+import { replyEmbed, replyEmbedWithJson } from "../utils/discordOutput.js";
 
 export const meta = {
   guildOnly: true,
@@ -78,10 +78,13 @@ export async function execute(interaction) {
 
   if (sub === "command-roles-list") {
     const res = await listCommandRoles(guildId);
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content: "```json\n" + JSON.stringify(res.commandPerms, null, 2) + "\n```"
-    });
+    await replyEmbedWithJson(
+      interaction,
+      "Command role rules",
+      "Role rules per command.",
+      res.commandPerms ?? {},
+      "command-roles.json"
+    );
     return;
   }
 
@@ -89,10 +92,7 @@ export async function execute(interaction) {
     const commandName = interaction.options.getString("command", true);
     const enabled = interaction.options.getBoolean("enabled", true);
     await setCommandEnabled(guildId, commandName, enabled);
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content: `${commandName} ${enabled ? "enabled" : "disabled"}`
-    });
+    await replyEmbed(interaction, "Command status", `${commandName} ${enabled ? "enabled" : "disabled"}`);
     return;
   }
 
@@ -100,19 +100,19 @@ export async function execute(interaction) {
     const category = interaction.options.getString("category", true);
     const enabled = interaction.options.getBoolean("enabled", true);
     await setCategoryEnabled(guildId, category, enabled);
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content: `Category ${category} ${enabled ? "enabled" : "disabled"}`
-    });
+    await replyEmbed(interaction, "Category status", `${category} ${enabled ? "enabled" : "disabled"}`);
     return;
   }
 
   if (sub === "settings") {
     const settings = await listCommandSettings(guildId);
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content: "```json\n" + JSON.stringify(settings, null, 2) + "\n```"
-    });
+    await replyEmbedWithJson(
+      interaction,
+      "Command settings",
+      "Current command settings.",
+      settings ?? {},
+      "command-settings.json"
+    );
     return;
   }
 
@@ -122,18 +122,12 @@ export async function execute(interaction) {
 
   if (action === "clear") {
     const res = await clearCommandRoles(guildId, commandName);
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content: `Cleared role rules for ${res.commandName}.`
-    });
+    await replyEmbed(interaction, "Command roles", `Cleared role rules for ${res.commandName}.`);
     return;
   }
 
   if (!role) {
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content: "Role is required for add/remove."
-    });
+    await replyEmbed(interaction, "Command roles", "Role is required for add/remove.");
     return;
   }
 
@@ -148,8 +142,9 @@ export async function execute(interaction) {
   }
 
   const saved = await setCommandRoles(guildId, commandName, next);
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
-    content: `Roles for ${commandName}: ${saved.roleIds.join(", ") || "(none)"}`
-  });
+  await replyEmbed(
+    interaction,
+    "Command roles",
+    `Roles for ${commandName}: ${saved.roleIds.join(", ") || "none"}`
+  );
 }

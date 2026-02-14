@@ -20,7 +20,7 @@ export async function execute(interaction) {
   }
   const lines = list.slice(0, 10).map((w, i) => {
     const when = w.at ? `<t:${Math.floor(w.at / 1000)}:R>` : "unknown";
-    return `${i + 1}. ${when} by <@${w.by}> — ${w.reason}`;
+    return `${i + 1}. ${when} by <@${w.by}> - ${w.reason}`;
   });
   await interaction.reply({
     flags: MessageFlags.Ephemeral,

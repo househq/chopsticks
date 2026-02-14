@@ -19,6 +19,8 @@ import {
 import { getMusicConfig, setDefaultMusicMode, updateMusicSettings } from "../music/config.js";
 import { auditLog } from "../utils/audit.js";
 import { handleInteractionError, handleSafeError, ErrorCategory } from "../utils/errorHandler.js";
+import { getCache, setCache } from "../utils/redis.js";
+import { makeEmbed } from "../utils/discordOutput.js";
 
 export const data = new SlashCommandBuilder()
   .setName("music")
@@ -183,15 +185,7 @@ function safeDeferEphemeral(interaction) {
   return safeDefer(interaction, true);
 }
 
-function makeEmbed(title, description, fields = [], url = null, thumbnail_url = null, color = null, footer = null) {
-  const e = new EmbedBuilder().setTitle(title).setDescription(description ?? "");
-  if (Array.isArray(fields) && fields.length) e.addFields(fields);
-  if (url) e.setURL(url);
-  if (thumbnail_url) e.setThumbnail(thumbnail_url);
-  if (color) e.setColor(color);
-  if (footer) e.setFooter(footer);
-  return e;
-}
+// makeEmbed removed - using imported version
 
 function buildTrackEmbed(action, track) {
   const title = action === "playing" ? "Now Playing" : "Queued";
@@ -217,7 +211,9 @@ function buildTrackEmbed(action, track) {
 const QUEUE_PAGE_SIZE = 10;
 const QUEUE_COLOR = 0x5865F2;
 const SEARCH_TTL_MS = 10 * 60_000;
-const searchCache = new Map(); // key -> { userId, guildId, voiceChannelId, tracks, createdAt }
+const SEARCH_TTL_SEC = 10 * 60;
+// Note: searchCache is now backed by Redis for persistence across restarts
+// const searchCache = new Map(); (Legacy in-memory cache removed)
 
 // Anti-spam: Track button interactions to prevent double-processing
 const buttonProcessing = new Map(); // interactionId -> timestamp
@@ -244,15 +240,7 @@ setInterval(() => {
   }
 }, 30_000).unref?.();
 
-// Periodic cleanup for search cache (every 2 minutes)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of searchCache.entries()) {
-    if (now - entry.createdAt > SEARCH_TTL_MS) {
-      searchCache.delete(key);
-    }
-  }
-}, 120_000).unref?.();
+// Periodic cleanup for search cache is handled by Redis TTL now
 
 function randomKey() {
   // Use crypto random for better collision resistance
@@ -262,28 +250,28 @@ function randomKey() {
   return `${timestamp}${random}${random2}`;
 }
 
-function setSearchCache(entry) {
+async function setSearchCache(entry) {
   const key = randomKey();
-  searchCache.set(key, { ...entry, createdAt: Date.now() });
-  // Note: Individual cleanup is redundant with periodic cleanup, but kept as fallback
-  setTimeout(() => searchCache.delete(key), SEARCH_TTL_MS).unref?.();
+  // Store in Redis with TTL
+  const ok = await setCache(`search:${key}`, { ...entry, createdAt: Date.now() }, SEARCH_TTL_SEC);
+  if (!ok) {
+    console.warn("[music] Redis cache failed, search selection may not persist.");
+  }
   return key;
 }
 
-function getSearchCache(key) {
-  const entry = searchCache.get(key);
+async function getSearchCache(key) {
+  const entry = await getCache(`search:${key}`);
   if (!entry) return null;
-  if (Date.now() - entry.createdAt > SEARCH_TTL_MS) {
-    searchCache.delete(key);
-    return null;
-  }
+  // TTL is handled by Redis, so if we got it, it's valid
   return entry;
 }
 
 function truncate(text, max) {
   const s = String(text ?? "");
   if (s.length <= max) return s;
-  return s.slice(0, Math.max(0, max - 1)) + "…";
+  if (max <= 3) return s.slice(0, Math.max(0, max));
+  return s.slice(0, Math.max(0, max - 3)) + "...";
 }
 
 function buildSearchMenu(tracks, cacheKey) {
@@ -291,7 +279,7 @@ function buildSearchMenu(tracks, cacheKey) {
     const title = truncate(t?.title ?? "Unknown title", 100);
     const author = truncate(t?.author ?? "", 100);
     const dur = t?.duration ?? t?.length;
-    const duration = dur ? ` • ${formatDuration(dur)}` : "";
+    const duration = dur ? ` | ${formatDuration(dur)}` : "";
     return {
       label: title,
       value: String(idx),
@@ -329,10 +317,10 @@ function buildQueueEmbed(result, page, pageSize, actionNote) {
 
   if (current?.title) {
     let line = `[${current.title}](${current.uri})`;
-    if (current.author) line += ` — ${current.author}`;
+    if (current.author) line += ` - ${current.author}`;
     const curDur = current?.duration ?? current?.length;
-    if (curDur) line += ` • ${formatDuration(curDur)}`;
-    if (current.requester?.username) line += ` • requested by ${current.requester.username}`;
+    if (curDur) line += ` | ${formatDuration(curDur)}`;
+    if (current.requester?.username) line += ` | requested by ${current.requester.username}`;
     fields.push({ name: "Now Playing", value: line, inline: false });
   } else {
     fields.push({ name: "Now Playing", value: "Nothing playing in this channel.", inline: false });
@@ -346,14 +334,14 @@ function buildQueueEmbed(result, page, pageSize, actionNote) {
       const t = tracks[i];
       const title = t?.title ?? "Unknown title";
       const durMs = t?.duration ?? t?.length;
-      const dur = durMs ? ` • ${formatDuration(durMs)}` : "";
+      const dur = durMs ? ` | ${formatDuration(durMs)}` : "";
       lines.push(`${i + 1}. [${title}](${t?.uri ?? ""})${dur}`);
     }
     fields.push({ name: `Up Next (${start + 1}-${end} of ${tracks.length})`, value: lines.join("\n"), inline: false });
   }
 
   const footer = {
-    text: `Page ${safePage + 1}/${totalPages}${actionNote ? ` • ${actionNote}` : ""}`
+    text: `Page ${safePage + 1}/${totalPages}${actionNote ? ` | ${actionNote}` : ""}`
   };
 
   return { embed: makeEmbed("Music Queue", "Interactive queue controls below.", fields, null, null, QUEUE_COLOR, footer), page: safePage, totalPages };
@@ -589,7 +577,7 @@ export async function execute(interaction) {
         const errorMsg = formatMusicError(alloc.reason);
         const embedFields = [];
         if (alloc.reason === "no-agents-in-guild" || alloc.reason === "no-free-agents") {
-          embedFields.push({ name: "Hint", value: "You might need to deploy more music agents. Use `/agents deploy` to get invite links.", inline: false });
+          // Silent failure preference - no hint
         }
         await interaction.editReply({
           embeds: [makeEmbed("Music Error", errorMsg, embedFields, null, null, 0xFF0000)] // Red color for error
@@ -673,7 +661,7 @@ export async function execute(interaction) {
         return;
       }
 
-      const cacheKey = setSearchCache({
+      const cacheKey = await setSearchCache({
         userId,
         guildId,
         voiceChannelId: vc.id,
@@ -1105,34 +1093,37 @@ export async function handleSelect(interaction) {
   const id = String(interaction.customId || "");
   if (!id.startsWith("musicsearch:")) return false;
 
+  // Defer immediately to prevent interaction timeout
+  await interaction.deferUpdate().catch(() => {});
+
   const key = id.split(":")[1];
-  const entry = getSearchCache(key);
+  const entry = await getSearchCache(key);
   if (!entry) {
-    await interaction.reply({ content: "Search selection expired. Run /music play again.", ephemeral: true }).catch(() => {});
+    await interaction.followUp({ content: "Search selection expired. Run /music play again.", ephemeral: true }).catch(() => {});
     return true;
   }
 
   if (entry.userId !== interaction.user.id) {
-    await interaction.reply({ content: "Not for you.", ephemeral: true }).catch(() => {});
+    await interaction.followUp({ content: "Not for you.", ephemeral: true }).catch(() => {});
     return true;
   }
 
   const memberVcId = await resolveMemberVoiceId(interaction);
   if (!memberVcId || memberVcId !== entry.voiceChannelId) {
-    await interaction.reply({ content: "Join the same voice channel to select this result.", ephemeral: true }).catch(() => {});
+    await interaction.followUp({ content: "Join the same voice channel to select this result.", ephemeral: true }).catch(() => {});
     return true;
   }
 
   const idx = Math.max(0, Math.trunc(Number(interaction.values?.[0] ?? 0)));
   const track = entry.tracks?.[idx];
   if (!track) {
-    await interaction.reply({ content: "Invalid selection.", ephemeral: true }).catch(() => {});
+    await interaction.followUp({ content: "Invalid selection.", ephemeral: true }).catch(() => {});
     return true;
   }
 
   const sess = getSessionAgent(entry.guildId, entry.voiceChannelId);
   if (!sess.ok) {
-    await interaction.reply({ content: formatMusicError(sess.reason), ephemeral: true }).catch(() => {});
+    await interaction.followUp({ content: formatMusicError(sess.reason), ephemeral: true }).catch(() => {});
     return true;
   }
 
@@ -1142,7 +1133,7 @@ export async function handleSelect(interaction) {
   } catch {}
 
   try {
-    console.log(`[music:select] Sending play command for track: ${track.title || track.uri} to agent ${sess.agent?.id}`);
+    console.log(`[music:select] Sending play command for track: ${track.title || track.uri} to agent ${sess.agent?.agentId}`);
     const result = await sendAgentCommand(sess.agent, "play", {
       guildId: entry.guildId,
       voiceChannelId: entry.voiceChannelId,
@@ -1158,18 +1149,22 @@ export async function handleSelect(interaction) {
     console.log(`[music:select] Play command result:`, result);
     const playedTrack = result?.track ?? track;
     const action = String(result?.action ?? "queued");
-    await interaction.update({
+    await interaction.editReply({
       embeds: [buildTrackEmbed(action, playedTrack)],
       components: []
     }).catch(() => {});
   } catch (err) {
     console.error(`[music:select] Error sending play command:`, err?.stack ?? err?.message ?? err);
-    await interaction.update({
+    await interaction.editReply({
       embeds: [makeEmbed("Music Error", formatMusicError(err), [], null, null, 0xFF0000)],
       components: []
     }).catch(() => {});
   }
 
-  searchCache.delete(key);
+  // Do NOT delete the cache entry immediately. 
+  // Allow multiple people (or the same person) to select from the same search result if they want?
+  // Or at least prevent the race condition where "Search selection expired" appears because it was deleted too fast.
+  // Redis TTL handles cleanup.
+  // searchCache.delete(key); 
   return true;
 }

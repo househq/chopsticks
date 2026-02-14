@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, MessageFlags } from "discord.js";
+import { replyEmbed } from "../utils/discordOutput.js";
 
 export const data = new SlashCommandBuilder()
   .setName("echo")
@@ -7,5 +8,5 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const text = interaction.options.getString("text", true);
-  await interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
+  await replyEmbed(interaction, "Echo", text, true);
 }

@@ -35,7 +35,18 @@ export async function ensureSchema() {
   // No-op for file storage as files are created on demand
 }
 
+export async function ensureEconomySchema() {
+  if (STORAGE_DRIVER === "postgres") {
+    const pg = await getPg();
+    await pg.ensureEconomySchema();
+  }
+}
 
+function ensureDir() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+}
 
 function guildFile(guildId) {
   return path.join(DATA_DIR, `${guildId}.json`);
@@ -480,5 +491,25 @@ export async function getGuildSelectedPool(guildId) {
 export async function setGuildSelectedPool(guildId, poolId) {
   const pg = await getPg();
   return pg.setGuildSelectedPool(guildId, poolId);
+}
+
+export async function createPet(userId, type, name) {
+  const pg = await getPg();
+  return pg.createPet(userId, type, name);
+}
+
+export async function getUserPets(userId) {
+  const pg = await getPg();
+  return pg.getUserPets(userId);
+}
+
+export async function updatePetStats(petId, stats) {
+  const pg = await getPg();
+  return pg.updatePetStats(petId, stats);
+}
+
+export async function deletePet(petId, userId) {
+  const pg = await getPg();
+  return pg.deletePet(petId, userId);
 }
 

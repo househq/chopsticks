@@ -1,5 +1,6 @@
-import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from "discord.js";
+import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { setAlias, clearAlias, getAliases } from "../utils/aliases.js";
+import { replyEmbed, replyEmbedWithJson } from "../utils/discordOutput.js";
 
 export const meta = {
   guildOnly: true,
@@ -32,22 +33,25 @@ export async function execute(interaction) {
   const guildId = interaction.guildId;
   if (sub === "list") {
     const aliases = await getAliases(guildId);
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content: "```json\n" + JSON.stringify(aliases, null, 2) + "\n```"
-    });
+    await replyEmbedWithJson(
+      interaction,
+      "Aliases",
+      `Total aliases: ${Object.keys(aliases || {}).length}`,
+      aliases,
+      "aliases.json"
+    );
     return;
   }
   if (sub === "set") {
     const alias = interaction.options.getString("alias", true);
     const commandName = interaction.options.getString("command", true);
     await setAlias(guildId, alias, commandName);
-    await interaction.reply({ flags: MessageFlags.Ephemeral, content: `Alias set: ${alias} -> ${commandName}` });
+    await replyEmbed(interaction, "Alias updated", `${alias} -> ${commandName}`);
     return;
   }
   if (sub === "clear") {
     const alias = interaction.options.getString("alias", true);
     await clearAlias(guildId, alias);
-    await interaction.reply({ flags: MessageFlags.Ephemeral, content: `Alias cleared: ${alias}` });
+    await replyEmbed(interaction, "Alias removed", `${alias}`);
   }
 }

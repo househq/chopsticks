@@ -17,11 +17,11 @@ export async function execute(interaction) {
   const when = Date.now() + minutes * 60 * 1000;
   schedule(`remind:${interaction.user.id}:${when}`, minutes * 60 * 1000, async () => {
     try {
-      await interaction.user.send(`⏰ Reminder: ${text}`);
+      await interaction.user.send(`Reminder: ${text}`);
     } catch {}
   });
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
-    content: `Okay, I will remind you in ${minutes} minutes.`
+    content: `Reminder scheduled in ${minutes} minutes.`
   });
 }

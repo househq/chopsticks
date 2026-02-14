@@ -16,7 +16,7 @@ const commandDeltaByGuild = new Map(); // guildId -> Map(command -> stats)
 export function startHealthServer() {
   if (server) return server;
 
-  const port = Number(process.env.METRICS_PORT || process.env.HEALTH_PORT || 9100);
+  const port = Number(process.env.HEALTH_PORT || process.env.METRICS_PORT || 9100);
   if (!Number.isFinite(port) || port <= 0) return null;
   const allowFallback =
     String(process.env.METRICS_PORT_FALLBACK ?? "true").toLowerCase() !== "false";

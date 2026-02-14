@@ -22,6 +22,7 @@ import {
   getGuildSelectedPool,
   fetchPoolAgents
 } from "../utils/storage.js";
+import { replyEmbed, replyEmbedWithJson, buildEmbed } from "../utils/discordOutput.js";
 
 export const meta = {
   guildOnly: true,
@@ -201,7 +202,7 @@ export async function execute(interaction) {
   if (ownerOnlySubcommands.has(sub) && !isBotOwner) {
     await interaction.reply({
       flags: MessageFlags.Ephemeral,
-      content: "❌ This command is restricted to the Bot Owner."
+      content: "This command is restricted to the Bot Owner."
     });
     return;
   }
@@ -233,7 +234,7 @@ export async function execute(interaction) {
       .map(a => {
         const state = a.ready ? (a.busyKey ? `busy(${a.busyKind || "?"})` : "idle") : "down";
         const ident = a.tag ? `${a.tag} (${a.botUserId})` : (a.botUserId ? String(a.botUserId) : "unknown-id");
-        return `\`${a.agentId}\` — ${state} — seen ${fmtTs(a.lastSeen)} — ${ident}`;
+        return `\`${a.agentId}\` - ${state} - seen ${fmtTs(a.lastSeen)} - ${ident}`;
       })
       .join("\n");
 
@@ -243,7 +244,7 @@ export async function execute(interaction) {
 
     const invitableText = invitable
       .sort((x, y) => String(x.agent_id).localeCompare(String(y.agent_id)))
-      .map(a => `\`${a.agent_id}\` — ${a.tag} (${a.client_id}) — Status: ${a.status}`)
+      .map(a => `\`${a.agent_id}\` - ${a.tag} (${a.client_id}) - Status: ${a.status}`)
       .join("\n");
 
     if (invitableText) {
@@ -290,7 +291,7 @@ export async function execute(interaction) {
     if (desiredTotal % 10 !== 0) {
       await interaction.reply({
         flags: MessageFlags.Ephemeral,
-        content: `❌ The desired total number of agents must be a multiple of 10. You entered ${desiredTotal}.`
+        content: `The desired total number of agents must be a multiple of 10. You entered ${desiredTotal}.`
       });
       return;
     }
@@ -305,7 +306,7 @@ export async function execute(interaction) {
       const specifiedPool = await fetchPool(fromPoolOption);
       if (!specifiedPool) {
         return await interaction.editReply({
-          content: `❌ Pool \`${fromPoolOption}\` not found.\nUse \`/pools public\` to see available pools.`
+          content: `Pool \`${fromPoolOption}\` not found.\nUse \`/pools public\` to see available pools.`
         });
       }
       
@@ -317,7 +318,7 @@ export async function execute(interaction) {
       
       if (!isOwner && !isPublic) {
         return await interaction.editReply({
-          content: `❌ Cannot access private pool \`${fromPoolOption}\`.\nUse \`/pools public\` to see available pools.`
+          content: `Cannot access private pool \`${fromPoolOption}\`.\nUse \`/pools public\` to see available pools.`
         });
       }
       
@@ -332,11 +333,11 @@ export async function execute(interaction) {
     const plan = await mgr.buildDeployPlan(guildId, desiredTotal, selectedPoolId); // Now async with poolId
 
     const lines = [];
-    lines.push(`**📦 Pool:** ${pool ? pool.name : selectedPoolId} (\`${selectedPoolId}\`)`);
+    lines.push(`** Pool:** ${pool ? pool.name : selectedPoolId} (\`${selectedPoolId}\`)`);
     if (fromPoolOption) {
       lines.push(`_Using specified pool (guild default: \`${await getGuildSelectedPool(guildId)}\`)_`);
     } else {
-      lines.push(`_Guild default pool • Change with \`/pools select\`_`);
+      lines.push(`_Guild default pool - Change with \`/pools select\`_`);
     }
     lines.push("");
     lines.push(`Desired total agents in this guild: ${plan.desired}`);
@@ -358,12 +359,12 @@ export async function execute(interaction) {
     // If there's an issue and still need invites but none are available for invite
     if (plan.needInvites > 0 && plan.invites.length === 0) {
         lines.push("");
-        lines.push("💡 **No agents available from this pool.**");
+        lines.push("No agents available from this pool.");
         lines.push("");
         lines.push("**Options:**");
-        lines.push("• Deploy from different pool: `/agents deploy from_pool:pool_id`");
-        lines.push("• See public pools: `/pools public`");
-        lines.push("• Change guild default: `/pools select pool:pool_id`");
+        lines.push("- Deploy from different pool: `/agents deploy from_pool:pool_id`");
+        lines.push("- See public pools: `/pools public`");
+        lines.push("- Change guild default: `/pools select pool:pool_id`");
         lines.push("");
         lines.push("**Or contribute agents to this pool:**");
         lines.push("1. Use `/agents add_token pool:"+selectedPoolId+"` to register agents.");
@@ -381,7 +382,7 @@ export async function execute(interaction) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
       await interaction.reply({
         flags: MessageFlags.Ephemeral,
-        content: "❌ Only server administrators can verify agent membership."
+        content: "Only server administrators can verify agent membership."
       });
       return;
     }
@@ -400,7 +401,7 @@ export async function execute(interaction) {
 
     if (agentsToCheck.length === 0) {
       await interaction.editReply({
-        content: "✅ No agents claim to be in this guild.\n\nUse `/agents deploy` to invite agents."
+        content: "No agents claim to be in this guild.\n\nUse `/agents deploy` to invite agents."
       });
       return;
     }
@@ -424,10 +425,10 @@ export async function execute(interaction) {
       const inGuild = members.has(agent.botUserId);
       
       if (inGuild) {
-        lines.push(`✅ ${agent.agentId} (${agent.tag}) - In guild`);
+        lines.push(`${agent.agentId} (${agent.tag}) - In guild`);
         verified++;
       } else {
-        lines.push(`❌ ${agent.agentId} (${agent.tag}) - NOT in guild (removed from cache)`);
+        lines.push(`${agent.agentId} (${agent.tag}) - NOT in guild (removed from cache)`);
         agent.guildIds.delete(guildId);
         removed++;
       }
@@ -435,12 +436,12 @@ export async function execute(interaction) {
 
     lines.push("");
     lines.push(`**Summary:**`);
-    lines.push(`✅ Verified: ${verified}`);
-    lines.push(`❌ Removed: ${removed}`);
+    lines.push(`Verified: ${verified}`);
+    lines.push(`Removed: ${removed}`);
     
     if (removed > 0) {
       lines.push("");
-      lines.push("💡 Run `/agents deploy` to re-invite agents.");
+      lines.push("Run `/agents deploy` to re-invite agents.");
     }
 
     await interaction.editReply({ content: lines.join("\n").slice(0, 1900) });
@@ -605,21 +606,21 @@ export async function execute(interaction) {
         // Verify client_id matches
         if (botUser.id !== clientId) {
           return await interaction.editReply({
-            content: `❌ Client ID mismatch. Token belongs to ${botUser.tag} (${botUser.id}), not ${clientId}.`
+            content: `Client ID mismatch. Token belongs to ${botUser.tag} (${botUser.id}), not ${clientId}.`
           });
         }
         
         // Verify tag matches (approximately)
         if (botUser.tag !== tag && botUser.username !== tag.split('#')[0]) {
           return await interaction.editReply({
-            content: `⚠️ Tag mismatch. Bot is actually **${botUser.tag}**. Please use correct tag and try again.`
+            content: `Tag mismatch. Bot is actually **${botUser.tag}**. Please use correct tag and try again.`
           });
         }
         
       } catch (validationError) {
         console.error('[add_token] Token validation failed:', validationError.message);
         return await interaction.editReply({
-          content: `❌ Token validation failed. Ensure token is valid and bot exists.\n\`\`\`${validationError.message}\`\`\``
+          content: `Token validation failed. Ensure token is valid and bot exists.\n\`\`\`${validationError.message}\`\`\``
         });
       }
 
@@ -632,7 +633,7 @@ export async function execute(interaction) {
         const specifiedPool = await fetchPool(poolOption);
         if (!specifiedPool) {
           return await interaction.editReply({ 
-            content: `❌ Pool \`${poolOption}\` not found.` 
+            content: `Pool \`${poolOption}\` not found.` 
           });
         }
         
@@ -647,7 +648,7 @@ export async function execute(interaction) {
         } else {
           // Private pool they don't own
           return await interaction.editReply({ 
-            content: `❌ Cannot add to private pool \`${poolOption}\` - you don't own it.` 
+            content: `Cannot add to private pool \`${poolOption}\` - you don't own it.` 
           });
         }
       } else {
@@ -663,7 +664,7 @@ export async function execute(interaction) {
           // No personal pool - must contribute to public pool
           if (availablePublicPools.length === 0) {
             return await interaction.editReply({
-              content: `❌ No public pools available for contribution.\nCreate your own with \`/pools create\``
+              content: `No public pools available for contribution.\nCreate your own with \`/pools create\``
             });
           }
           
@@ -671,7 +672,7 @@ export async function execute(interaction) {
           let poolList = '**Available Public Pools:**\n';
           for (const p of availablePublicPools) {
             const owner = p.owner_user_id === BOT_OWNER_ID ? 'goot27 (Master)' : `<@${p.owner_user_id}>`;
-            poolList += `• \`${p.pool_id}\` - ${p.name} (by ${owner})\n`;
+            poolList += `- \`${p.pool_id}\` - ${p.name} (by ${owner})\n`;
           }
           poolList += `\n**Choose a pool:**\nRe-run this command with \`pool:pool_id\` parameter`;
           poolList += `\nExample: \`/agents add_token pool:pool_goot27\``;
@@ -698,7 +699,7 @@ export async function execute(interaction) {
         
         if (userContributions.length >= 3 && userId !== BOT_OWNER_ID) {
           return await interaction.editReply({
-            content: `⏳ Rate limit: You can contribute up to 3 agents per hour to public pools.\nPlease wait before adding more.`
+            content: `Rate limit: You can contribute up to 3 agents per hour to public pools.\nPlease wait before adding more.`
           });
         }
         
@@ -709,20 +710,18 @@ export async function execute(interaction) {
         const operationMsg = result.operation === 'inserted' ? 'submitted' : 'updated';
         await interaction.editReply({
           embeds: [{
-            title: '✅ Contribution Submitted',
-            description: `Your agent **${botUser.tag}** has been ${operationMsg} to **${pool.name}**.`,
+            title: 'Contribution submitted',
+            description: `Agent **${botUser.tag}** ${operationMsg} to **${pool.name}**.`,
             color: 0x57f287,
             fields: [
               { name: 'Agent ID', value: `\`${agentId}\``, inline: true },
               { name: 'Pool', value: `\`${poolId}\``, inline: true },
-              { name: 'Status', value: '⏳ Pending Verification', inline: true },
+              { name: 'Status', value: 'pending', inline: true },
               { 
-                name: '📋 Next Steps',
-                value: 'Your contribution is under review. Pool owner will activate if approved.\n' +
-                       '**Note:** Token is encrypted and secure. Only pool owner can manage.'
+                name: 'Review',
+                value: 'Pool owner reviews and activates if approved.'
               }
             ],
-            footer: { text: 'Thank you for contributing to the community!' },
             timestamp: new Date()
           }]
         });
@@ -733,16 +732,16 @@ export async function execute(interaction) {
         
         await interaction.editReply({
           embeds: [{
-            title: `✅ Agent ${operationMsg.charAt(0).toUpperCase() + operationMsg.slice(1)}`,
-            description: `**${botUser.tag}** is now in your pool.`,
+            title: `Agent ${operationMsg}`,
+            description: `Agent **${botUser.tag}** is in your pool.`,
             color: 0x57f287,
             fields: [
               { name: 'Agent ID', value: `\`${agentId}\``, inline: true },
               { name: 'Pool', value: `\`${poolId}\``, inline: true },
-              { name: 'Status', value: '🟢 Active', inline: true },
+              { name: 'Status', value: 'active', inline: true },
               { 
-                name: '🚀 Deployment',
-                value: 'AgentRunner will start this agent automatically.\nUse `/agents deploy` to invite to guilds.'
+                name: 'Deployment',
+                value: 'Use /agents deploy to invite to guilds.'
               }
             ],
             timestamp: new Date()
@@ -753,7 +752,7 @@ export async function execute(interaction) {
     } catch (error) {
       console.error(`[add_token] Error: ${error.message}`);
       await interaction.editReply({ 
-        content: `❌ Failed to add agent: ${error.message}` 
+        content: `Failed to add agent: ${error.message}` 
       });
     }
     return;
@@ -798,7 +797,7 @@ export async function execute(interaction) {
       for (const [poolId, poolTokens] of poolMap) {
         const pool = poolDataMap.get(poolId);
         const poolName = pool ? pool.name : poolId;
-        const visIcon = pool?.visibility === 'public' ? '🌐' : '🔒';
+        const visIcon = pool?.visibility === 'public' ? '' : '';
         
         description += `\n**${visIcon} ${poolName}** (\`${poolId}\`)\n`;
         const tokenList = poolTokens
@@ -878,25 +877,34 @@ export async function execute(interaction) {
         if (i.customId === confirmId) {
           const deleted = await deleteAgentBot(agentId);
           if (deleted) {
-            await i.update({ content: `✅ Agent token **${agentToDelete.tag}** (\`${agentId}\`) has been deleted.`, components: [] });
+            await i.update({
+              embeds: [buildEmbed("Agent token deleted", `${agentToDelete.tag} (${agentId})`)],
+              components: []
+            });
           } else {
-            await i.update({ content: `❌ Failed to delete agent token ${agentId}. It may have already been deleted.`, components: [] });
+            await i.update({
+              embeds: [buildEmbed("Agent token delete failed", `Agent ${agentId} may already be deleted.`)],
+              components: []
+            });
           }
         } else {
-          await i.update({ content: "Deletion cancelled.", components: [] });
+          await i.update({ embeds: [buildEmbed("Agent token delete", "Deletion cancelled.")], components: [] });
         }
         collector.stop();
       });
 
       collector.on('end', collected => {
         if (collected.size === 0) {
-          interaction.editReply({ content: "Confirmation timed out. Deletion cancelled.", components: [] });
+          interaction.editReply({
+            embeds: [buildEmbed("Agent token delete", "Confirmation timed out. Deletion cancelled.")],
+            components: []
+          });
         }
       });
 
     } catch (error) {
       console.error(`Error during agent token deletion process: ${error}`);
-      await interaction.reply({ flags: MessageFlags.Ephemeral, content: `An error occurred: ${error.message}` });
+      await replyEmbed(interaction, "Agent token delete", `Error: ${error.message}`);
     }
     return;
   }
@@ -909,20 +917,20 @@ export async function execute(interaction) {
     try {
       profileJson = JSON.parse(profileString);
     } catch (error) {
-      await interaction.reply({ flags: MessageFlags.Ephemeral, content: `❌ Invalid JSON provided for profile: ${error.message}` });
+      await replyEmbed(interaction, "Agent profile", `Invalid JSON: ${error.message}`);
       return;
     }
 
     try {
       const updated = await updateAgentBotProfile(agentId, profileJson);
       if (updated) {
-        await interaction.reply({ flags: MessageFlags.Ephemeral, content: `✅ Profile for agent ${agentId} has been updated.` });
+        await replyEmbed(interaction, "Agent profile updated", `Agent ${agentId}`);
       } else {
-        await interaction.reply({ flags: MessageFlags.Ephemeral, content: `❌ Agent ${agentId} not found.` });
+        await replyEmbed(interaction, "Agent profile", `Agent ${agentId} not found.`);
       }
     } catch (error) {
       console.error(`Error setting agent profile: ${error}`);
-      await interaction.reply({ flags: MessageFlags.Ephemeral, content: `An error occurred while setting the profile: ${error.message}` });
+      await replyEmbed(interaction, "Agent profile", `Error: ${error.message}`);
     }
     return;
   }
@@ -933,14 +941,19 @@ export async function execute(interaction) {
     try {
       const profile = await fetchAgentBotProfile(agentId);
       if (profile) {
-        const profileString = JSON.stringify(profile, null, 2);
-        await interaction.reply({ flags: MessageFlags.Ephemeral, content: `Profile for **${agentId}**:\n\`\`\`json\n${profileString}\n\`\`\`` });
+        await replyEmbedWithJson(
+          interaction,
+          "Agent profile",
+          `Agent ${agentId}`,
+          profile,
+          `agent-${agentId}-profile.json`
+        );
       } else {
-        await interaction.reply({ flags: MessageFlags.Ephemeral, content: `No profile set for agent ${agentId}.` });
+        await replyEmbed(interaction, "Agent profile", `No profile set for agent ${agentId}.`);
       }
     } catch (error) {
       console.error(`Error fetching agent profile: ${error}`);
-      await interaction.reply({ flags: MessageFlags.Ephemeral, content: `An error occurred while fetching the profile: ${error.message}` });
+      await replyEmbed(interaction, "Agent profile", `Error: ${error.message}`);
     }
     return;
   }
