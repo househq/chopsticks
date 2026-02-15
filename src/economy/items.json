@@ -62,6 +62,66 @@
     }
   },
   "consumables": {
+    "loot_crate_common": {
+      "id": "loot_crate_common",
+      "name": "Common Loot Crate",
+      "description": "A sealed crate. Use it to open random common rewards.",
+      "category": "consumable",
+      "rarity": "common",
+      "price": 0,
+      "sellPrice": 0,
+      "effect": "loot_crate",
+      "effectValue": "common",
+      "emoji": "📦"
+    },
+    "loot_crate_rare": {
+      "id": "loot_crate_rare",
+      "name": "Rare Loot Crate",
+      "description": "A sealed crate. Use it to open random rare rewards.",
+      "category": "consumable",
+      "rarity": "rare",
+      "price": 0,
+      "sellPrice": 0,
+      "effect": "loot_crate",
+      "effectValue": "rare",
+      "emoji": "🎁"
+    },
+    "loot_crate_epic": {
+      "id": "loot_crate_epic",
+      "name": "Epic Loot Crate",
+      "description": "A sealed crate. Use it to open random epic rewards.",
+      "category": "consumable",
+      "rarity": "epic",
+      "price": 0,
+      "sellPrice": 0,
+      "effect": "loot_crate",
+      "effectValue": "epic",
+      "emoji": "🧰"
+    },
+    "loot_crate_legendary": {
+      "id": "loot_crate_legendary",
+      "name": "Legendary Loot Crate",
+      "description": "A sealed crate. Use it to open random legendary rewards.",
+      "category": "consumable",
+      "rarity": "legendary",
+      "price": 0,
+      "sellPrice": 0,
+      "effect": "loot_crate",
+      "effectValue": "legendary",
+      "emoji": "💠"
+    },
+    "loot_crate_mythic": {
+      "id": "loot_crate_mythic",
+      "name": "Mythic Loot Crate",
+      "description": "A sealed crate. Use it to open random mythic rewards.",
+      "category": "consumable",
+      "rarity": "mythic",
+      "price": 0,
+      "sellPrice": 0,
+      "effect": "loot_crate",
+      "effectValue": "mythic",
+      "emoji": "✨"
+    },
     "energy_drink": {
       "id": "energy_drink",
       "name": "Energy Drink",

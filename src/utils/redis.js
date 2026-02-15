@@ -51,3 +51,18 @@ export async function getCache(key) {
     return null;
   }
 }
+
+export async function delCache(key) {
+  const client = await getRedisClient();
+  if (!client?.isOpen) {
+    console.error(`[redis:del] client not open for key=${key}`);
+    return false;
+  }
+  try {
+    await client.del(key);
+    return true;
+  } catch (err) {
+    console.error(`[redis:del] error for key=${key}:`, err.message);
+    return false;
+  }
+}

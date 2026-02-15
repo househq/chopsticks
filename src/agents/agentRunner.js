@@ -1,6 +1,6 @@
 // src/agents/agentRunner.js
 import "dotenv/config";
-import { Client, GatewayIntentBits, Partials, Events, PermissionsBitField } from "discord.js";
+import { Client, GatewayIntentBits, Partials, Events, PermissionsBitField, EmbedBuilder } from "discord.js";
 import {
   joinVoiceChannel,
   createAudioPlayer,
@@ -285,6 +285,13 @@ async function startAgent(agentConfig) {
     if (!m) throw new Error("not-in-guild");
     const chId = m.voice?.channelId ?? null;
     if (chId !== voiceChannelId) throw new Error("not-in-voice");
+    return m;
+  }
+
+  async function assertActorInGuild(guildId, actorUserId) {
+    if (!actorUserId) throw new Error("missing-actor");
+    const m = await fetchMember(guildId, actorUserId);
+    if (!m) throw new Error("not-in-guild");
     return m;
   }
 
@@ -800,13 +807,37 @@ async function startAgent(agentConfig) {
     // No longer handling scale, start_agent, stop_agent here. These are handled by pollForAgentChanges.
 
     const guildId = payload.guildId;
-    const voiceChannelId = payload.voiceChannelId;
-    const textChannelId = payload.textChannelId;
+    const voiceChannelId = payload.voiceChannelId ?? null;
+    const textChannelId = payload.textChannelId ?? null;
     const actorUserId = payload.actorUserId ?? payload.ownerUserId ?? payload.adminUserId ?? null;
 
-    if (!guildId || !voiceChannelId) throw new Error("missing-session");
-
     const adminOverride = isAdminOverride(payload);
+
+    // Text-only ops do not require a voiceChannelId.
+    if (op === "discordSend") {
+      if (!guildId) throw new Error("missing-guild");
+      if (!textChannelId) throw new Error("missing-channel");
+      if (!adminOverride) await assertActorInGuild(guildId, actorUserId);
+
+      const channel = await client.channels.fetch(textChannelId).catch(() => null);
+      if (!channel?.isTextBased?.()) throw new Error("channel-not-text");
+
+      const content = String(payload.content || "").slice(0, 1900).trim();
+      const embedsIn = Array.isArray(payload.embeds) ? payload.embeds : [];
+      const embeds = embedsIn.slice(0, 10).map(e => {
+        try { return EmbedBuilder.from(e); } catch { return null; }
+      }).filter(Boolean);
+
+      await channel.send({
+        content: content || undefined,
+        embeds: embeds.length ? embeds : undefined,
+        allowedMentions: { parse: [] }
+      });
+
+      return { ok: true };
+    }
+
+    if (!guildId || !voiceChannelId) throw new Error("missing-session");
 
     const actorMember = adminOverride ? null : await assertActorInVoice(guildId, voiceChannelId, actorUserId);
 

@@ -130,6 +130,12 @@ export default {
         .setFooter({ text: xpRes.leveledUp ? `Level Up: ${xpRes.fromLevel} -> ${xpRes.toLevel}` : "Sell drops with /use or store value in /bank." })
         .setTimestamp();
 
+      if (xpRes.granted?.length) {
+        const crates = xpRes.granted.slice(0, 3).map(g => `Lv ${g.level}: \`${g.crateId}\``).join("\n");
+        const more = xpRes.granted.length > 3 ? `\n...and ${xpRes.granted.length - 3} more.` : "";
+        embed.addFields({ name: "Level Rewards", value: crates + more, inline: false });
+      }
+
       await interaction.editReply({ embeds: [embed] });
 
       try { await recordQuestEvent(interaction.user.id, "fight_wins", 1); } catch {}

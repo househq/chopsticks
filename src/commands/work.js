@@ -141,6 +141,12 @@ export default {
         .setFooter({ text: `Come back in ${formatCooldown(effectiveCooldown)} for another job.` })
         .setTimestamp();
 
+      if (xpRes.granted?.length) {
+        const crates = xpRes.granted.slice(0, 3).map(g => `Lv ${g.level}: \`${g.crateId}\``).join("\n");
+        const more = xpRes.granted.length > 3 ? `\n...and ${xpRes.granted.length - 3} more.` : "";
+        embed.addFields({ name: "Level Rewards", value: crates + more, inline: false });
+      }
+
       if (itemDropped) {
         const itemData = await import("../economy/items.json", { assert: { type: "json" } });
         let foundItem = null;

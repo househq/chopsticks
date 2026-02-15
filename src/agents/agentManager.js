@@ -31,6 +31,11 @@ function assistantKey(guildId, voiceChannelId) {
   return `a:${guildId}:${voiceChannelId}`;
 }
 
+function textKey(kind, guildId, textChannelId, ownerUserId) {
+  const k = String(kind || "text");
+  return `t:${k}:${guildId}:${textChannelId}:${ownerUserId || "0"}`;
+}
+
 function now() {
   return Date.now();
 }
@@ -63,6 +68,7 @@ export class AgentManager {
     this.pending = new Map(); // requestId -> { resolve, reject, timeout }
     this.sessions = new Map(); // sessionKey -> agentId
     this.assistantSessions = new Map(); // assistantKey -> agentId
+    this.textSessions = new Map(); // textKey -> agentId
 
 
     // Hardening: fair selection per guild
@@ -84,6 +90,7 @@ export class AgentManager {
     // Idle auto-release watchdog
     this.sessionIdleReleaseMs = safeInt(process.env.AGENT_SESSION_IDLE_RELEASE_MS, 1_800_000); // 30m default
     this.sessionIdleSweepMs = safeInt(process.env.AGENT_SESSION_IDLE_SWEEP_MS, 60_000); // 1m
+    this.textSessionIdleReleaseMs = safeInt(process.env.AGENT_TEXT_SESSION_IDLE_RELEASE_MS, 900_000); // 15m default
     this._idleSweepTimer = null;
     this._idleSweepRunning = false;
     this.guildIdleConfigCacheMs = safeInt(process.env.AGENT_GUILD_IDLE_CACHE_MS, 60_000);
@@ -698,6 +705,68 @@ export class AgentManager {
     return count;
   }
 
+  // ===== leasing (text) =====
+
+  getTextSessionAgent(guildId, textChannelId, { ownerUserId, kind = "text" } = {}) {
+    const k = textKey(kind, guildId, textChannelId, ownerUserId);
+    const agentId = this.textSessions.get(k);
+    if (!agentId) return { ok: false, reason: "no-session" };
+    const agent = this.liveAgents.get(agentId);
+    if (!agent?.ready || !agent.ws) {
+      this.textSessions.delete(k);
+      return { ok: false, reason: "agent-offline" };
+    }
+    return { ok: true, agent, key: k };
+  }
+
+  bindAgentToTextSession(agent, { guildId, textChannelId, ownerUserId, kind = "text" } = {}) {
+    const k = textKey(kind, guildId, textChannelId, ownerUserId);
+    this.textSessions.set(k, agent.agentId);
+
+    agent.busyKey = k;
+    agent.busyKind = String(kind || "text");
+    agent.guildId = guildId;
+    agent.voiceChannelId = null;
+    agent.textChannelId = textChannelId ?? null;
+    agent.ownerUserId = ownerUserId ?? null;
+    agent.lastActive = now();
+    return k;
+  }
+
+  releaseTextSession(guildId, textChannelId, { ownerUserId, kind = "text" } = {}) {
+    const k = textKey(kind, guildId, textChannelId, ownerUserId);
+    const agentId = this.textSessions.get(k);
+    if (agentId) {
+      const agent = this.liveAgents.get(agentId);
+      if (agent && agent.busyKey === k) {
+        agent.busyKey = null;
+        agent.busyKind = null;
+        agent.guildId = null;
+        agent.voiceChannelId = null;
+        agent.textChannelId = null;
+        agent.ownerUserId = null;
+      }
+    }
+    this.textSessions.delete(k);
+    this._updateMetrics();
+  }
+
+  async ensureTextSessionAgent(guildId, textChannelId, { ownerUserId, kind = "text" } = {}) {
+    const existing = this.getTextSessionAgent(guildId, textChannelId, { ownerUserId, kind });
+    if (existing.ok) return existing;
+
+    const idleAgentInGuild = this.findIdleAgentInGuildRoundRobin(guildId);
+    if (idleAgentInGuild) {
+      const k = this.bindAgentToTextSession(idleAgentInGuild, { guildId, textChannelId, ownerUserId, kind });
+      this._updateMetrics();
+      return { ok: true, agent: idleAgentInGuild, key: k };
+    }
+
+    const present = this.countPresentInGuild(guildId);
+    if (present === 0) return { ok: false, reason: "no-agents-in-guild" };
+    return { ok: false, reason: "no-free-agents" };
+  }
+
 
 
   // ===== leasing (assistant) =====
@@ -856,6 +925,7 @@ export class AgentManager {
     const sweepStartedAt = now();
     let releasedMusic = 0;
     let releasedAssistant = 0;
+    let releasedText = 0;
 
     try {
       await this._refreshAgentDeployerCache();
@@ -946,17 +1016,59 @@ export class AgentManager {
         this.releaseAssistantSession(guildId, voiceChannelId);
         releasedAssistant++;
       }
+
+      // Text sessions: release purely on idle time (no voice-member check).
+      const textIdleMsDefault = this._normalizeIdleReleaseMs(this.textSessionIdleReleaseMs, 0);
+      if (textIdleMsDefault > 0) {
+        for (const [key, agentId] of Array.from(this.textSessions.entries())) {
+          const parts = String(key).split(":");
+          const kind = parts[1] || "text";
+          const guildId = parts[2];
+          const textChannelId = parts[3];
+          const ownerUserId = parts[4] && parts[4] !== "0" ? parts[4] : null;
+          if (!guildId || !textChannelId) {
+            this.textSessions.delete(key);
+            continue;
+          }
+
+          const agent = this.liveAgents.get(agentId);
+          if (!agent || agent.busyKey !== key || String(agent.busyKind || "") !== String(kind)) {
+            this.textSessions.delete(key);
+            continue;
+          }
+
+          const idleMs = this._computeIdleMs(agent.lastActive);
+          if (idleMs === null || idleMs < textIdleMsDefault) continue;
+
+          const notifyAgent = {
+            agentId: agent.agentId,
+            ownerUserId: agent.ownerUserId ?? null,
+            textChannelId: agent.textChannelId ?? null
+          };
+          await this._notifyIdleRelease({
+            kind: String(kind || "text"),
+            agent: notifyAgent,
+            guildId,
+            voiceChannelId: null,
+            idleMs,
+            reason: "idle-timeout"
+          });
+          this.releaseTextSession(guildId, textChannelId, { ownerUserId, kind });
+          releasedText++;
+        }
+      }
     } catch (error) {
       logger.error("[AgentManager] Idle release sweep failed", {
         error: error?.message ?? error
       });
     } finally {
       this._idleSweepRunning = false;
-      const releasedTotal = releasedMusic + releasedAssistant;
+      const releasedTotal = releasedMusic + releasedAssistant + releasedText;
       if (releasedTotal > 0) {
         logger.info("[AgentManager] Idle sweep released sessions", {
           releasedMusic,
           releasedAssistant,
+          releasedText,
           releasedTotal,
           sweepDurationMs: now() - sweepStartedAt
         });
@@ -1085,12 +1197,21 @@ export class AgentManager {
     if (deployerUserId) recipients.add(String(deployerUserId));
 
     const idleMinutes = Math.max(1, Math.round(Number(idleMs || 0) / 60_000));
-    const title = kind === "assistant" ? "Assistant session released" : "Music session released";
-    const body =
-      `Agent \`${agent.agentId}\` was auto-released after ${idleMinutes}m of inactivity.\n` +
-      `Guild: \`${guildId}\`\n` +
-      `Voice channel: \`${voiceChannelId}\`\n` +
-      `Reason: \`${reason || "idle-timeout"}\``;
+    const title =
+      kind === "assistant" ? "Assistant session released"
+      : kind === "music" ? "Music session released"
+      : "Agent session released";
+
+    const lines = [
+      `Agent \`${agent.agentId}\` was auto-released after ${idleMinutes}m of inactivity.`,
+      `Kind: \`${kind || "unknown"}\``,
+      `Guild: \`${guildId}\``,
+      voiceChannelId ? `Voice channel: \`${voiceChannelId}\`` : null,
+      agent.textChannelId ? `Text channel: \`${agent.textChannelId}\`` : null,
+      `Reason: \`${reason || "idle-timeout"}\``
+    ].filter(Boolean);
+
+    const body = lines.join("\n");
 
     for (const userId of recipients) {
       try {
@@ -1143,6 +1264,11 @@ export class AgentManager {
     // Release assistant sessions held by this agent
     for (const [k, aId] of this.assistantSessions.entries()) {
       if (aId === agentId) this.assistantSessions.delete(k);
+    }
+
+    // Release text sessions held by this agent
+    for (const [k, aId] of this.textSessions.entries()) {
+      if (aId === agentId) this.textSessions.delete(k);
     }
 
     this.liveAgents.delete(agentId);

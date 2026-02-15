@@ -53,6 +53,12 @@ export async function execute(interaction) {
         inline: false
       }
     ];
+
+    if (xpRes.granted?.length) {
+      const crates = xpRes.granted.slice(0, 3).map(g => `Lv ${g.level}: \`${g.crateId}\``).join("\n");
+      const more = xpRes.granted.length > 3 ? `\n...and ${xpRes.granted.length - 3} more.` : "";
+      fields.push({ name: "Level Rewards", value: crates + more, inline: false });
+    }
     
     if (claim.bonusReward > 0) {
       fields.push({

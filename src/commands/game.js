@@ -22,6 +22,7 @@ import { listShopItems, findShopItem } from "../economy/shop.js";
 import { getMultiplier, getBuff } from "../game/buffs.js";
 import { JOBS, WORK_COOLDOWN } from "./work.js";
 import { DIFFICULTIES, BATTLE_COOLDOWN } from "./fight.js";
+import { listRecipes, craftRecipe } from "../game/crafting.js";
 
 const THEMES = [
   { name: "Neo (Default)", value: "neo" },
@@ -52,6 +53,8 @@ function defaultPanelState({ userId, guildId }) {
     gather: { tool: null, zone: "any" },
     fight: { difficulty: "easy" },
     shop: { category: "tools", item: "basic_scanner" }
+    ,
+    craft: { recipe: "energy_drink" }
   };
 }
 
@@ -121,6 +124,7 @@ function buildNavRow(state) {
     { label: "Gather", value: "gather", description: "Find loot and collectibles", default: state.view === "gather" },
     { label: "Fight", value: "fight", description: "Risk/reward encounters", default: state.view === "fight" },
     { label: "Shop", value: "shop", description: "Buy tools and boosts", default: state.view === "shop" },
+    { label: "Craft", value: "craft", description: "Turn loot into upgrades", default: state.view === "craft" },
     { label: "Bank", value: "bank", description: "Deposit/withdraw/upgrade", default: state.view === "bank" },
     { label: "Settings", value: "settings", description: "Theme + panel settings", default: state.view === "settings" }
   ];
@@ -288,6 +292,31 @@ function buildBankComponents(state) {
   return [new ActionRowBuilder().addComponents(depAll, wdAll, up1)];
 }
 
+function buildCraftComponents(state) {
+  const recipes = listRecipes().slice(0, 25);
+  const options = recipes.map(r => ({
+    label: r.name,
+    value: r.id,
+    description: `Craft ${r.output.itemId}`,
+    default: state.craft.recipe === r.id
+  }));
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`${GAME_UI_PREFIX}:craftsel:${state.userId}:PANEL`)
+    .setPlaceholder("Select recipe")
+    .addOptions(options.length ? options : [{ label: "No recipes", value: "none", default: true }])
+    .setDisabled(options.length === 0);
+
+  const c1 = new ButtonBuilder().setCustomId(`${GAME_UI_PREFIX}:craft1:${state.userId}:PANEL`).setLabel("Craft x1").setStyle(ButtonStyle.Primary);
+  const c5 = new ButtonBuilder().setCustomId(`${GAME_UI_PREFIX}:craft5:${state.userId}:PANEL`).setLabel("Craft x5").setStyle(ButtonStyle.Secondary);
+  const c10 = new ButtonBuilder().setCustomId(`${GAME_UI_PREFIX}:craft10:${state.userId}:PANEL`).setLabel("Craft x10").setStyle(ButtonStyle.Secondary);
+
+  return [
+    new ActionRowBuilder().addComponents(select),
+    new ActionRowBuilder().addComponents(c1, c5, c10)
+  ];
+}
+
 async function buildSettingsEmbed(state) {
   let theme = "neo";
   if (state.guildId) {
@@ -370,6 +399,25 @@ async function buildViewEmbed(state) {
     return { embed };
   }
 
+  if (state.view === "craft") {
+    const recipes = listRecipes();
+    const r = recipes.find(x => x.id === state.craft.recipe) || recipes[0];
+    const out = r ? `${r.output.itemId} ×${r.output.qty}` : "n/a";
+    const ins = r ? r.inputs.map(i => `${i.itemId} ×${i.qty}`).join(", ") : "n/a";
+    const embed = new EmbedBuilder()
+      .setTitle("Craft")
+      .setColor(Colors.PRIMARY)
+      .setDescription("Select a recipe and craft from the panel. Crafting consumes inventory items.")
+      .addFields(
+        { name: "Selected", value: r ? `**${r.name}** (\`${r.id}\`)` : "None", inline: false },
+        { name: "Output", value: out, inline: false },
+        { name: "Inputs", value: ins, inline: false },
+        { name: "Tip", value: "Missing materials? Use `/gather`, `/fight`, and sell/buy via `/shop`.", inline: false }
+      )
+      .setTimestamp();
+    return { embed };
+  }
+
   if (state.view === "bank") {
     const wallet = await getWallet(state.userId);
     const embed = new EmbedBuilder()
@@ -411,6 +459,7 @@ async function buildPanelPayload(state, panelId) {
   if (state.view === "gather") extra = buildGatherComponents(state);
   if (state.view === "fight") extra = buildFightComponents(state);
   if (state.view === "shop") extra = buildShopComponents(state);
+  if (state.view === "craft") extra = buildCraftComponents(state);
   if (state.view === "bank") extra = buildBankComponents(state);
 
   const components = patchComponentsWithPanelId([navRow, ...extra, actionRow], panelId);
@@ -868,6 +917,15 @@ export async function handleSelect(interaction) {
     return true;
   }
 
+  if (parsed.kind === "craftsel") {
+    const v = interaction.values?.[0] || "energy_drink";
+    state.craft.recipe = v;
+    state.view = "craft";
+    await savePanelState(parsed.panelId, state);
+    await renderPanelUpdate(interaction, state, parsed.panelId, "update");
+    return true;
+  }
+
   return false;
 }
 
@@ -937,6 +995,27 @@ export async function handleButton(interaction) {
     await interaction.deferUpdate();
     const result = await runBankAction(state.userId, parsed.kind);
     await showActionResult(interaction, result);
+    await renderPanelUpdate(interaction, state, parsed.panelId, "editReply");
+    return true;
+  }
+
+  // Craft buttons
+  if (parsed.kind === "craft1" || parsed.kind === "craft5" || parsed.kind === "craft10") {
+    await interaction.deferUpdate();
+    const times = parsed.kind === "craft10" ? 10 : (parsed.kind === "craft5" ? 5 : 1);
+    const res = await craftRecipe(state.userId, state.craft.recipe, times);
+    if (!res.ok) {
+      const msg = res.reason === "insufficient"
+        ? `Need ${res.need}x \`${res.itemId}\` but you have ${res.have}x.`
+        : "Craft failed.";
+      await interaction.followUp({ content: msg, flags: MessageFlags.Ephemeral });
+    } else {
+      const msg = `Crafted **${res.times}x ${res.recipe.name}** -> \`${res.recipe.output.itemId}\` ×${res.outQty}` +
+        (res.xpRes?.applied ? ` • +${res.xpRes.applied} XP` : "");
+      await interaction.followUp({ content: msg, flags: MessageFlags.Ephemeral });
+    }
+    state.view = "craft";
+    await savePanelState(parsed.panelId, state);
     await renderPanelUpdate(interaction, state, parsed.panelId, "editReply");
     return true;
   }

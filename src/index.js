@@ -29,6 +29,8 @@ import { handleSelect as handleHelpSelect } from "./commands/help.js";
 import { handleButton as handlePurgeButton } from "./commands/purge.js";
 import { handleButton as handleGameButton, handleSelect as handleGameSelect } from "./commands/game.js";
 import { handleButton as handleQuestsButton } from "./commands/quests.js";
+import { handleButton as handleCraftButton, handleSelect as handleCraftSelect } from "./commands/craft.js";
+import { handleButton as handleTriviaButton, handleSelect as handleTriviaSelect } from "./commands/trivia.js";
 import {
   startHealthServer,
   getAndResetCommandDeltas
@@ -641,7 +643,9 @@ client.on(Events.MessageCreate, async message => {
 client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isStringSelectMenu?.()) {
     try {
+      if (await handleTriviaSelect(interaction)) return;
       if (await handleGameSelect(interaction)) return;
+      if (await handleCraftSelect(interaction)) return;
       if (await handleHelpSelect(interaction)) return;
       if (await handleMusicSelect(interaction)) return;
       if (await handleCommandsSelect(interaction)) return;
@@ -658,8 +662,10 @@ client.on(Events.InteractionCreate, async interaction => {
 
   if (interaction.isButton?.()) {
     try {
+      if (await handleTriviaButton(interaction)) return;
       if (await handleGameButton(interaction)) return;
       if (await handleQuestsButton(interaction)) return;
+      if (await handleCraftButton(interaction)) return;
       if (await handleMusicButton(interaction)) return;
       if (await handleAssistantButton(interaction)) return;
       if (await handleCommandsButton(interaction)) return;

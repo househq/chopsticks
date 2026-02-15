@@ -164,6 +164,12 @@ export default {
         })
         .setTimestamp();
 
+      if (xpRes.granted?.length) {
+        const crates = xpRes.granted.slice(0, 3).map(g => `Lv ${g.level}: \`${g.crateId}\``).join("\n");
+        const more = xpRes.granted.length > 3 ? `\n...and ${xpRes.granted.length - 3} more.` : "";
+        embed.addFields({ name: "Level Rewards", value: crates + more, inline: false });
+      }
+
       // Pro image output: render an SVG card -> PNG attachment.
       try {
         const theme = interaction.inGuild()

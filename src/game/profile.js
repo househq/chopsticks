@@ -3,6 +3,7 @@
 
 import { getPool } from "../utils/storage_pg.js";
 import { levelFromXp } from "./progression.js";
+import { levelRewardCrate } from "./crates.js";
 
 export async function getGameProfile(userId) {
   const p = getPool();
@@ -43,13 +44,26 @@ export async function addGameXp(userId, baseAmount, { reason = "unknown", multip
     return { ok: true, applied: 0, profile: cur, leveledUp: false, reason };
   }
 
-  await p.query("BEGIN");
+  const client = await p.connect();
   try {
-    const before = await getGameProfile(userId);
-    const nextXp = Math.max(0, Math.trunc(Number(before.xp) || 0) + applied);
+    await client.query("BEGIN");
+
+    // Ensure profile exists and lock it for update.
+    const ensure = await client.query(
+      `INSERT INTO user_game_profiles (user_id, xp, level, created_at, updated_at)
+       VALUES ($1, 0, 1, $2, $2)
+       ON CONFLICT (user_id) DO UPDATE SET updated_at = $2
+       RETURNING user_id, xp, level, created_at, updated_at`,
+      [userId, now]
+    );
+    const before = ensure.rows[0] || { user_id: userId, xp: 0, level: 1 };
+    const beforeLevel = Math.max(1, Math.trunc(Number(before.level) || 1));
+    const beforeXp = Math.max(0, Math.trunc(Number(before.xp) || 0));
+
+    const nextXp = beforeXp + applied;
     const nextLevel = levelFromXp(nextXp);
 
-    const res = await p.query(
+    const res = await client.query(
       `UPDATE user_game_profiles
        SET xp = $1, level = $2, updated_at = $3
        WHERE user_id = $4
@@ -57,20 +71,46 @@ export async function addGameXp(userId, baseAmount, { reason = "unknown", multip
       [nextXp, nextLevel, now, userId]
     );
 
-    await p.query("COMMIT");
+    const granted = [];
+
+    if (nextLevel > beforeLevel) {
+      // Grant one crate per newly achieved level, idempotent via user_level_rewards.
+      for (let lvl = beforeLevel + 1; lvl <= nextLevel; lvl += 1) {
+        const ins = await client.query(
+          `INSERT INTO user_level_rewards (user_id, level, created_at)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (user_id, level) DO NOTHING
+           RETURNING level`,
+          [userId, lvl, now]
+        );
+        if (ins.rows.length === 0) continue;
+        const crateId = levelRewardCrate(lvl);
+        granted.push({ level: lvl, crateId });
+        await client.query(
+          `INSERT INTO user_inventory (user_id, item_id, quantity, metadata, acquired_at)
+           VALUES ($1, $2, 1, '{}'::jsonb, $3)
+           ON CONFLICT (user_id, item_id) DO UPDATE SET quantity = user_inventory.quantity + 1`,
+          [userId, crateId, now]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
     const after = res.rows[0] || { user_id: userId, xp: nextXp, level: nextLevel };
     return {
       ok: true,
       applied,
-      leveledUp: nextLevel > Number(before.level || 1),
-      fromLevel: Number(before.level || 1),
+      leveledUp: nextLevel > beforeLevel,
+      fromLevel: beforeLevel,
       toLevel: nextLevel,
+      granted,
       profile: { ...after, xp: nextXp, level: nextLevel },
       reason
     };
   } catch (err) {
-    await p.query("ROLLBACK");
+    try { await client.query("ROLLBACK"); } catch {}
     throw err;
+  } finally {
+    client.release();
   }
 }
-

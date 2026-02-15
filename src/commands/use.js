@@ -4,6 +4,9 @@ import { addCredits } from "../economy/wallet.js";
 import { replySuccess, replyError } from "../utils/discordOutput.js";
 import { setBuff } from "../game/buffs.js";
 import { recordQuestEvent } from "../game/quests.js";
+import { openCrateRolls } from "../game/crates.js";
+import itemsData from "../economy/items.json" with { type: "json" };
+import { addItem } from "../economy/inventory.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -104,6 +107,29 @@ async function handleConsumable(interaction, matchedItem, itemData, quantity) {
   let effectDescription = "";
 
   switch (itemData.effect) {
+    case "loot_crate": {
+      const { drops } = openCrateRolls(matchedItem.item_id, quantity);
+      for (const id of drops) {
+        // eslint-disable-next-line no-await-in-loop
+        await addItem(interaction.user.id, id, 1);
+      }
+
+      const countBy = new Map();
+      for (const id of drops) countBy.set(id, (countBy.get(id) || 0) + 1);
+      const lines = Array.from(countBy.entries())
+        .slice(0, 12)
+        .map(([id, n]) => {
+          const it = (itemsData.tools?.[id] || itemsData.consumables?.[id] || itemsData.collectibles?.[id]) || null;
+          const name = it?.name || id;
+          const emoji = it?.emoji || "📦";
+          return `${emoji} **${name}**${n > 1 ? ` ×${n}` : ""}`;
+        });
+      const more = countBy.size > lines.length ? `\n...and ${countBy.size - lines.length} more.` : "";
+
+      effectDescription = `Opened **${quantity}x ${itemData.emoji} ${itemData.name}** and got:\n\n${lines.join("\n")}${more}`;
+      break;
+    }
+
     case "cooldown_reduction":
       // Currently scoped to /work (matches Energy Drink description).
       await setBuff(interaction.user.id, "cd:work", 1 - Number(itemData.effectValue || 0), itemData.duration);
