@@ -1,9 +1,18 @@
-import { SlashCommandBuilder, MessageFlags, EmbedBuilder } from "discord.js";
+import {
+  ActionRowBuilder,
+  SlashCommandBuilder,
+  MessageFlags,
+  EmbedBuilder,
+  StringSelectMenuBuilder
+} from "discord.js";
 import { loadGuildData } from "../utils/storage.js";
+
+const HELP_UI_PREFIX = "helpui";
+const MAIN_VALUE = "__main__";
 
 export const data = new SlashCommandBuilder()
   .setName("help")
-  .setDescription("Show the Chopsticks help guide");
+  .setDescription("Show the Chopsticks help center");
 
 function categoryMap() {
   return {
@@ -41,28 +50,71 @@ function commandRecord(command) {
   };
 }
 
-function chunkLines(lines, maxLen = 980) {
-  const out = [];
-  let cur = "";
-  for (const line of lines) {
-    const next = cur ? `${cur}\n${line}` : line;
-    if (next.length > maxLen && cur) {
-      out.push(cur);
-      cur = line;
-    } else {
-      cur = next;
-    }
-  }
-  if (cur) out.push(cur);
-  return out;
+function parseHelpUiId(customId) {
+  const parts = String(customId || "").split(":");
+  if (parts.length < 3) return null;
+  if (parts[0] !== HELP_UI_PREFIX) return null;
+  return {
+    kind: parts[1],
+    userId: parts[2]
+  };
 }
 
-function buildSummaryEmbed({ prefix, commandCount, categoryCount }) {
+function buildCategoryData(client) {
+  const records = Array.from(client.commands.values())
+    .map(commandRecord)
+    .filter(r => r.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const byCategory = new Map();
+  for (const rec of records) {
+    const key = rec.category || "general";
+    const list = byCategory.get(key) || [];
+    list.push(rec);
+    byCategory.set(key, list);
+  }
+  const categories = Array.from(byCategory.keys()).sort();
+  return { records, byCategory, categories };
+}
+
+function summarizeCategories(categories, byCategory, maxLen = 1000) {
+  const parts = [];
+  for (const category of categories) {
+    const count = byCategory.get(category)?.length ?? 0;
+    const piece = `\`${category}\` (${count})`;
+    const next = parts.length ? `${parts.join("  ")}  ${piece}` : piece;
+    if (next.length > maxLen) break;
+    parts.push(piece);
+  }
+  return parts.join("  ");
+}
+
+function formatCategoryCommands(list, maxLen = 980) {
+  const lines = [];
+  let used = 0;
+
+  for (let i = 0; i < list.length; i += 1) {
+    const rec = list[i];
+    const line = `• \`/${rec.name}\` - ${rec.description}`;
+    const next = used === 0 ? line.length : used + 1 + line.length;
+    if (next > maxLen) {
+      const remaining = list.length - i;
+      if (remaining > 0) lines.push(`…and ${remaining} more.`);
+      break;
+    }
+    lines.push(line);
+    used = next;
+  }
+
+  return lines.length ? lines.join("\n") : "No commands in this category.";
+}
+
+function buildMainEmbed({ prefix, commandCount, categories, byCategory }) {
   return new EmbedBuilder()
     .setTitle("Chopsticks Help Center")
     .setColor(0x00a86b)
     .setDescription(
-      "Production-ready multi-system Discord bot for music, VoiceMaster rooms, assistants, pools, and moderation."
+      "Use the dropdown below to choose a help category. The panel updates in place with category-specific guidance."
     )
     .addFields(
       {
@@ -82,107 +134,127 @@ function buildSummaryEmbed({ prefix, commandCount, categoryCount }) {
           "• Pools, deployment, and dashboard tooling"
       },
       {
-        name: "Usage Tips",
+        name: "Usage",
         value:
           `• Slash commands: \`/command\`\n` +
           `• Prefix commands: \`${prefix}command\`\n` +
-          "• Use `/commands ui` for guided browsing\n" +
-          "• Use `/help` anytime for full reference"
+          "• Use the category dropdown for focused help"
       },
       {
-        name: "Coverage",
-        value: `Commands: **${commandCount}**\nCategories: **${categoryCount}**`
+        name: "Categories",
+        value: summarizeCategories(categories, byCategory) || "No categories detected."
       }
     )
-    .setFooter({ text: "Chopsticks • Help Guide" })
+    .setFooter({ text: `Chopsticks • ${commandCount} command(s)` })
     .setTimestamp();
 }
 
-function buildIndexEmbeds(records) {
-  const byCategory = new Map();
-  for (const rec of records) {
-    const key = rec.category || "general";
-    const list = byCategory.get(key) || [];
-    list.push(rec);
-    byCategory.set(key, list);
-  }
+function buildCategoryEmbed({ category, list, prefix }) {
+  const title = category === MAIN_VALUE ? "Chopsticks Help Center" : `Help • ${category}`;
+  const description = category === MAIN_VALUE
+    ? "Choose a category from the dropdown below."
+    : `Commands in \`${category}\` category.`;
 
-  for (const list of byCategory.values()) {
-    list.sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  const categories = Array.from(byCategory.keys()).sort();
-  const embeds = [];
-  let current = new EmbedBuilder()
-    .setTitle("Command Index")
+  return new EmbedBuilder()
+    .setTitle(title)
     .setColor(0x2b2d31)
-    .setDescription("Grouped by category with descriptions.");
-  let fieldsInCurrent = 0;
-
-  for (const category of categories) {
-    const list = byCategory.get(category) || [];
-    const lines = list.map(rec => `• \`/${rec.name}\` - ${rec.description}`);
-    const chunks = chunkLines(lines, 950);
-
-    for (let i = 0; i < chunks.length; i += 1) {
-      if (fieldsInCurrent >= 6) {
-        embeds.push(current);
-        current = new EmbedBuilder().setTitle("Command Index (cont.)").setColor(0x2b2d31);
-        fieldsInCurrent = 0;
+    .setDescription(description)
+    .addFields(
+      {
+        name: "Commands",
+        value: formatCategoryCommands(list)
+      },
+      {
+        name: "How To Use",
+        value:
+          "Use slash commands directly from Discord's `/` menu.\n" +
+          `Prefix fallback: \`${prefix}command\``
       }
-      const suffix = i === 0 ? "" : ` (cont. ${i + 1})`;
-      current.addFields({
-        name: `${category}${suffix}`,
-        value: chunks[i]
-      });
-      fieldsInCurrent += 1;
+    )
+    .setTimestamp();
+}
+
+function buildHelpComponents({ userId, categories, byCategory, selected = MAIN_VALUE }) {
+  const options = [
+    {
+      label: "Main Help Center",
+      value: MAIN_VALUE,
+      description: "Overview and quick-start guidance",
+      default: selected === MAIN_VALUE
     }
+  ];
+
+  for (const category of categories.slice(0, 24)) {
+    const count = byCategory.get(category)?.length ?? 0;
+    options.push({
+      label: category,
+      value: category,
+      description: `${count} command(s)`,
+      default: selected === category
+    });
   }
 
-  if (fieldsInCurrent > 0) embeds.push(current);
-  return embeds;
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`${HELP_UI_PREFIX}:category:${userId}`)
+    .setPlaceholder("Choose a help category")
+    .addOptions(options)
+    .setMinValues(1)
+    .setMaxValues(1);
+
+  return [new ActionRowBuilder().addComponents(select)];
+}
+
+async function resolvePrefix(interaction) {
+  let prefix = "!";
+  if (!interaction.inGuild()) return prefix;
+  try {
+    const data = await loadGuildData(interaction.guildId);
+    prefix = data?.prefix?.value || "!";
+  } catch {}
+  return prefix;
+}
+
+function buildPanelPayload(interaction, selected) {
+  const { records, byCategory, categories } = buildCategoryData(interaction.client);
+  const prefix = interaction.__helpPrefix || "!";
+
+  const embed = selected === MAIN_VALUE
+    ? buildMainEmbed({ prefix, commandCount: records.length, categories, byCategory })
+    : buildCategoryEmbed({ category: selected, list: byCategory.get(selected) || [], prefix });
+
+  const components = buildHelpComponents({
+    userId: interaction.user.id,
+    categories,
+    byCategory,
+    selected
+  });
+
+  return { embeds: [embed], components };
 }
 
 export async function execute(interaction) {
-  const records = Array.from(interaction.client.commands.values())
-    .map(commandRecord)
-    .filter(r => r.name)
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  let prefix = "!";
-  if (interaction.inGuild()) {
-    try {
-      const guildData = await loadGuildData(interaction.guildId);
-      prefix = guildData?.prefix?.value || "!";
-    } catch {}
-  }
-
-  const categories = new Set(records.map(r => r.category || "general"));
-  const summary = buildSummaryEmbed({
-    prefix,
-    commandCount: records.length,
-    categoryCount: categories.size
-  });
-  const indexEmbeds = buildIndexEmbeds(records);
-  const allEmbeds = [summary, ...indexEmbeds];
-
-  if (!allEmbeds.length) {
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content: "No help content is available right now."
-    });
-    return;
-  }
+  interaction.__helpPrefix = await resolvePrefix(interaction);
+  const payload = buildPanelPayload(interaction, MAIN_VALUE);
 
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
-    embeds: [allEmbeds[0]]
+    ...payload
   });
+}
 
-  for (let i = 1; i < allEmbeds.length; i += 1) {
-    await interaction.followUp({
-      flags: MessageFlags.Ephemeral,
-      embeds: [allEmbeds[i]]
-    });
+export async function handleSelect(interaction) {
+  if (!interaction.isStringSelectMenu?.()) return false;
+  const parsed = parseHelpUiId(interaction.customId);
+  if (!parsed || parsed.kind !== "category") return false;
+
+  if (parsed.userId !== interaction.user.id) {
+    await interaction.reply({ content: "This help panel belongs to another user.", ephemeral: true });
+    return true;
   }
+
+  interaction.__helpPrefix = await resolvePrefix(interaction);
+  const selected = String(interaction.values?.[0] || MAIN_VALUE);
+  const payload = buildPanelPayload(interaction, selected);
+  await interaction.update(payload);
+  return true;
 }
