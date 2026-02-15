@@ -58,6 +58,10 @@ function baseData() {
     rev: 0,
     voice: { lobbies: {}, tempChannels: {} },
     music: { defaultMode: "open", defaultVolume: 100, limits: {} }, // "open" | "dj"
+    game: {
+      // Visual theme for generated game cards (e.g., /gather images).
+      theme: "neo" // "neo" | "ember" | "arcane"
+    },
     assistant: {
       enabled: false,
       maxListenSec: 10,
@@ -128,6 +132,9 @@ function normalizeData(input) {
 
   out.voice = voice;
   out.music = normalizeMusic(raw);
+  if (!isPlainObject(out.game)) out.game = {};
+  const gameTheme = String(out.game.theme || "neo").toLowerCase();
+  out.game.theme = (gameTheme === "neo" || gameTheme === "ember" || gameTheme === "arcane") ? gameTheme : "neo";
   if (!isPlainObject(out.dashboard)) out.dashboard = {};
   if (!Array.isArray(out.dashboard.allowUserIds)) out.dashboard.allowUserIds = [];
   if (!Array.isArray(out.dashboard.allowRoleIds)) out.dashboard.allowRoleIds = [];

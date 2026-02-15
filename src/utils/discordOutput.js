@@ -16,6 +16,23 @@ export function buildEmbed(title, description, color = Colors.PRIMARY) {
     .setColor(color);
 }
 
+function normalizeEphemeral(ephemeral = true) {
+  return ephemeral ? MessageFlags.Ephemeral : undefined;
+}
+
+async function sendInteractionResponse(interaction, payload, ephemeral = true) {
+  const base = { ...payload };
+  const flags = normalizeEphemeral(ephemeral);
+
+  if (interaction.deferred) {
+    return interaction.editReply(base);
+  }
+  if (interaction.replied) {
+    return interaction.followUp({ ...base, flags });
+  }
+  return interaction.reply({ ...base, flags });
+}
+
 /**
  * Creates a standardized EmbedBuilder instance with common options.
  */
@@ -29,32 +46,48 @@ export function makeEmbed(title, description, fields = [], url = null, thumbnail
 }
 
 export function replyEmbed(interaction, title, description, ephemeral = true) {
-  return interaction.reply({
-    embeds: [buildEmbed(title, description)],
-    flags: ephemeral ? MessageFlags.Ephemeral : undefined
-  });
+  return sendInteractionResponse(interaction, {
+    embeds: [buildEmbed(title, description)]
+  }, ephemeral);
 }
 
-export function replySuccess(interaction, description, ephemeral = true) {
-  return interaction.reply({
-    embeds: [buildEmbed("Success", description, Colors.SUCCESS)],
-    flags: ephemeral ? MessageFlags.Ephemeral : undefined
-  });
+export function replySuccess(interaction, titleOrDescription, descriptionOrEphemeral = true, maybeEphemeral = true) {
+  let title = "Success";
+  let description = String(titleOrDescription ?? "");
+  let ephemeral = descriptionOrEphemeral;
+
+  if (typeof descriptionOrEphemeral === "string") {
+    title = String(titleOrDescription ?? "Success");
+    description = descriptionOrEphemeral;
+    ephemeral = maybeEphemeral;
+  }
+
+  return sendInteractionResponse(interaction, {
+    embeds: [buildEmbed(title, description, Colors.SUCCESS)]
+  }, Boolean(ephemeral));
 }
 
-export function replyError(interaction, description, ephemeral = true) {
-  return interaction.reply({
-    embeds: [buildEmbed("Error", description, Colors.ERROR)],
-    flags: ephemeral ? MessageFlags.Ephemeral : undefined
-  });
+export function replyError(interaction, titleOrDescription, descriptionOrEphemeral = true, maybeEphemeral = true) {
+  let title = "Error";
+  let description = String(titleOrDescription ?? "");
+  let ephemeral = descriptionOrEphemeral;
+
+  if (typeof descriptionOrEphemeral === "string") {
+    title = String(titleOrDescription ?? "Error");
+    description = descriptionOrEphemeral;
+    ephemeral = maybeEphemeral;
+  }
+
+  return sendInteractionResponse(interaction, {
+    embeds: [buildEmbed(title, description, Colors.ERROR)]
+  }, Boolean(ephemeral));
 }
 
 export function replyEmbedWithJson(interaction, title, description, data, filename = "data.json") {
   const payload = JSON.stringify(data ?? {}, null, 2);
   const file = new AttachmentBuilder(Buffer.from(payload, "utf8"), { name: filename });
-  return interaction.reply({
+  return sendInteractionResponse(interaction, {
     embeds: [buildEmbed(title, description)],
-    files: [file],
-    flags: MessageFlags.Ephemeral
-  });
+    files: [file]
+  }, true);
 }

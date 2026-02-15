@@ -106,6 +106,12 @@ Voice lobby system supports:
 - `/fun play`, `/fun random`, and `/fun catalog` provide a 220-variant fun system (also available as prefix `!fun`).
 - `/fun settings` controls auto output mode and feature routing in your guild (`mode: off|clean|creative`, plus `welcome|giveaway|daily|work`).
 
+## Game (Discord)
+
+- `/gather` runs a loot mission and returns a professional card image + embed.
+- `/work` earns Credits and returns a professional card image + embed.
+- `/inventory`, `/collection`, `/vault` show your progress.
+
 ## Moderation Hardening
 
 The moderation command surface is hardened and standardized:

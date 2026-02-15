@@ -77,8 +77,8 @@ export default {
     try {
       // Check cooldown
       const cooldown = await getCooldown(interaction.user.id, "work");
-      if (cooldown) {
-        const timeLeft = formatCooldown(cooldown - Date.now());
+      if (cooldown && cooldown.ok === false) {
+        const timeLeft = formatCooldown(cooldown.remaining);
         return await replyError(
           interaction,
           "On Break",

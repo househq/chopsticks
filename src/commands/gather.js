@@ -1,16 +1,18 @@
-import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } from "discord.js";
 import { getCooldown, setCooldown, formatCooldown } from "../economy/cooldowns.js";
-import { getInventory, hasItem, removeItem, addItem } from "../economy/inventory.js";
+import { hasItem, addItem } from "../economy/inventory.js";
 import { performGather, addToCollection } from "../economy/collections.js";
 import { Colors, replyError } from "../utils/discordOutput.js";
 import itemsData from "../economy/items.json" with { type: "json" };
+import { renderGatherCardPng } from "../game/render/imCards.js";
+import { loadGuildData } from "../utils/storage.js";
 
 const GATHER_COOLDOWN = 5 * 60 * 1000; // 5 minutes
 
 export default {
   data: new SlashCommandBuilder()
     .setName("gather")
-    .setDescription("Gather rare items from the digital void (5min cooldown)")
+    .setDescription("Run a gather mission for collectible loot (5min cooldown)")
     .addStringOption(option =>
       option
         .setName("tool")
@@ -22,6 +24,20 @@ export default {
           { name: "🪤 Basic Net (+5% bonus)", value: "basic_net" },
           { name: "🕸️ Reinforced Net (+25% bonus)", value: "reinforced_net" }
         )
+    )
+    .addStringOption(option =>
+      option
+        .setName("zone")
+        .setDescription("Focus your run on a loot zone")
+        .addChoices(
+          { name: "🎯 Any Zone", value: "any" },
+          { name: "🧙 Characters", value: "characters" },
+          { name: "👾 Monsters", value: "monsters" },
+          { name: "🎒 Loot", value: "loot" },
+          { name: "🍖 Food", value: "food" },
+          { name: "✨ Skills", value: "skills" },
+          { name: "🧩 Misc", value: "misc" }
+        )
     ),
 
   async execute(interaction) {
@@ -30,8 +46,8 @@ export default {
     try {
       // Check cooldown
       const cooldown = await getCooldown(interaction.user.id, "gather");
-      if (cooldown) {
-        const timeLeft = formatCooldown(cooldown - Date.now());
+      if (cooldown && cooldown.ok === false) {
+        const timeLeft = formatCooldown(cooldown.remaining);
         return await replyError(
           interaction,
           "Scanner Recharging",
@@ -67,13 +83,25 @@ export default {
         }
       }
 
-      // Perform gather
-      const results = performGather(toolBonus, 0); // TODO: Add luck boost from active buffs
+      const selectedZone = interaction.options.getString("zone") || "any";
+      const gatherSource = "core";
+
+      const fallback = performGather(toolBonus, 0);
+      let results = fallback.map(entry => ({ ...entry, category: "general" }));
+
+      if (results.length === 0) {
+        return await replyError(
+          interaction,
+          "Gather Failed",
+          "No loot could be generated. Try again.",
+          true
+        );
+      }
 
       // Add items to inventory AND collection
       for (const result of results) {
         await addItem(interaction.user.id, result.itemId, 1);
-        await addToCollection(interaction.user.id, "general", result.itemId, result.rarity);
+        await addToCollection(interaction.user.id, result.category || "general", result.itemId, result.rarity);
       }
 
       // Set cooldown
@@ -89,34 +117,81 @@ export default {
       };
 
       const itemsList = results.map(r => {
-        let foundItem = null;
-        for (const category in itemsData) {
-          if (itemsData[category][r.itemId]) {
-            foundItem = itemsData[category][r.itemId];
-            break;
-          }
-        }
+        const foundItem = resolveStaticItem(r.itemId);
         const itemEmoji = foundItem?.emoji || "📦";
         const itemName = foundItem?.name || r.itemId;
         const rarityEmoji = rarityEmojis[r.rarity] || "❓";
         return `${rarityEmoji} ${itemEmoji} **${itemName}** [${r.rarity.toUpperCase()}]`;
       }).join("\n");
 
+      const files = [];
+
       const embed = new EmbedBuilder()
-        .setTitle("⚡ Gathering Complete")
-        .setDescription(`You ventured into the digital void and found:\n\n${itemsList}`)
+        .setTitle("⚡ Gather Run Complete")
+        .setDescription(`You returned with:\n\n${itemsList}`)
         .setColor(Colors.SUCCESS)
         .addFields(
           { name: "Items Found", value: results.length.toString(), inline: true },
+          { name: "Zone", value: formatZone(selectedZone), inline: true },
           { name: "Cooldown", value: "5 minutes", inline: true }
         )
-        .setFooter({ text: toolUsed ? `Tool used: ${toolUsed.emoji} ${toolUsed.name}` : "No tool used - equip one for better yields!" })
+        .setFooter({
+          text: toolUsed
+            ? `Tool: ${toolUsed.emoji} ${toolUsed.name} | Source: ${gatherSource}`
+            : `No tool equipped | Source: ${gatherSource}`
+        })
         .setTimestamp();
 
-      await interaction.editReply({ embeds: [embed] });
+      // Pro image output: render an SVG card -> PNG attachment.
+      try {
+        const theme = interaction.inGuild()
+          ? ((await loadGuildData(interaction.guildId))?.game?.theme || "neo")
+          : "neo";
+
+        const itemModels = results.slice(0, 4).map(r => {
+          const it = resolveStaticItem(r.itemId);
+          return {
+            id: r.itemId,
+            name: it?.name || r.itemId,
+            rarity: r.rarity
+          };
+        });
+        const png = await renderGatherCardPng({
+          title: "Gather Run",
+          subtitle: `Zone: ${formatZone(selectedZone)} | Drops: ${results.length}`,
+          items: itemModels,
+          theme
+        });
+        files.push(new AttachmentBuilder(png, { name: "gather.png" }));
+        embed.setImage("attachment://gather.png");
+      } catch (err) {
+        console.warn("[gather] failed to render card image:", err?.message ?? err);
+      }
+
+      await interaction.editReply({ embeds: [embed], files });
     } catch (error) {
       console.error("Gather command error:", error);
       await replyError(interaction, "Gather Failed", "Something went wrong. Try again later.", true);
     }
   }
 };
+
+function resolveStaticItem(itemId) {
+  for (const category in itemsData) {
+    if (itemsData[category][itemId]) return itemsData[category][itemId];
+  }
+  return null;
+}
+
+function formatZone(zone) {
+  const map = {
+    any: "Any",
+    characters: "Characters",
+    monsters: "Monsters",
+    loot: "Loot",
+    food: "Food",
+    skills: "Skills",
+    misc: "Misc"
+  };
+  return map[String(zone || "any").toLowerCase()] || "Any";
+}

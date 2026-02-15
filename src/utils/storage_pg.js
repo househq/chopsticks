@@ -927,6 +927,20 @@ export async function ensureEconomySchema() {
     `CREATE INDEX IF NOT EXISTS idx_wallets_balance ON user_wallets(balance DESC)`,
     `CREATE TABLE IF NOT EXISTS user_inventory (id SERIAL PRIMARY KEY, user_id TEXT NOT NULL, item_id TEXT NOT NULL, quantity INT NOT NULL DEFAULT 1 CHECK (quantity > 0), metadata JSONB DEFAULT '{}', acquired_at BIGINT NOT NULL, UNIQUE(user_id, item_id))`,
     `CREATE INDEX IF NOT EXISTS idx_inventory_user ON user_inventory(user_id)`,
+    `CREATE TABLE IF NOT EXISTS user_collections (
+      id SERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      category TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      rarity TEXT NOT NULL DEFAULT 'common',
+      count INT NOT NULL DEFAULT 1 CHECK (count >= 1),
+      first_caught BIGINT NOT NULL,
+      last_caught BIGINT NOT NULL,
+      best_size DECIMAL(10,2),
+      UNIQUE(user_id, category, item_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_collections_user ON user_collections(user_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_collections_user_rarity ON user_collections(user_id, rarity)`,
     `CREATE TABLE IF NOT EXISTS user_streaks (user_id TEXT PRIMARY KEY, daily_streak INT NOT NULL DEFAULT 0, weekly_streak INT NOT NULL DEFAULT 0, last_daily BIGINT, last_weekly BIGINT, longest_daily INT NOT NULL DEFAULT 0, longest_weekly INT NOT NULL DEFAULT 0, streak_multiplier DECIMAL(3,2) NOT NULL DEFAULT 1.00 CHECK (streak_multiplier >= 1.00 AND streak_multiplier <= 5.00))`,
     `CREATE TABLE IF NOT EXISTS transaction_log (id SERIAL PRIMARY KEY, from_user TEXT, to_user TEXT, amount BIGINT NOT NULL, reason TEXT NOT NULL, metadata JSONB DEFAULT '{}', timestamp BIGINT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_transactions_time ON transaction_log(timestamp DESC)`

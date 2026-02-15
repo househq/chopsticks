@@ -512,7 +512,11 @@ app.get("/", (req, res) => {
       <div class="muted">Self-hosted control panel</div>
     </header>
     <main>
-      ${authed ? `<a class="button" href="/logout">Logout</a> <a class="button" href="/fun">Fun Generator</a>` : `<a class="button" href="${loginUrl}">Login with Discord</a>`}
+      ${
+        authed
+          ? `<a class="button" href="/logout">Logout</a> <a class="button" href="/fun">Fun Generator</a>`
+          : `<a class="button" href="${loginUrl}">Login with Discord</a>`
+      }
       <div id="app"></div>
     </main>
     <script>

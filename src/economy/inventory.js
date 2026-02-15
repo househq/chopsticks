@@ -1,5 +1,6 @@
 import { getPool } from "../utils/storage_pg.js";
 import itemsData from "./items.json" with { type: "json" };
+import { isLegacyItemId, describeLegacyItem } from "./legacyItems.js";
 
 // Flatten items registry for easy lookup
 const ITEMS = {};
@@ -20,7 +21,8 @@ export async function getInventory(userId) {
   );
   return result.rows.map(row => ({
     ...row,
-    itemData: ITEMS[row.item_id] || { name: "Unknown Item", emoji: "❓" }
+    metadata: normalizeMetadata(row.metadata),
+    itemData: resolveItemData(row.item_id, normalizeMetadata(row.metadata)) || { name: "Unknown Item", emoji: "❓", category: "unknown", sellPrice: 0, rarity: "common" }
   }));
 }
 
@@ -126,8 +128,8 @@ export async function hasItem(userId, itemId, quantity = 1, metadata = null) {
 /**
  * Get item definition by ID
  */
-export function getItemData(itemId) {
-  return ITEMS[itemId] || null;
+export function getItemData(itemId, metadata = null) {
+  return resolveItemData(itemId, normalizeMetadata(metadata));
 }
 
 /**
@@ -152,4 +154,29 @@ export function searchItems(query) {
   }
   
   return results;
+}
+
+function normalizeMetadata(metadata) {
+  if (!metadata) return null;
+  if (typeof metadata === "object") return metadata;
+  try {
+    return JSON.parse(String(metadata));
+  } catch {
+    return null;
+  }
+}
+
+function resolveItemData(itemId, metadata) {
+  const known = ITEMS[itemId];
+  if (known) return known;
+
+  if (isLegacyItemId(itemId)) {
+    const rarity = metadata?.rarity || metadata?.itemRarity || "common";
+    const sellPrice = Number(metadata?.sellPrice);
+    const base = describeLegacyItem(itemId, rarity);
+    if (Number.isFinite(sellPrice) && sellPrice > 0) return { ...base, sellPrice };
+    return base;
+  }
+
+  return null;
 }

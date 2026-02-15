@@ -1,7 +1,7 @@
 import { SlashCommandBuilder } from "discord.js";
 import { getInventory, removeItem, getItemData } from "../economy/inventory.js";
 import { addCredits } from "../economy/wallet.js";
-import { replySuccess, replyError, Colors, makeEmbed } from "../utils/discordOutput.js";
+import { replySuccess, replyError } from "../utils/discordOutput.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -33,7 +33,7 @@ export default {
       // Find matching item
       const matchedItem = inventory.find(invItem => {
         const itemData = invItem.itemData;
-        return invItem.item_id === itemQuery || itemData.name.toLowerCase().includes(itemQuery);
+        return invItem.item_id === itemQuery || String(itemData?.name || "").toLowerCase().includes(itemQuery);
       });
 
       if (!matchedItem) {
@@ -45,7 +45,7 @@ export default {
         );
       }
 
-      const itemData = getItemData(matchedItem.item_id);
+      const itemData = getItemData(matchedItem.item_id, matchedItem.metadata) || matchedItem.itemData;
       if (!itemData) {
         return await replyError(interaction, "Invalid Item", "Item data not found.", true);
       }
@@ -65,8 +65,9 @@ export default {
         await handleConsumable(interaction, matchedItem, itemData, quantity);
       } else if (itemData.category === "collectible") {
         // Sell collectible
-        const totalValue = itemData.sellPrice * quantity;
-        await removeItem(interaction.user.id, matchedItem.item_id, quantity);
+        const unitPrice = Math.max(1, Number(itemData.sellPrice || matchedItem.itemData?.sellPrice || 0));
+        const totalValue = unitPrice * quantity;
+        await removeItem(interaction.user.id, matchedItem.item_id, quantity, matchedItem.metadata);
         await addCredits(interaction.user.id, totalValue, "Sold collectible");
 
         await replySuccess(
@@ -94,7 +95,7 @@ export default {
 
 async function handleConsumable(interaction, matchedItem, itemData, quantity) {
   // Remove item from inventory
-  await removeItem(interaction.user.id, matchedItem.item_id, quantity);
+  await removeItem(interaction.user.id, matchedItem.item_id, quantity, matchedItem.metadata);
 
   // Apply effect based on item effect type
   let effectDescription = "";

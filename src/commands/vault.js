@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getCollection } from "../economy/collections.js";
+import { getItemData } from "../economy/inventory.js";
+import { describeLegacyItem, isLegacyItemId } from "../economy/legacyItems.js";
 import { Colors, replyEmbed } from "../utils/discordOutput.js";
-import itemsData from "../economy/items.json" with { type: "json" };
 
 export default {
   data: new SlashCommandBuilder()
@@ -47,13 +48,7 @@ export default {
         if (items.length === 0) return null;
         
         return items.slice(0, 5).map(item => {
-          let foundItem = null;
-          for (const category in itemsData) {
-            if (itemsData[category][item.item_id]) {
-              foundItem = itemsData[category][item.item_id];
-              break;
-            }
-          }
+          const foundItem = getItemData(item.item_id) || (isLegacyItemId(item.item_id) ? describeLegacyItem(item.item_id, item.rarity) : null);
           const itemEmoji = foundItem?.emoji || "📦";
           const itemName = foundItem?.name || item.item_id;
           const countText = item.count > 1 ? ` (×${item.count})` : "";

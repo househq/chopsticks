@@ -33,6 +33,7 @@ export async function setCooldown(userId, command, durationMs = null) {
 }
 
 export function formatCooldown(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return "a moment";
   if (ms < 1000) return "less than a second";
   
   const seconds = Math.floor(ms / 1000);
