@@ -2,6 +2,7 @@
   "name": "chopsticks",
   "version": "1.0.0",
   "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
   "scripts": {
     "bot": "STORAGE_DRIVER=postgres node --inspect=0.0.0.0:9229 src/index.js",
     "agents": "node src/agents/agentRunner.js",

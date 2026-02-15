@@ -11,6 +11,9 @@ data.backup.*
 # runtime data
 data/
 .env
+.env.*
+!.env.example
+!.env.comprehensive.example
 
 # node
 node_modules/

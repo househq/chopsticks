@@ -1,0 +1,66 @@
+CHOPSTICKS COMMUNITY LICENSE (CCL) v1.0
+
+Copyright (c) 2026 Wok Specialists
+All rights reserved.
+
+NOTICE
+This software is published in a public repository to enable transparency,
+security review, and community collaboration. It is not "open source" under
+the OSI definition unless the repository owner explicitly re-licenses it.
+
+1. DEFINITIONS
+"Software" means the Chopsticks repository source code and associated
+documentation, excluding Third-Party Components.
+"Non-Commercial" means not primarily intended for or directed toward
+commercial advantage or monetary compensation.
+"Hosted Service" means making the Software's functionality available to
+third parties over a network (including SaaS, "bot-as-a-service", or managed
+hosting) whether paid or free.
+
+2. PERMITTED USE (NON-COMMERCIAL)
+Subject to this License, you are granted a non-exclusive, non-transferable,
+revocable license to:
+  a) view and audit the Software;
+  b) run the Software for Non-Commercial purposes in your own Discord guilds;
+  c) modify the Software for Non-Commercial use.
+
+3. RESTRICTIONS
+You may NOT, without prior written permission from the copyright holder:
+  a) use the Software for commercial purposes;
+  b) offer a Hosted Service using the Software (including providing it to
+     other guilds as a "hosted bot" or selling access to features);
+  c) redistribute the Software or derivative works (source or binary) to any
+     third party, except as a patch/PR submitted to the upstream repository;
+  d) remove or alter copyright notices, license text, or attribution;
+  e) use the "Chopsticks" name, logos, or other trademarks except as allowed
+     by TRADEMARKS.md.
+
+4. CONTRIBUTIONS
+By submitting a contribution (code, documentation, or assets) to the upstream
+repository, you grant the copyright holder a perpetual, worldwide, royalty-
+free license to use, modify, and re-license your contribution as part of the
+Software. You represent that you have the right to grant this license.
+
+5. THIRD-PARTY COMPONENTS
+The Software may include dependencies with separate licenses ("Third-Party
+Components"). Those licenses apply to the Third-Party Components and govern
+your use of them.
+
+6. DISCLAIMER
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+
+7. LIMITATION OF LIABILITY
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL THE COPYRIGHT HOLDER
+BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+8. TERMINATION
+This License terminates automatically if you breach it. Upon termination you
+must cease use of the Software and delete all copies in your possession.
+
+9. COMMERCIAL LICENSING
+Commercial use, redistribution, or hosted offerings require a separate
+commercial license. Contact the repository owner.
+

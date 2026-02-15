@@ -8,6 +8,8 @@ Chopsticks is a Docker-first, self-hosted Discord bot platform with:
 - optional dashboard + monitoring stack
 - optional ops cockpit (live container logs)
 
+This repository is designed to be safe to publish: configuration is externalized, tests enforce core pooling invariants, and the stack is runnable end-to-end in Docker.
+
 ## Platform Snapshot (2026-02-15)
 
 - Maturity baseline: Levels 0-2 hardening in progress/completed artifacts are in-repo
@@ -18,6 +20,23 @@ Chopsticks is a Docker-first, self-hosted Discord bot platform with:
 - Moderation suite: hardened embed outputs + guardrails + interactive purge
 
 See `SYSTEM_STATUS.md`, `MATURITY.md`, `LEVEL_1_COMPLETION_REPORT.md`, and `LEVEL_2_COMPLETION_REPORT.md` for detailed status.
+
+## Making This Repo Public (Checklist)
+
+1. **Remove secrets from git history**
+   - Never commit `.env` files.
+   - If you ever pasted tokens/keys into chat/issues/commits, treat them as compromised and rotate.
+2. **Use examples only**
+   - Use `.env.example` / `.env.comprehensive.example` as templates.
+3. **Review licensing and trademarks**
+   - `LICENSE` governs code use and redistribution.
+   - `TRADEMARKS.md` governs the "Chopsticks" name and branding.
+4. **Security + abuse posture**
+   - `SECURITY.md` (responsible disclosure)
+   - `docs/ACCEPTABLE_USE.md`
+5. **Run CI-equivalent verification**
+   - `npm test`
+   - `docker compose -f docker-compose.production.yml build && docker compose -f docker-compose.production.yml up -d`
 
 ## Architecture
 
@@ -105,12 +124,15 @@ Voice lobby system supports:
 - `/commands ui` opens an interactive command center with category and command dropdowns.
 - `/fun play`, `/fun random`, and `/fun catalog` provide a 220-variant fun system (also available as prefix `!fun`).
 - `/fun settings` controls auto output mode and feature routing in your guild (`mode: off|clean|creative`, plus `welcome|giveaway|daily|work`).
+- Most commands use standardized embed outputs, and (in production) embed cards are rendered as high-quality images (see `SVG_CARDS`).
 
 ## Game (Discord)
 
 - `/gather` runs a loot mission and returns a professional card image + embed.
 - `/work` earns Credits and returns a professional card image + embed.
 - `/inventory`, `/collection`, `/vault` show your progress.
+- `/trivia start` runs a duel against a deployed agent with a lobby + countdown + dropdown answers.
+- `/agent chat` lets users chat with a deployed agent identity (optional local LLM).
 
 ## Moderation Hardening
 
@@ -192,4 +214,9 @@ make test-protocol
 
 ## License
 
-Proprietary/private deployment by repository owner.
+See `LICENSE`. This repo is published with a source-available license intended to prevent commercial exploitation and hosted re-sale without permission.
+
+Also see:
+- `TRADEMARKS.md` (name/logo usage)
+- `SECURITY.md` (vulnerability reporting)
+- `docs/ACCEPTABLE_USE.md` (abuse posture)

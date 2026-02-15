@@ -11,7 +11,7 @@ cd /home/user9007/chopsticks
 find . -maxdepth 2 -type d \( -path './node_modules' -o -path './.git' \) -prune -o -type d -print | sort
 cat package.json
 ls -1 docker-compose*.yml .env* 2>/dev/null
-awk -F= '/^[A-Z0-9_]+=/ {print $1}' .env.comprehensive | sort -u
+awk -F= '/^[A-Z0-9_]+=/ {print $1}' .env.comprehensive.example | sort -u
 ```
 
 ### Observed
@@ -25,7 +25,7 @@ awk -F= '/^[A-Z0-9_]+=/ {print $1}' .env.comprehensive | sort -u
   - `docker-compose.override.yml`
   - `docker-compose.full.yml`
   - `docker-compose.lavalink.yml`
-- Env requirements captured from `.env.comprehensive` as key names only (no values), including `DISCORD_TOKEN`, `DATABASE_URL`, `REDIS_*`, `AGENT_*`, `FUNHUB_*`, `VOICE_*`, `LAVALINK_*`, `METRICS_PORT`, `HEALTH_PORT`, `DASHBOARD_*`.
+- Env requirements captured from `.env.comprehensive.example` as key names only (no values), including `DISCORD_TOKEN`, `DATABASE_URL`, `REDIS_*`, `AGENT_*`, `FUNHUB_*`, `VOICE_*`, `LAVALINK_*`, `METRICS_PORT`, `HEALTH_PORT`, `DASHBOARD_*`.
 
 ## 2) Tests
 
