@@ -12,7 +12,7 @@ Chopsticks is a Docker-first, self-hosted Discord bot platform with:
 - Maturity baseline: Levels 0-2 hardening in progress/completed artifacts are in-repo
 - Agent protocol version: `1.0.0`
 - Max agents per guild: `49` (enforced)
-- Contract/unit tests: `60 passing`
+- Contract/unit tests: `62 passing`
 - Primary runtime target: Docker Compose production stack
 
 See `SYSTEM_STATUS.md`, `MATURITY.md`, `LEVEL_1_COMPLETION_REPORT.md`, and `LEVEL_2_COMPLETION_REPORT.md` for detailed status.
@@ -75,6 +75,10 @@ Operational notes:
 - Agent runner requires `AGENT_CONTROL_URL` and Lavalink env (`LAVALINK_HOST`, `LAVALINK_PORT`, `LAVALINK_PASSWORD`)
 - Agent readiness is required for music allocation
 - If all agents are busy, deploy more or retry after session release
+- Idle auto-release controls:
+  - `AGENT_SESSION_IDLE_RELEASE_MS` (default `1800000` = 30 minutes)
+  - `AGENT_SESSION_IDLE_SWEEP_MS` (default `60000` = 1 minute)
+  - On idle timeout with no humans in VC, session is released and deployer/session owner is notified
 
 ## VoiceMaster (Custom VC)
 

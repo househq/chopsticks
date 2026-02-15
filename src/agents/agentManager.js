@@ -1,7 +1,7 @@
 // src/agents/agentManager.js
 import { WebSocketServer } from "ws";
 import { randomUUID } from "node:crypto";
-import { fetchAgentBots, fetchAgentRunners, updateAgentBotStatus } from "../utils/storage.js";
+import { fetchAgentBots, fetchAgentRunners, fetchPool, updateAgentBotStatus } from "../utils/storage.js";
 import { logger, createAgentScopedLogger, generateCorrelationId } from "../utils/logger.js";
 import {
   trackAgentRegistration,
@@ -79,6 +79,15 @@ export class AgentManager {
     this.reconcileEveryMs = safeInt(process.env.AGENT_RECONCILE_EVERY_MS, 300_000); // 5 minutes
     this._reconcileTimer = null;
 
+    // Idle auto-release watchdog
+    this.sessionIdleReleaseMs = safeInt(process.env.AGENT_SESSION_IDLE_RELEASE_MS, 1_800_000); // 30m
+    this.sessionIdleSweepMs = safeInt(process.env.AGENT_SESSION_IDLE_SWEEP_MS, 60_000); // 1m
+    this._idleSweepTimer = null;
+    this._idleSweepRunning = false;
+    this.adminOverrideToken = String(process.env.DASHBOARD_ADMIN_TOKEN || "").trim();
+    this._agentDeployerCache = new Map(); // agentId -> ownerUserId
+    this._agentDeployerCacheAt = 0;
+
     // Invite perms for agents (connect/speak/read history)
     // Conservative by default. Override with AGENT_INVITE_PERMS if you want.
     this.invitePerms = BigInt(process.env.AGENT_INVITE_PERMS || "3147776");
@@ -114,14 +123,25 @@ export class AgentManager {
     this._reconcileTimer = setInterval(() => this.reconcileAgents(), this.reconcileEveryMs);
     this._reconcileTimer.unref?.();
     await this.reconcileAgents(); // Run once on startup
+
+    if (this.sessionIdleReleaseMs > 0) {
+      this._idleSweepTimer = setInterval(() => {
+        this.releaseIdleSessions().catch(err => {
+          logger.error("[AgentManager] Idle session sweep failed", { error: err?.message ?? err });
+        });
+      }, this.sessionIdleSweepMs);
+      this._idleSweepTimer.unref?.();
+    }
   }
 
   stop() {
     try {
       if (this._pruneTimer) clearInterval(this._pruneTimer);
       if (this._reconcileTimer) clearInterval(this._reconcileTimer);
+      if (this._idleSweepTimer) clearInterval(this._idleSweepTimer);
       this._pruneTimer = null;
       this._reconcileTimer = null;
+      this._idleSweepTimer = null;
       this.wss?.close?.();
     } catch {}
   }
@@ -733,9 +753,11 @@ export class AgentManager {
         agent.voiceChannelId = null;
         agent.textChannelId = null;
         agent.ownerUserId = null;
+        trackSessionRelease('assistant');
       }
     }
     this.assistantSessions.delete(key);
+    this._updateMetrics();
   }
 
   async ensureAssistantAgent(guildId, voiceChannelId, { textChannelId, ownerUserId } = {}) {
@@ -763,6 +785,269 @@ export class AgentManager {
     
     // All agents are busy
     return { ok: false, reason: "no-free-agents" };
+  }
+
+  // ===== idle auto-release =====
+
+  async releaseIdleSessions() {
+    if (this._idleSweepRunning) return;
+    if (this.sessionIdleReleaseMs <= 0) return;
+
+    this._idleSweepRunning = true;
+    const sweepStartedAt = now();
+    let releasedMusic = 0;
+    let releasedAssistant = 0;
+
+    try {
+      await this._refreshAgentDeployerCache();
+
+      for (const [key, agentId] of Array.from(this.sessions.entries())) {
+        const [guildId, voiceChannelId] = String(key).split(":");
+        if (!guildId || !voiceChannelId) continue;
+
+        const agent = this.liveAgents.get(agentId);
+        if (!agent || agent.busyKey !== key || agent.busyKind !== "music") {
+          this.releaseSession(guildId, voiceChannelId);
+          continue;
+        }
+
+        const idleMs = this._computeIdleMs(agent.lastActive);
+        if (idleMs === null || idleMs < this.sessionIdleReleaseMs) continue;
+
+        const humans = await this._getHumanCountInVoice(guildId, voiceChannelId);
+        if (humans === null) continue;
+        if (humans > 0) continue;
+
+        const notifyAgent = {
+          agentId: agent.agentId,
+          ownerUserId: agent.ownerUserId ?? null,
+          textChannelId: agent.textChannelId ?? null
+        };
+        await this._releaseRemoteAgentSession(agent, "music", { guildId, voiceChannelId });
+        await this._notifyIdleRelease({
+          kind: "music",
+          agent: notifyAgent,
+          guildId,
+          voiceChannelId,
+          idleMs,
+          reason: "idle-timeout"
+        });
+        this.releaseSession(guildId, voiceChannelId);
+        releasedMusic++;
+      }
+
+      for (const [key, agentId] of Array.from(this.assistantSessions.entries())) {
+        const parts = String(key).split(":");
+        const guildId = parts[1];
+        const voiceChannelId = parts[2];
+        if (!guildId || !voiceChannelId) continue;
+
+        const agent = this.liveAgents.get(agentId);
+        if (!agent || agent.busyKey !== key || agent.busyKind !== "assistant") {
+          this.releaseAssistantSession(guildId, voiceChannelId);
+          continue;
+        }
+
+        const idleMs = this._computeIdleMs(agent.lastActive);
+        if (idleMs === null || idleMs < this.sessionIdleReleaseMs) continue;
+
+        const humans = await this._getHumanCountInVoice(guildId, voiceChannelId);
+        if (humans === null) continue;
+        if (humans > 0) continue;
+
+        const notifyAgent = {
+          agentId: agent.agentId,
+          ownerUserId: agent.ownerUserId ?? null,
+          textChannelId: agent.textChannelId ?? null
+        };
+        await this._releaseRemoteAgentSession(agent, "assistant", { guildId, voiceChannelId });
+        await this._notifyIdleRelease({
+          kind: "assistant",
+          agent: notifyAgent,
+          guildId,
+          voiceChannelId,
+          idleMs,
+          reason: "idle-timeout"
+        });
+        this.releaseAssistantSession(guildId, voiceChannelId);
+        releasedAssistant++;
+      }
+    } catch (error) {
+      logger.error("[AgentManager] Idle release sweep failed", {
+        error: error?.message ?? error
+      });
+    } finally {
+      this._idleSweepRunning = false;
+      const releasedTotal = releasedMusic + releasedAssistant;
+      if (releasedTotal > 0) {
+        logger.info("[AgentManager] Idle sweep released sessions", {
+          releasedMusic,
+          releasedAssistant,
+          releasedTotal,
+          sweepDurationMs: now() - sweepStartedAt
+        });
+      }
+    }
+  }
+
+  _computeIdleMs(lastActiveAt) {
+    const ts = Number(lastActiveAt);
+    if (!Number.isFinite(ts) || ts <= 0) return null;
+    return Math.max(0, now() - ts);
+  }
+
+  async _getHumanCountInVoice(guildId, voiceChannelId) {
+    const client = global.client;
+    if (!client) return null;
+
+    try {
+      const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+      if (!guild) return 0;
+
+      const channel = guild.channels.cache.get(voiceChannelId) ?? await guild.channels.fetch(voiceChannelId).catch(() => null);
+      if (!channel?.members) return 0;
+
+      let humans = 0;
+      for (const member of channel.members.values()) {
+        if (!member?.user?.bot) humans += 1;
+      }
+      return humans;
+    } catch (error) {
+      logger.warn("[AgentManager] Failed to inspect voice channel for idle release", {
+        guildId,
+        voiceChannelId,
+        error: error?.message ?? error
+      });
+      return null;
+    }
+  }
+
+  _buildReleasePayload(agent, { guildId, voiceChannelId }) {
+    const payload = {
+      guildId,
+      voiceChannelId,
+      textChannelId: agent?.textChannelId ?? null,
+      ownerUserId: agent?.ownerUserId ?? null
+    };
+
+    if (this.adminOverrideToken) {
+      payload.adminToken = this.adminOverrideToken;
+      payload.adminUserId = "idle-watchdog";
+    } else if (agent?.ownerUserId) {
+      payload.actorUserId = agent.ownerUserId;
+    }
+
+    return payload;
+  }
+
+  async _releaseRemoteAgentSession(agent, kind, { guildId, voiceChannelId }) {
+    if (!agent?.ready || !agent?.ws) return;
+
+    const op = kind === "assistant" ? "assistantLeave" : "stop";
+    const payload = this._buildReleasePayload(agent, { guildId, voiceChannelId });
+
+    try {
+      await this.request(agent, op, payload, 12_000);
+    } catch (error) {
+      const msg = String(error?.message ?? error);
+      if (msg === "no-session" || msg === "agent-offline") return;
+      logger.warn("[AgentManager] Failed to release idle agent session remotely", {
+        op,
+        kind,
+        agentId: agent.agentId,
+        guildId,
+        voiceChannelId,
+        error: msg
+      });
+    }
+  }
+
+  async _refreshAgentDeployerCache(force = false) {
+    const ttlMs = 5 * 60_000;
+    if (!force && this._agentDeployerCacheAt > 0 && (now() - this._agentDeployerCacheAt) < ttlMs) {
+      return;
+    }
+
+    try {
+      const bots = await fetchAgentBots();
+      const poolIds = Array.from(new Set(
+        bots
+          .map(b => String(b?.pool_id ?? "").trim())
+          .filter(Boolean)
+      ));
+
+      const poolOwners = new Map();
+      await Promise.all(poolIds.map(async poolId => {
+        const pool = await fetchPool(poolId).catch(() => null);
+        const owner = String(pool?.owner_user_id ?? "").trim();
+        if (owner) poolOwners.set(poolId, owner);
+      }));
+
+      const next = new Map();
+      for (const bot of bots) {
+        const agentId = String(bot?.agent_id ?? "").trim();
+        if (!agentId) continue;
+        const poolId = String(bot?.pool_id ?? "").trim();
+        const owner = poolOwners.get(poolId);
+        if (owner) next.set(agentId, owner);
+      }
+
+      this._agentDeployerCache = next;
+      this._agentDeployerCacheAt = now();
+    } catch (error) {
+      logger.warn("[AgentManager] Failed refreshing deployer cache", {
+        error: error?.message ?? error
+      });
+    }
+  }
+
+  async _notifyIdleRelease({ kind, agent, guildId, voiceChannelId, idleMs, reason }) {
+    const client = global.client;
+    if (!client || !agent?.agentId) return;
+
+    const recipients = new Set();
+    if (agent.ownerUserId) recipients.add(String(agent.ownerUserId));
+    const deployerUserId = this._agentDeployerCache.get(String(agent.agentId));
+    if (deployerUserId) recipients.add(String(deployerUserId));
+
+    const idleMinutes = Math.max(1, Math.round(Number(idleMs || 0) / 60_000));
+    const title = kind === "assistant" ? "Assistant session released" : "Music session released";
+    const body =
+      `Agent \`${agent.agentId}\` was auto-released after ${idleMinutes}m of inactivity.\n` +
+      `Guild: \`${guildId}\`\n` +
+      `Voice channel: \`${voiceChannelId}\`\n` +
+      `Reason: \`${reason || "idle-timeout"}\``;
+
+    for (const userId of recipients) {
+      try {
+        const user = await client.users.fetch(userId).catch(() => null);
+        if (!user) continue;
+        await user.send(`⚠️ ${title}\n${body}`);
+      } catch (error) {
+        logger.warn("[AgentManager] Failed DM for idle release", {
+          userId,
+          agentId: agent.agentId,
+          error: error?.message ?? error
+        });
+      }
+    }
+
+    if (agent.textChannelId) {
+      try {
+        const channel = await client.channels.fetch(agent.textChannelId).catch(() => null);
+        if (channel?.isTextBased?.()) {
+          await channel.send({
+            content: `⚠️ ${title}\n${body}`
+          });
+        }
+      } catch (error) {
+        logger.warn("[AgentManager] Failed channel notify for idle release", {
+          channelId: agent.textChannelId,
+          agentId: agent.agentId,
+          error: error?.message ?? error
+        });
+      }
+    }
   }
 
   // ===== health =====
