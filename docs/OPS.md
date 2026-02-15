@@ -7,6 +7,34 @@
 - FunHub (`chopsticks-funhub`)
 - Infra: Postgres, Redis, Lavalink, Prometheus
 
+## 24/7 hosting (boot + auto-recovery)
+The Docker services already use `restart: unless-stopped`. For true 24/7 uptime after host reboots, install the systemd units:
+
+```bash
+cd /home/user9007/chopsticks
+bash scripts/ops/install-systemd.sh
+```
+
+What this installs:
+- `chopsticks.service`: boots the production compose stack on machine startup
+- `chopsticks-watchdog.timer`: runs every 2 minutes
+- `chopsticks-watchdog.service`: runs `scripts/ops/chopsticks-watchdog.sh` and restarts failed app services
+
+Operational commands:
+```bash
+systemctl status chopsticks.service --no-pager
+systemctl status chopsticks-watchdog.timer --no-pager
+systemctl list-timers --all | grep chopsticks-watchdog
+journalctl -u chopsticks.service -n 100 --no-pager
+journalctl -u chopsticks-watchdog.service -n 100 --no-pager
+```
+
+Rollback:
+```bash
+cd /home/user9007/chopsticks
+bash scripts/ops/uninstall-systemd.sh
+```
+
 ## Core health checks
 ```bash
 docker compose -f docker-compose.production.yml --profile dashboard --profile monitoring --profile fun ps
