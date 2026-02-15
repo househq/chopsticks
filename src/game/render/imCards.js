@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 
 function execFileBuffer(cmd, args, opts = {}) {
@@ -77,6 +78,42 @@ function initials(name) {
   return (parts[0] || "U").slice(0, 2).toUpperCase();
 }
 
+function sigilBits(id) {
+  const buf = crypto.createHash("sha256").update(String(id || "x")).digest();
+  return buf;
+}
+
+function sigilDrawCommands({ id, x, y, size, fill = "rgba(255,255,255,0.22)" }) {
+  // Deterministic 5x5 icon pattern for each item id.
+  const bits = sigilBits(id);
+  const grid = 5;
+  const cell = Math.max(2, Math.floor(size / grid));
+  const half = Math.floor((grid * cell) / 2);
+  const startX = x - half;
+  const startY = y - half;
+
+  const draws = [];
+  let bitIndex = 0;
+  for (let gy = 0; gy < grid; gy += 1) {
+    for (let gx = 0; gx < grid; gx += 1) {
+      // Keep center + some random-ish pixels. Roughly ~50% on.
+      const byte = bits[bitIndex >> 3] ?? 0;
+      const on = ((byte >> (bitIndex & 7)) & 1) === 1;
+      bitIndex += 1;
+      if (!on && !(gx === 2 && gy === 2)) continue;
+
+      const x1 = startX + gx * cell;
+      const y1 = startY + gy * cell;
+      const x2 = x1 + cell - 1;
+      const y2 = y1 + cell - 1;
+      draws.push(`rectangle ${x1},${y1} ${x2},${y2}`);
+    }
+  }
+
+  if (!draws.length) return [];
+  return ["-fill", fill, "-draw", draws.join(" "), "-fill", "none"];
+}
+
 export async function renderGatherCardPng({ title = "Gather Run", subtitle = "", items = [], theme = "neo" } = {}) {
   const W = 960;
   const H = 540;
@@ -127,12 +164,20 @@ export async function renderGatherCardPng({ title = "Gather Run", subtitle = "",
       "-stroke", color,
       "-strokewidth", "4",
       "-draw", `circle ${cardX + 52},${y + Math.floor(rowH / 2)} ${cardX + 52 + 28},${y + Math.floor(rowH / 2)}`,
-      // initials
+      // deterministic sigil pattern (unique per item id)
+      ...sigilDrawCommands({
+        id: it.id || it.name || "x",
+        x: cardX + 52,
+        y: y + Math.floor(rowH / 2),
+        size: 30,
+        fill: "rgba(255,255,255,0.22)"
+      }),
+      // initials (small overlay for readability)
       "-font", "DejaVu-Sans",
       "-fill", "#e5e7eb",
-      "-pointsize", "24",
+      "-pointsize", "18",
       "-gravity", "NorthWest",
-      "-annotate", `+${cardX + 40}+${y + Math.floor(rowH / 2) - 10}`, init,
+      "-annotate", `+${cardX + 44}+${y + Math.floor(rowH / 2) - 8}`, init,
       // name + rarity
       "-fill", "#e5e7eb",
       "-pointsize", "30",
