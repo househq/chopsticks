@@ -4,6 +4,7 @@ import { makeEmbed, Colors } from "../utils/discordOutput.js";
 import { claimDaily } from "../economy/streaks.js";
 import { addCredits } from "../economy/wallet.js";
 import { formatCooldown } from "../economy/cooldowns.js";
+import { maybeBuildGuildFunLine } from "../fun/integrations.js";
 
 export const data = new SlashCommandBuilder()
   .setName("daily")
@@ -58,6 +59,18 @@ export async function execute(interaction) {
       null,
       Colors.SUCCESS
     );
+
+    const flavor = await maybeBuildGuildFunLine({
+      guildId: interaction.guildId,
+      feature: "daily",
+      actorTag: interaction.user.username,
+      target: interaction.user.username,
+      intensity: claim.streak >= 7 ? 4 : 3,
+      maxLength: 180
+    });
+    if (flavor) {
+      embed.addFields({ name: "Flavor", value: flavor, inline: false });
+    }
     
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {

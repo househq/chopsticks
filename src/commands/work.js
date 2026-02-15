@@ -3,6 +3,7 @@ import { getCooldown, setCooldown, formatCooldown } from "../economy/cooldowns.j
 import { addCredits, getWallet } from "../economy/wallet.js";
 import { addItem } from "../economy/inventory.js";
 import { Colors, replySuccess, replyError } from "../utils/discordOutput.js";
+import { maybeBuildGuildFunLine } from "../fun/integrations.js";
 
 const WORK_COOLDOWN = 30 * 60 * 1000; // 30 minutes
 
@@ -134,6 +135,22 @@ export default {
             inline: false
           });
         }
+      }
+
+      const flavor = await maybeBuildGuildFunLine({
+        guildId: interaction.guildId,
+        feature: "work",
+        actorTag: interaction.user.username,
+        target: job.name,
+        intensity: reward >= job.baseReward + Math.floor(job.variance / 2) ? 4 : 3,
+        maxLength: 180
+      });
+      if (flavor) {
+        embed.addFields({
+          name: "Flavor",
+          value: flavor,
+          inline: false
+        });
       }
 
       await interaction.editReply({ embeds: [embed] });

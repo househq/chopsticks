@@ -83,6 +83,11 @@ function baseData() {
     customCommands: {}, // name -> { response }
     macros: {}, // name -> [{ name, args }]
     commandLogs: [], // recent executions
+    fun: {
+      enabled: true,
+      intensity: 3,
+      features: { welcome: true, giveaway: true, daily: true, work: true }
+    },
     welcome: { enabled: false, channelId: null, message: "Welcome {user}!" },
     autorole: { enabled: false, roleId: null }
   };
@@ -135,6 +140,17 @@ function normalizeData(input) {
   if (!isPlainObject(out.macros)) out.macros = {};
   if (!Array.isArray(out.commandLogs)) out.commandLogs = [];
   if (!isPlainObject(out.commandPerms)) out.commandPerms = {};
+  if (!isPlainObject(out.fun)) out.fun = {};
+  if (typeof out.fun.enabled !== "boolean") out.fun.enabled = true;
+  const funIntensity = Number(out.fun.intensity);
+  out.fun.intensity = Number.isFinite(funIntensity)
+    ? Math.min(5, Math.max(1, Math.trunc(funIntensity)))
+    : 3;
+  if (!isPlainObject(out.fun.features)) out.fun.features = {};
+  if (typeof out.fun.features.welcome !== "boolean") out.fun.features.welcome = true;
+  if (typeof out.fun.features.giveaway !== "boolean") out.fun.features.giveaway = true;
+  if (typeof out.fun.features.daily !== "boolean") out.fun.features.daily = true;
+  if (typeof out.fun.features.work !== "boolean") out.fun.features.work = true;
   if (!isPlainObject(out.moderation)) out.moderation = {};
   if (!isPlainObject(out.moderation.warnings)) out.moderation.warnings = {};
   if (!isPlainObject(out.welcome)) out.welcome = {};
@@ -512,4 +528,3 @@ export async function deletePet(petId, userId) {
   const pg = await getPg();
   return pg.deletePet(petId, userId);
 }
-

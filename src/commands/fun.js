@@ -1,4 +1,9 @@
-import { SlashCommandBuilder, EmbedBuilder, MessageFlags } from "discord.js";
+import {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  MessageFlags,
+  PermissionFlagsBits
+} from "discord.js";
 import {
   clampIntensity,
   findVariants
@@ -10,6 +15,11 @@ import {
   renderFunFromRuntime,
   resolveVariantId
 } from "../fun/runtime.js";
+import {
+  formatGuildFunConfig,
+  getGuildFunConfig,
+  setGuildFunConfig
+} from "../fun/integrations.js";
 
 export const meta = {
   guildOnly: false,
@@ -76,6 +86,23 @@ export const data = new SlashCommandBuilder()
           .setRequired(false)
           .setAutocomplete(true)
       )
+  )
+  .addSubcommand(s =>
+    s
+      .setName("settings")
+      .setDescription("Configure automatic FunHub flavor integrations for this server")
+      .addBooleanOption(o => o.setName("enabled").setDescription("Enable/disable all auto fun outputs"))
+      .addBooleanOption(o => o.setName("welcome").setDescription("Enable fun flavor in welcome messages"))
+      .addBooleanOption(o => o.setName("giveaway").setDescription("Enable fun flavor in giveaway posts"))
+      .addBooleanOption(o => o.setName("daily").setDescription("Enable fun flavor in /daily results"))
+      .addBooleanOption(o => o.setName("work").setDescription("Enable fun flavor in /work results"))
+      .addIntegerOption(o =>
+        o
+          .setName("intensity")
+          .setDescription("Default intensity for auto flavor (1-5)")
+          .setMinValue(1)
+          .setMaxValue(5)
+      )
   );
 
 function buildFunEmbed(result) {
@@ -115,8 +142,89 @@ function buildCatalogEmbed(payload, query = "") {
     });
 }
 
+function buildSettingsEmbed(config) {
+  const runtime = getFunRuntimeConfig();
+  return new EmbedBuilder()
+    .setTitle("Fun Integration Settings")
+    .setColor(0x2ecc71)
+    .setDescription(
+      "These settings control where automatic FunHub flavor lines appear in this guild."
+    )
+    .addFields(
+      { name: "Status", value: config.enabled ? "enabled" : "disabled", inline: true },
+      { name: "Intensity", value: String(config.intensity), inline: true },
+      { name: "Provider", value: runtime.provider, inline: true },
+      {
+        name: "Features",
+        value:
+          `welcome=${config.features.welcome}\n` +
+          `giveaway=${config.features.giveaway}\n` +
+          `daily=${config.features.daily}\n` +
+          `work=${config.features.work}`
+      }
+    )
+    .setFooter({ text: formatGuildFunConfig(config) });
+}
+
 export async function execute(interaction) {
   const sub = interaction.options.getSubcommand(true);
+
+  if (sub === "settings") {
+    if (!interaction.inGuild()) {
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        content: "This subcommand can only be used in a server."
+      });
+      return;
+    }
+    if (!interaction.memberPermissions?.has?.(PermissionFlagsBits.ManageGuild)) {
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        content: "Manage Server permission is required."
+      });
+      return;
+    }
+
+    const enabled = interaction.options.getBoolean("enabled");
+    const welcome = interaction.options.getBoolean("welcome");
+    const giveaway = interaction.options.getBoolean("giveaway");
+    const daily = interaction.options.getBoolean("daily");
+    const work = interaction.options.getBoolean("work");
+    const intensityOpt = interaction.options.getInteger("intensity");
+    const hasPatch =
+      enabled !== null ||
+      welcome !== null ||
+      giveaway !== null ||
+      daily !== null ||
+      work !== null ||
+      intensityOpt !== null;
+
+    if (!hasPatch) {
+      const current = await getGuildFunConfig(interaction.guildId);
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        embeds: [buildSettingsEmbed(current.config)]
+      });
+      return;
+    }
+
+    const patch = {};
+    if (enabled !== null) patch.enabled = enabled;
+    if (intensityOpt !== null) patch.intensity = clampIntensity(intensityOpt);
+    const featurePatch = {};
+    if (welcome !== null) featurePatch.welcome = welcome;
+    if (giveaway !== null) featurePatch.giveaway = giveaway;
+    if (daily !== null) featurePatch.daily = daily;
+    if (work !== null) featurePatch.work = work;
+    if (Object.keys(featurePatch).length) patch.features = featurePatch;
+
+    const updated = await setGuildFunConfig(interaction.guildId, patch);
+    await interaction.reply({
+      flags: MessageFlags.Ephemeral,
+      embeds: [buildSettingsEmbed(updated.config)]
+    });
+    return;
+  }
 
   if (sub === "catalog") {
     const query = interaction.options.getString("query") || "";

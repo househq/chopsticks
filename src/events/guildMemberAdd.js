@@ -1,4 +1,5 @@
 import { loadGuildData } from "../utils/storage.js";
+import { maybeBuildGuildFunLine } from "../fun/integrations.js";
 
 export default {
   name: "guildMemberAdd",
@@ -23,7 +24,16 @@ export default {
       if (w?.enabled && w.channelId) {
         const ch = member.guild.channels.cache.get(w.channelId);
         if (ch && ch.send) {
-          const text = String(w.message || "Welcome {user}!").replace("{user}", `<@${member.id}>`);
+          const baseText = String(w.message || "Welcome {user}!").replace("{user}", `<@${member.id}>`);
+          const flavor = await maybeBuildGuildFunLine({
+            guildId,
+            feature: "welcome",
+            actorTag: "chopsticks",
+            target: member.user?.username || member.displayName || member.id,
+            intensity: 3,
+            maxLength: 160
+          });
+          const text = `${baseText}${flavor ? `\n${flavor}` : ""}`.slice(0, 1900);
           await ch.send(text);
         }
       }
