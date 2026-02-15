@@ -104,6 +104,7 @@ Optional staging Discord smoke (manual dispatch with secrets):
 - `node scripts/deployCommands.js` in guild mode
 - `npm run smoke:discord`
 - Public guild preflight: `PUBLIC_TEST_GUILD_ID=<guild_id> npm run smoke:public`
+- Persona gate: `PUBLIC_TEST_GUILD_ID=<guild_id> ADMIN_USER_ID=<id> PUBLIC_USER_ID=<id> npm run smoke:persona`
 
 ## Control-plane invariants
 - Max deploy target per guild is hard-capped at `49`.

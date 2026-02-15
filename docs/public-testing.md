@@ -19,6 +19,21 @@ Pass criteria:
 
 If this fails, fix permissions first and re-run.
 
+Then run automated persona smoke (admin allow-path + public deny/allow-path):
+
+```bash
+cd /home/user9007/chopsticks
+PUBLIC_TEST_GUILD_ID=<your_public_guild_id> \
+ADMIN_USER_ID=<admin_user_id> \
+PUBLIC_USER_ID=<non_admin_user_id> \
+npm run smoke:persona
+```
+
+Pass criteria:
+- Admin persona can run protected commands (`/agents`, `/config`, `/purge`, `/scripts`, `/pools`)
+- Public persona can run open commands (`/help`, `/ping`, `/fun`, `/music`)
+- Public persona is denied protected commands
+
 ## 2) Slash command deploy for test guild
 For immediate updates while testing:
 
