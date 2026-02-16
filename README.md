@@ -59,10 +59,22 @@ cp .env.example .env
 # edit .env and set at minimum: DISCORD_TOKEN, BOT_OWNER_IDS, POSTGRES_URL, REDIS_URL
 ```
 
-2. Start platform:
+2. Start platform (one command):
 ```bash
-./scripts/start.sh
+make start
+# or:
+./scripts/ops/chopsticksctl.sh up
 ```
+
+`chopsticksctl up` does:
+- compose up (with `COMPOSE_PROFILES`, default `dashboard,monitoring,fun`)
+- waits for bot `/health`
+- runs migrations
+- deploys slash commands to your guild (if `DEV_GUILD_ID`/`GUILD_ID` is set in `.env`)
+
+Optional toggles:
+- `CHOPSTICKS_AUTO_BUILD=true` to build images before starting
+- `CHOPSTICKS_DEPLOY_GLOBAL=true` to also deploy global commands
 
 By default, production bring-up enables profiles:
 - `dashboard`
@@ -85,6 +97,20 @@ make logs
 ```bash
 make stop
 ```
+
+## 24/7 Hosting (systemd)
+
+On a Linux host, install the systemd service + watchdog timer:
+```bash
+sudo bash scripts/ops/install-systemd.sh
+```
+
+This keeps the Docker stack running in the background and periodically self-heals via `scripts/ops/chopsticks-watchdog.sh`.
+
+## Token Encryption Key Rotation (Important)
+
+If you change `AGENT_TOKEN_KEY`, previously stored agent tokens become undecryptable.
+Chopsticks will mark those identities as unusable and you must re-register them (e.g. re-run `/agents add_token` for each identity).
 
 ## Music + Agent Pooling
 

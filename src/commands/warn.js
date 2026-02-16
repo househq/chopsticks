@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { addWarning } from "../utils/moderation.js";
 import { canModerateTarget, fetchTargetMember, moderationGuardMessage } from "../moderation/guards.js";
 import { reasonOrDefault, replyModError, replyModSuccess } from "../moderation/output.js";
+import { dispatchModerationLog } from "../utils/modLogs.js";
 
 export const meta = {
   guildOnly: true,
@@ -21,9 +22,22 @@ export async function execute(interaction) {
   const targetMember = await fetchTargetMember(interaction.guild, user.id);
   const gate = canModerateTarget(interaction, targetMember);
   if (!gate.ok) {
+    const failSummary = moderationGuardMessage(gate.reason);
     await replyModError(interaction, {
       title: "Warn Blocked",
-      summary: moderationGuardMessage(gate.reason)
+      summary: failSummary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "warn",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary: failSummary,
+      commandName: "warn",
+      channelId: interaction.channelId
     });
     return;
   }
@@ -36,5 +50,18 @@ export async function execute(interaction) {
       { name: "Total Warnings", value: String(list.length), inline: true },
       { name: "Reason", value: reason }
     ]
+  });
+  await dispatchModerationLog(interaction.guild, {
+    action: "warn",
+    ok: true,
+    actorId: interaction.user.id,
+    actorTag: interaction.user.tag,
+    targetId: user.id,
+    targetTag: user.tag,
+    reason,
+    summary: `Warning added for ${user.tag}.`,
+    commandName: "warn",
+    channelId: interaction.channelId,
+    details: { totalWarnings: String(list.length) }
   });
 }

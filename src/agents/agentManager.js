@@ -473,23 +473,55 @@ export class AgentManager {
 
   // ===== invite helpers / deploy =====
 
-  async listInvitableAgentsForGuild(guildId, poolId = null) {
+  async getDeployDiagnostics(guildId, poolId = null) {
     const registeredAgents = await fetchAgentBots();
+    const diagnostics = {
+      scopedTotal: 0,
+      activeTotal: 0,
+      inactiveTotal: 0,
+      missingToken: 0,
+      missingClientId: 0,
+      alreadyInGuild: 0,
+      invitable: 0,
+      invitableConnected: 0,
+      invitableOffline: 0
+    };
     const out = [];
     for (const regAgent of registeredAgents) {
-      if (!regAgent?.client_id) continue; // Must have a client ID to be invitable
-      if (regAgent.status !== 'active') continue; // Only consider active registered agents
-      
+      if (!regAgent) continue;
+
       // Filter by pool if specified
       if (poolId && regAgent.pool_id !== poolId) continue;
+      diagnostics.scopedTotal += 1;
+
+      if (!regAgent?.client_id) {
+        diagnostics.missingClientId += 1;
+        continue; // Must have a client ID to be invitable
+      }
+      if (regAgent.status !== 'active') {
+        diagnostics.inactiveTotal += 1;
+        continue; // Only consider active registered agents
+      }
+      if (!regAgent.token) {
+        // Key rotation or corrupt record: identity exists but cannot be started by a runner.
+        diagnostics.missingToken += 1;
+        diagnostics.inactiveTotal += 1;
+        continue;
+      }
+      diagnostics.activeTotal += 1;
 
       const liveAgent = this.liveAgents.get(regAgent.agent_id);
       if (liveAgent) {
         // If agent is live, check its current guild status
-        if (liveAgent.guildIds?.has?.(guildId)) continue; // Already in guild
+        if (liveAgent.guildIds?.has?.(guildId)) {
+          diagnostics.alreadyInGuild += 1;
+          continue; // Already in guild
+        }
+        diagnostics.invitableConnected += 1;
       } else {
         // If agent is not live, we assume it's not in the guild for now.
         // If we want to be more precise, we'd need to query Discord API for non-live agents, which is out of scope for this.
+        diagnostics.invitableOffline += 1;
       }
       out.push({
         agentId: regAgent.agent_id,
@@ -497,8 +529,14 @@ export class AgentManager {
         tag: regAgent.tag
       });
     }
+    diagnostics.invitable = out.length;
     out.sort((a, b) => String(a.agentId).localeCompare(String(b.agentId)));
-    return out;
+    return { diagnostics, invitableAgents: out };
+  }
+
+  async listInvitableAgentsForGuild(guildId, poolId = null) {
+    const { invitableAgents } = await this.getDeployDiagnostics(guildId, poolId);
+    return invitableAgents;
   }
 
   buildInviteForAgent(agent) {
@@ -527,7 +565,7 @@ export class AgentManager {
       if (agent.guildIds?.has?.(guildId)) present.push(agent);
     }
 
-    const invitable = await this.listInvitableAgentsForGuild(guildId, poolId); // Now async with poolId
+    const { diagnostics, invitableAgents: invitable } = await this.getDeployDiagnostics(guildId, poolId);
 
     const need = Math.max(0, desired - present.length);
     const picks = invitable.slice(0, need);
@@ -551,6 +589,7 @@ export class AgentManager {
       invitableCount: invitable.length,
       needInvites: need,
       invites,
+      diagnostics,
       poolId
     };
   }

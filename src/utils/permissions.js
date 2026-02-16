@@ -5,10 +5,10 @@ const CATEGORY_MAP = {
   mod: new Set(["ban","unban","kick","timeout","purge","slowmode","warn","warnings","clearwarns","lock","unlock","nick","softban","role"]),
   util: new Set(["ping","uptime","help","serverinfo","userinfo","avatar","roleinfo","botinfo","invite","echo"]),
   fun: new Set(["8ball","coinflip","roll","choose","fun"]),
-  admin: new Set(["config","prefix","alias","agents"]),
+  admin: new Set(["config","prefix","alias","agents","reactionroles","levels","automations","setup","modlogs"]),
   music: new Set(["music"]),
   voice: new Set(["voice","welcome","autorole"]),
-  tools: new Set(["poll","giveaway","remind"]),
+  tools: new Set(["poll","giveaway","remind","starboard","tickets"]),
   assistant: new Set(["assistant"])
 };
 

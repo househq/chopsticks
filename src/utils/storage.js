@@ -57,10 +57,29 @@ function baseData() {
     schemaVersion: SCHEMA_VERSION,
     rev: 0,
     voice: { lobbies: {}, tempChannels: {} },
-    music: { defaultMode: "open", defaultVolume: 100, limits: {} }, // "open" | "dj"
+    music: {
+      defaultMode: "open",
+      defaultVolume: 100,
+      limits: {},
+      // "Audio Drops" feature: allow configured text channels to show a UI panel
+      // when users upload audio attachments, enabling one-click playback via agents.
+      drops: { channelIds: [] }
+    }, // "open" | "dj"
     game: {
       // Visual theme for generated game cards (e.g., /gather images).
       theme: "neo" // "neo" | "ember" | "arcane"
+    },
+    levels: {
+      roleRewards: {} // level(string) -> roleId
+    },
+    starboard: {
+      enabled: false,
+      channelId: null,
+      emoji: "⭐",
+      threshold: 3,
+      selfStar: false,
+      ignoreBots: true,
+      posts: {} // sourceMessageId -> starboardMessageId
     },
     assistant: {
       enabled: false,
@@ -92,6 +111,25 @@ function baseData() {
       mode: "clean",
       intensity: 3,
       features: { welcome: true, giveaway: true, daily: true, work: true }
+    },
+    reactionRoles: {
+      bindings: {} // key: channelId:messageId:emojiKey -> { channelId, messageId, emojiKey, roleId, createdBy, createdAt }
+    },
+    modLogs: {
+      enabled: false,
+      channelId: null,
+      includeFailures: true,
+      events: {} // action -> boolean
+    },
+    tickets: {
+      enabled: false,
+      panelChannelId: null,
+      panelMessageId: null,
+      categoryId: null,
+      logChannelId: null,
+      supportRoleId: null,
+      transcriptOnClose: true,
+      counter: 0
     },
     welcome: { enabled: false, channelId: null, message: "Welcome {user}!" },
     autorole: { enabled: false, roleId: null }
@@ -135,6 +173,19 @@ function normalizeData(input) {
   if (!isPlainObject(out.game)) out.game = {};
   const gameTheme = String(out.game.theme || "neo").toLowerCase();
   out.game.theme = (gameTheme === "neo" || gameTheme === "ember" || gameTheme === "arcane") ? gameTheme : "neo";
+  if (!isPlainObject(out.levels)) out.levels = {};
+  if (!isPlainObject(out.levels.roleRewards)) out.levels.roleRewards = {};
+  if (!isPlainObject(out.starboard)) out.starboard = {};
+  if (typeof out.starboard.enabled !== "boolean") out.starboard.enabled = false;
+  if (typeof out.starboard.channelId !== "string") out.starboard.channelId = null;
+  if (typeof out.starboard.emoji !== "string" || !out.starboard.emoji.trim()) out.starboard.emoji = "⭐";
+  const starThreshold = Number(out.starboard.threshold);
+  out.starboard.threshold = Number.isFinite(starThreshold)
+    ? Math.min(20, Math.max(1, Math.trunc(starThreshold)))
+    : 3;
+  if (typeof out.starboard.selfStar !== "boolean") out.starboard.selfStar = false;
+  if (typeof out.starboard.ignoreBots !== "boolean") out.starboard.ignoreBots = true;
+  if (!isPlainObject(out.starboard.posts)) out.starboard.posts = {};
   if (!isPlainObject(out.dashboard)) out.dashboard = {};
   if (!Array.isArray(out.dashboard.allowUserIds)) out.dashboard.allowUserIds = [];
   if (!Array.isArray(out.dashboard.allowRoleIds)) out.dashboard.allowRoleIds = [];
@@ -163,6 +214,25 @@ function normalizeData(input) {
   if (typeof out.fun.features.giveaway !== "boolean") out.fun.features.giveaway = true;
   if (typeof out.fun.features.daily !== "boolean") out.fun.features.daily = true;
   if (typeof out.fun.features.work !== "boolean") out.fun.features.work = true;
+  if (!isPlainObject(out.reactionRoles)) out.reactionRoles = {};
+  if (!isPlainObject(out.reactionRoles.bindings)) out.reactionRoles.bindings = {};
+  if (!isPlainObject(out.modLogs)) out.modLogs = {};
+  if (typeof out.modLogs.enabled !== "boolean") out.modLogs.enabled = false;
+  if (typeof out.modLogs.channelId !== "string") out.modLogs.channelId = null;
+  if (typeof out.modLogs.includeFailures !== "boolean") out.modLogs.includeFailures = true;
+  if (!isPlainObject(out.modLogs.events)) out.modLogs.events = {};
+  if (!isPlainObject(out.tickets)) out.tickets = {};
+  if (typeof out.tickets.enabled !== "boolean") out.tickets.enabled = false;
+  if (typeof out.tickets.panelChannelId !== "string") out.tickets.panelChannelId = null;
+  if (typeof out.tickets.panelMessageId !== "string") out.tickets.panelMessageId = null;
+  if (typeof out.tickets.categoryId !== "string") out.tickets.categoryId = null;
+  if (typeof out.tickets.logChannelId !== "string") out.tickets.logChannelId = null;
+  if (typeof out.tickets.supportRoleId !== "string") out.tickets.supportRoleId = null;
+  if (typeof out.tickets.transcriptOnClose !== "boolean") out.tickets.transcriptOnClose = true;
+  const ticketsCounter = Number(out.tickets.counter);
+  out.tickets.counter = Number.isFinite(ticketsCounter)
+    ? Math.max(0, Math.trunc(ticketsCounter))
+    : 0;
   if (!isPlainObject(out.moderation)) out.moderation = {};
   if (!isPlainObject(out.moderation.warnings)) out.moderation.warnings = {};
   if (!isPlainObject(out.welcome)) out.welcome = {};

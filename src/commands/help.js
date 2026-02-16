@@ -39,10 +39,53 @@ const BROAD_CATEGORIES = [
 ];
 
 const CATEGORY_BY_KEY = new Map(BROAD_CATEGORIES.map(c => [c.key, c]));
+const CATEGORY_PLAYBOOK = {
+  core: {
+    useWhen: "You need discovery, quick diagnostics, or bot metadata.",
+    workflow: [
+      "Use `/tutorials` for guided setup and feature tour.",
+      "Check availability with `/ping` and `/uptime`.",
+      "Inspect capabilities with `/commands ui` or `/help` category drill-down.",
+      "Grab server/user context with `/serverinfo` and `/userinfo`."
+    ]
+  },
+  voice_audio: {
+    useWhen: "You need music playback, VoiceMaster controls, or agent routing.",
+    workflow: [
+      "Verify agent capacity with `/agents status`.",
+      "Start playback with `/music play`.",
+      "Configure VC automation with `/voice setup` then `/voice console`."
+    ]
+  },
+  moderation: {
+    useWhen: "You need enforcement, cleanup, anti-abuse, or member control.",
+    workflow: [
+      "Use `/warn`, `/timeout`, `/ban` for escalation.",
+      "Use `/purge` for scoped cleanup.",
+      "Review warnings history before major actions."
+    ]
+  },
+  economy_fun: {
+    useWhen: "You want progression, inventory loops, or social/fun interactions.",
+    workflow: [
+      "Start economy loop: `/daily`, `/work`, `/gather`.",
+      "Track progression with `/profile` and `/inventory`.",
+      "Use `/game panel` for guided game actions."
+    ]
+  },
+  admin_setup: {
+    useWhen: "You are configuring server defaults, governance, or automations.",
+    workflow: [
+      "Set baseline with `/config` and `/prefix`.",
+      "Manage automation with `/automations`, `/alias`, `/macro`, `/custom`.",
+      "Enable onboarding/logging using `/welcome`, `/autorole`, `/starboard`, `/tickets`, `/modlogs`, `/logs`."
+    ]
+  }
+};
 const KNOWN_COMMAND_GROUPS = {
   core: new Set([
     "help", "commands", "ping", "uptime", "botinfo", "invite",
-    "serverinfo", "userinfo", "avatar", "echo", "roleinfo", "remind"
+    "serverinfo", "userinfo", "avatar", "echo", "roleinfo", "remind", "tickets"
   ]),
   voice_audio: new Set(["music", "voice", "assistant", "agents", "pools"]),
   moderation: new Set([
@@ -54,7 +97,7 @@ const KNOWN_COMMAND_GROUPS = {
     "collection", "gather", "use", "fight", "quests", "craft", "game", "profile", "shop", "8ball", "coinflip", "roll", "choose",
     "poll", "giveaway", "fun"
   ]),
-  admin_setup: new Set(["config", "prefix", "alias", "macro", "custom", "logs", "welcome", "autorole"])
+  admin_setup: new Set(["config", "prefix", "alias", "macro", "custom", "logs", "modlogs", "welcome", "autorole", "reactionroles", "levels", "automations", "starboard", "setup"])
 };
 
 export const data = new SlashCommandBuilder()
@@ -163,13 +206,31 @@ function summarizeCategories(categories, byCategory) {
     .join("  ");
 }
 
+function clampText(value, max = 160) {
+  const text = String(value || "").trim().replace(/\s+/g, " ");
+  if (text.length <= max) return text;
+  if (max <= 1) return text.slice(0, Math.max(0, max));
+  return `${text.slice(0, max - 1)}...`;
+}
+
+function formatCategoryCards(categories, byCategory) {
+  const lines = [];
+  for (const c of categories) {
+    const count = byCategory.get(c.key)?.length ?? 0;
+    lines.push(`• **${c.label}** (${count})`);
+    lines.push(clampText(c.description, 90));
+    if (lines.join("\n").length > 900) break;
+  }
+  return lines.join("\n");
+}
+
 function formatCategoryCommands(list, maxLen = 980) {
   const lines = [];
   let used = 0;
 
   for (let i = 0; i < list.length; i += 1) {
     const rec = list[i];
-    const line = `- /${rec.name} -> ${rec.variantSummary}`;
+    const line = `• /${rec.name} — ${clampText(rec.description, 80)} (${rec.variantSummary})`;
     const next = used === 0 ? line.length : used + 1 + line.length;
     if (next > maxLen) {
       const remaining = list.length - i;
@@ -184,38 +245,40 @@ function formatCategoryCommands(list, maxLen = 980) {
 }
 
 function buildMainEmbed({ prefix, commandCount, categories, byCategory }) {
+  const categoryOverview = formatCategoryCards(categories, byCategory);
   return new EmbedBuilder()
     .setTitle("Chopsticks Help Center")
-    .setColor(0x00a86b)
+    .setColor(0x0284C7)
     .setDescription(
-      "Select a broad category from the dropdown below. This panel updates in place with commands and command variants."
+      "Use the dropdown below to open focused help for each area. The panel updates in place with command guidance and variants."
     )
     .addFields(
       {
-        name: "Quick Start",
+        name: "Start Here",
         value:
-          "1. Deploy agents: `/agents deploy desired_total:10`\n" +
-          "2. Start music: `/music play query:<song>`\n" +
-          "3. Configure VoiceMaster: `/voice setup` then `/voice console`\n" +
-          "4. Open command center: `/commands ui`"
+          "1. Deploy capacity with `/agents deploy desired_total:10`.\n" +
+          "2. Check readiness using `/agents status`.\n" +
+          "3. Launch a feature (`/music play`, `/voice setup`, `/game panel`).\n" +
+          "4. Use category dropdown for deeper help."
       },
       {
-        name: "How To Read Category Output",
+        name: "Find The Right Category",
         value:
-          "- Each line shows `/command -> variants`\n" +
-          "- Variants are subcommands or grouped subcommands\n" +
-          "- If no subcommands exist, options are shown instead"
+          categoryOverview || summarizeCategories(categories, byCategory) || "No categories detected."
       },
       {
-        name: "Usage",
+        name: "How Category Pages Work",
         value:
-          `- Slash commands: \`/command\`\n` +
-          `- Prefix fallback: \`${prefix}command\`\n` +
-          "- Use dropdown for category-specific help"
+          "• Each entry shows command purpose and variant summary.\n" +
+          "• Variants include subcommands and grouped flows.\n" +
+          "• Use `/commands ui` if you want searchable command browsing."
       },
       {
-        name: "Categories",
-        value: summarizeCategories(categories, byCategory) || "No categories detected."
+        name: "Usage Style",
+        value:
+          `• Slash: \`/command\`\n` +
+          `• Prefix fallback: \`${prefix}command\`\n` +
+          "• Admin actions require appropriate server permissions."
       }
     )
     .setFooter({ text: `Chopsticks • ${commandCount} command(s)` })
@@ -224,23 +287,37 @@ function buildMainEmbed({ prefix, commandCount, categories, byCategory }) {
 
 function buildCategoryEmbed({ categoryKey, list, prefix }) {
   const meta = CATEGORY_BY_KEY.get(categoryKey) || { label: categoryKey, description: "Command category." };
+  const playbook = CATEGORY_PLAYBOOK[categoryKey] || {
+    useWhen: "Use this category for related command workflows.",
+    workflow: ["Select a command from this category and run it directly."]
+  };
 
   return new EmbedBuilder()
     .setTitle(`Help • ${meta.label}`)
-    .setColor(0x2b2d31)
-    .setDescription(meta.description)
+    .setColor(0x2563EB)
+    .setDescription(meta.description || "Category details.")
     .addFields(
       {
-        name: "Commands and Variants",
+        name: "Use This Category When",
+        value: clampText(playbook.useWhen, 220)
+      },
+      {
+        name: "Recommended Flow",
+        value: playbook.workflow.map((step, idx) => `${idx + 1}. ${step}`).join("\n").slice(0, 1024)
+      },
+      {
+        name: "Commands",
         value: formatCategoryCommands(list)
       },
       {
-        name: "Usage",
+        name: "Command Format",
         value:
-          "Run slash commands directly from Discord's `/` menu.\n" +
-          `Prefix fallback: \`${prefix}command\``
+          `Slash: \`/command\`\n` +
+          `Prefix fallback: \`${prefix}command\`\n` +
+          "Use the dropdown to switch categories."
       }
     )
+    .setFooter({ text: `${list.length} command(s) in ${meta.label}` })
     .setTimestamp();
 }
 
@@ -318,7 +395,7 @@ export async function handleSelect(interaction) {
   if (!parsed || parsed.kind !== "category") return false;
 
   if (parsed.userId !== interaction.user.id) {
-    await interaction.reply({ content: "This help panel belongs to another user.", ephemeral: true });
+    await interaction.reply({ content: "This help panel belongs to another user.", flags: MessageFlags.Ephemeral });
     return true;
   }
 

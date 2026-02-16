@@ -81,6 +81,14 @@ function progressBar(pct, len = 12) {
   return "█".repeat(filled) + "░".repeat(empty);
 }
 
+function noticeEmbed(title, description, color = Colors.INFO) {
+  return new EmbedBuilder()
+    .setTitle(String(title || "Notice"))
+    .setDescription(String(description || ""))
+    .setColor(color)
+    .setTimestamp();
+}
+
 async function buildOverview(state) {
   const [wallet, profile] = await Promise.all([
     getWallet(state.userId),
@@ -733,7 +741,9 @@ export async function execute(interaction) {
 
     try {
       if (delivery === "dm") {
-        const loading = await interaction.user.send({ content: "Opening game panel..." });
+        const loading = await interaction.user.send({
+          embeds: [noticeEmbed("Game Panel", "Preparing your game panel...")]
+        });
         const panelId = loading.id;
         await savePanelState(panelId, state);
         const payload = await buildPanelPayload(state, panelId);
@@ -747,7 +757,9 @@ export async function execute(interaction) {
           await replyError(interaction, "Guild Only", "Channel delivery requires a server channel.", true);
           return;
         }
-        const msg = await interaction.channel.send({ content: "Opening game panel..." });
+        const msg = await interaction.channel.send({
+          embeds: [noticeEmbed("Game Panel", "Preparing game panel...")]
+        });
         const panelId = msg.id;
         await savePanelState(panelId, state);
         const payload = await buildPanelPayload(state, panelId);
@@ -757,7 +769,11 @@ export async function execute(interaction) {
       }
 
       // default: ephemeral
-      const msg = await interaction.reply({ content: "Opening game panel...", flags: MessageFlags.Ephemeral, fetchReply: true });
+      const msg = await interaction.reply({
+        embeds: [noticeEmbed("Game Panel", "Preparing your game panel...")],
+        flags: MessageFlags.Ephemeral,
+        fetchReply: true
+      });
       const panelId = msg.id;
       await savePanelState(panelId, state);
       const payload = await buildPanelPayload(state, panelId);
@@ -843,13 +859,19 @@ export async function handleSelect(interaction) {
   if (!parsed) return false;
 
   if (parsed.userId !== interaction.user.id) {
-    await interaction.reply({ content: "This panel belongs to another user.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({
+      embeds: [noticeEmbed("Panel Locked", "This game panel belongs to another user.", Colors.ERROR)],
+      flags: MessageFlags.Ephemeral
+    });
     return true;
   }
 
   const state = await loadPanelState(parsed.panelId);
   if (!state) {
-    await interaction.reply({ content: "This game panel expired. Run `/game panel` again.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({
+      embeds: [noticeEmbed("Panel Expired", "This game panel expired. Run `/game panel` again.", Colors.WARNING)],
+      flags: MessageFlags.Ephemeral
+    });
     return true;
   }
 
@@ -935,13 +957,19 @@ export async function handleButton(interaction) {
   if (!parsed) return false;
 
   if (parsed.userId !== interaction.user.id) {
-    await interaction.reply({ content: "This panel belongs to another user.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({
+      embeds: [noticeEmbed("Panel Locked", "This game panel belongs to another user.", Colors.ERROR)],
+      flags: MessageFlags.Ephemeral
+    });
     return true;
   }
 
   const state = await loadPanelState(parsed.panelId);
   if (!state) {
-    await interaction.reply({ content: "This game panel expired. Run `/game panel` again.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({
+      embeds: [noticeEmbed("Panel Expired", "This game panel expired. Run `/game panel` again.", Colors.WARNING)],
+      flags: MessageFlags.Ephemeral
+    });
     return true;
   }
 
@@ -973,7 +1001,10 @@ export async function handleButton(interaction) {
     } catch (err) {
       console.error("[gameui:run] error:", err);
       try {
-        await interaction.followUp({ content: "Action failed. Check logs.", flags: MessageFlags.Ephemeral });
+        await interaction.followUp({
+          embeds: [noticeEmbed("Action Failed", "Something went wrong while running this action.", Colors.ERROR)],
+          flags: MessageFlags.Ephemeral
+        });
       } catch {}
     }
     await renderPanelUpdate(interaction, state, parsed.panelId, "editReply");
@@ -1005,14 +1036,20 @@ export async function handleButton(interaction) {
     const times = parsed.kind === "craft10" ? 10 : (parsed.kind === "craft5" ? 5 : 1);
     const res = await craftRecipe(state.userId, state.craft.recipe, times);
     if (!res.ok) {
-      const msg = res.reason === "insufficient"
-        ? `Need ${res.need}x \`${res.itemId}\` but you have ${res.have}x.`
-        : "Craft failed.";
-      await interaction.followUp({ content: msg, flags: MessageFlags.Ephemeral });
+      const description = res.reason === "insufficient"
+        ? `Need **${res.need}x** \`${res.itemId}\` but you have **${res.have}x**.`
+        : "Crafting failed. Try again.";
+      await showActionResult(interaction, { ok: false, title: "Craft Failed", description });
     } else {
-      const msg = `Crafted **${res.times}x ${res.recipe.name}** -> \`${res.recipe.output.itemId}\` ×${res.outQty}` +
-        (res.xpRes?.applied ? ` • +${res.xpRes.applied} XP` : "");
-      await interaction.followUp({ content: msg, flags: MessageFlags.Ephemeral });
+      await showActionResult(interaction, {
+        ok: true,
+        title: "Craft Complete",
+        description: `Crafted **${res.times}x ${res.recipe.name}**.`,
+        fields: [
+          { name: "Output", value: `\`${res.recipe.output.itemId}\` ×${res.outQty}`, inline: true },
+          { name: "XP", value: res.xpRes?.applied ? `+${res.xpRes.applied.toLocaleString()} XP` : "None", inline: true }
+        ]
+      });
     }
     state.view = "craft";
     await savePanelState(parsed.panelId, state);

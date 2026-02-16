@@ -14,6 +14,24 @@ if (REDIS_URL) {
   redisClient.connect().catch(() => {});
 }
 
+export async function closeStoragePg() {
+  // Intended for short-lived scripts (migrations/diagnostics), not the long-running bot.
+  try {
+    if (pool) await pool.end().catch(() => {});
+  } finally {
+    pool = null;
+  }
+
+  try {
+    if (redisClient) {
+      // Prefer quit() to flush pending commands; fall back to disconnect if needed.
+      await redisClient.quit().catch(() => redisClient.disconnect?.());
+    }
+  } finally {
+    redisClient = null;
+  }
+}
+
 export function getPool() {
   logger.info("--> getPool() called in storage_pg.js");
   if (pool) return pool;
@@ -41,6 +59,7 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const TAG_LENGTH = 16; // Authentication tag length
 const ENCRYPTION_KEY = process.env.AGENT_TOKEN_KEY; // Must be 32 bytes (256 bits)
+const seenDecryptFailures = new Set();
 
 if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 64) {
   logger.warn("AGENT_TOKEN_KEY environment variable is missing or not 32 bytes. Agent tokens will NOT be encrypted at rest.");
@@ -83,8 +102,13 @@ function decrypt(text) {
     decrypted += decipher.final('utf8');
     return decrypted;
   } catch (err) {
-    logger.error("Decryption failed:", { error: err });
-    return text; // Fallback to original text if error
+    // If the key changed, old values become undecryptable. Fail closed and keep the process stable.
+    const sig = `${String(parts[0]).slice(0, 8)}:${String(parts[1]).slice(0, 8)}`;
+    if (!seenDecryptFailures.has(sig)) {
+      seenDecryptFailures.add(sig);
+      logger.warn("Decryption failed (token likely needs re-registration).", { error: err?.message ?? String(err) });
+    }
+    return null;
   }
 }
 // --- End Encryption Configuration ---

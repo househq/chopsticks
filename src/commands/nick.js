@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { canModerateTarget, fetchTargetMember, moderationGuardMessage } from "../moderation/guards.js";
 import { replyModError, replyModSuccess } from "../moderation/output.js";
+import { dispatchModerationLog } from "../utils/modLogs.js";
 
 export const meta = {
   guildOnly: true,
@@ -23,14 +24,39 @@ export async function execute(interaction) {
       title: "Nickname Update Failed",
       summary: "User is not a member of this guild."
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "nick",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason: nickname || "(clear nickname)",
+      summary: "Nickname update failed because target user is not in the guild.",
+      commandName: "nick",
+      channelId: interaction.channelId
+    });
     return;
   }
 
   const gate = canModerateTarget(interaction, member);
   if (!gate.ok) {
+    const failSummary = moderationGuardMessage(gate.reason);
     await replyModError(interaction, {
       title: "Nickname Update Blocked",
-      summary: moderationGuardMessage(gate.reason)
+      summary: failSummary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "nick",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason: nickname || "(clear nickname)",
+      summary: failSummary,
+      commandName: "nick",
+      channelId: interaction.channelId
     });
     return;
   }
@@ -47,10 +73,35 @@ export async function execute(interaction) {
         { name: "Nickname", value: nickname || "(cleared)" }
       ]
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "nick",
+      ok: true,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason: nickname || "(clear nickname)",
+      summary: nickname ? `Set nickname for ${user.tag}.` : `Cleared nickname for ${user.tag}.`,
+      commandName: "nick",
+      channelId: interaction.channelId
+    });
   } catch (err) {
+    const summary = err?.message || "Unable to update nickname.";
     await replyModError(interaction, {
       title: "Nickname Update Failed",
-      summary: err?.message || "Unable to update nickname."
+      summary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "nick",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason: nickname || "(clear nickname)",
+      summary,
+      commandName: "nick",
+      channelId: interaction.channelId
     });
   }
 }

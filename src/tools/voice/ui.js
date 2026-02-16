@@ -2,6 +2,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ChannelType,
   EmbedBuilder,
   PermissionFlagsBits,
   StringSelectMenuBuilder
@@ -38,6 +39,12 @@ function buildEmbed(title, description) {
 
 function buildErrorEmbed(message) {
   return buildEmbed("Voice error", message);
+}
+
+function trimText(value, max = 1024) {
+  const text = String(value ?? "");
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 3))}...`;
 }
 
 function getLockedState(channel, everyoneRoleId) {
@@ -196,6 +203,92 @@ function contextErrorMessage(code) {
   if (code === "not-owner") return "Only the room owner (or admins) can do that.";
   if (code === "not-in-room") return "Join this room to use its control buttons.";
   return "Unable to use VoiceMaster controls right now.";
+}
+
+async function buildSpawnDiagnosticsEmbed(interaction) {
+  if (!interaction.inGuild?.()) {
+    return buildErrorEmbed("Spawn diagnostics are only available in servers.");
+  }
+
+  const guild = interaction.guild;
+  const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
+  const voice = await getVoiceState(interaction.guildId);
+  voice.lobbies ??= {};
+  const entries = Object.entries(voice.lobbies);
+
+  if (!entries.length) {
+    return buildEmbed(
+      "Voice Spawn Diagnostics",
+      "No lobbies configured. Run `/voice setup` or `/voice add` first."
+    );
+  }
+
+  const checks = await Promise.all(
+    entries.slice(0, 12).map(async ([channelId, lobby]) => {
+      const blockers = [];
+      const lobbyChannel =
+        guild.channels.cache.get(channelId) ??
+        (await guild.channels.fetch(channelId).catch(() => null));
+      const category =
+        guild.channels.cache.get(lobby.categoryId) ??
+        (await guild.channels.fetch(lobby.categoryId).catch(() => null));
+
+      if (!lobby.enabled) blockers.push("Lobby disabled");
+      if (!lobbyChannel) blockers.push("Lobby channel missing");
+      else if (lobbyChannel.type !== ChannelType.GuildVoice) blockers.push("Lobby channel is not voice");
+
+      if (!category) blockers.push("Category missing");
+      else if (category.type !== ChannelType.GuildCategory) blockers.push("Category is not a voice category");
+
+      if (me && category?.permissionsFor) {
+        const perms = category.permissionsFor(me);
+        const missing = [];
+        if (!perms?.has(PermissionFlagsBits.ViewChannel)) missing.push("ViewChannel");
+        if (!perms?.has(PermissionFlagsBits.Connect)) missing.push("Connect");
+        if (!perms?.has(PermissionFlagsBits.ManageChannels)) missing.push("ManageChannels");
+        if (!perms?.has(PermissionFlagsBits.MoveMembers)) missing.push("MoveMembers");
+        if (missing.length) blockers.push(`Missing perms: ${missing.join(", ")}`);
+      } else if (!me) {
+        blockers.push("Bot member context unavailable");
+      }
+
+      return {
+        channelId,
+        lobby,
+        ready: blockers.length === 0,
+        blockers
+      };
+    })
+  );
+
+  const readyCount = checks.filter(x => x.ready).length;
+  const blockedCount = checks.length - readyCount;
+  const embed = new EmbedBuilder()
+    .setTitle("Voice Spawn Diagnostics")
+    .setDescription("Validates lobby/category readiness for auto room creation.")
+    .setColor(blockedCount === 0 ? 0x57f287 : 0xfaa61a)
+    .addFields(
+      { name: "Lobbies Checked", value: String(checks.length), inline: true },
+      { name: "Ready", value: String(readyCount), inline: true },
+      { name: "Blocked", value: String(blockedCount), inline: true }
+    )
+    .setTimestamp();
+
+  for (const row of checks.slice(0, 8)) {
+    embed.addFields({
+      name: `<#${row.channelId}>`,
+      value: row.ready
+        ? "Ready for spawning."
+        : trimText(row.blockers.join("\n"), 1024),
+      inline: false
+    });
+  }
+
+  if (checks.length > 8) {
+    embed.addFields({ name: "More", value: `Additional lobbies not shown: ${checks.length - 8}`, inline: false });
+  }
+
+  return embed;
 }
 
 function buildConsoleEmbed(ctx, panelForUser, { notice = null } = {}) {
@@ -748,6 +841,12 @@ export async function handleVoiceUIButton(interaction) {
 
   if (interaction.user.id !== parsed.userId) {
     await interaction.reply({ embeds: [buildErrorEmbed("This panel belongs to another user.")], ephemeral: true });
+    return true;
+  }
+
+  if (parsed.kind === "spawn_diag") {
+    const embed = await buildSpawnDiagnosticsEmbed(interaction);
+    await interaction.reply({ embeds: [embed], ephemeral: true });
     return true;
   }
 

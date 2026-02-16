@@ -51,13 +51,14 @@ else
     ERRORS=$((ERRORS+1))
   fi
   
-  if [ -z "$DATABASE_URL" ] && [ -z "$POSTGRES_USER" ]; then
-    echo -e "${YELLOW}⚠ No database configuration found${NC}"
+  if [ -z "$POSTGRES_URL" ] && [ -z "$DATABASE_URL" ]; then
+    echo -e "${YELLOW}⚠ No database connection string found (set POSTGRES_URL or DATABASE_URL)${NC}"
     WARNINGS=$((WARNINGS+1))
   fi
   
-  if [ -z "$LAVALINK_HOST" ]; then
-    echo -e "${YELLOW}⚠ LAVALINK_HOST not set (music won't work)${NC}"
+  # Lavalink is optional; production compose defaults can supply it.
+  if [ -z "$LAVALINK_HOST" ] && [ -z "$LAVALINK_URL" ]; then
+    echo -e "${YELLOW}⚠ Lavalink not configured via env (music may not work unless compose defaults provide it)${NC}"
     WARNINGS=$((WARNINGS+1))
   fi
   

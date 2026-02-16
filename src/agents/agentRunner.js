@@ -1198,6 +1198,11 @@ async function pollForAgentChanges() {
   // Start agents that are desired but not currently running
   for (const agentConfig of dbAgents) {
     if (agentConfig.status === 'active' && !activeAgents.has(agentConfig.agent_id)) {
+      if (!agentConfig.token) {
+        console.warn(`[Runner:${RUNNER_ID}] Agent ${agentConfig.agent_id} has no usable token (likely key rotated). Marking as corrupt.`);
+        updateAgentBotStatus(agentConfig.agent_id, 'corrupt').catch(() => {});
+        continue;
+      }
       console.log(`[Runner:${RUNNER_ID}] Starting agent ${agentConfig.agent_id}...`);
       try {
         const { stop: stopFn } = await startAgent(agentConfig); // startAgent returns { agentId, stop }

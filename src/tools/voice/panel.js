@@ -1,6 +1,13 @@
-import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  PermissionFlagsBits
+} from "discord.js";
 
 export const PANEL_MODES = new Set(["temp", "dm", "channel", "here", "both", "off"]);
+const ROOM_PANEL_PREFIX = "voiceroom";
 
 export function ensurePanelConfig(voice) {
   if (!voice || typeof voice !== "object") return;
@@ -100,11 +107,47 @@ export function buildVoiceRoomDashboardEmbed({ roomChannel, tempRecord, lobby, o
       { name: "Template", value: template, inline: true },
       {
         name: "Quick Controls",
-        value:
-          "`/voice room_status` `/voice room_rename` `/voice room_limit`\n" +
-          "`/voice room_lock` `/voice room_unlock` `/voice room_transfer`"
+        value: "Use the buttons below for instant room controls."
       }
     );
+}
+
+function makeRoomPanelCustomId(kind, roomChannelId) {
+  return `${ROOM_PANEL_PREFIX}:${kind}:${roomChannelId}`;
+}
+
+export function buildVoiceRoomDashboardComponents(roomChannelId, { disabled = false } = {}) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(makeRoomPanelCustomId("refresh", roomChannelId))
+        .setLabel("Refresh")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(disabled),
+      new ButtonBuilder()
+        .setCustomId(makeRoomPanelCustomId("dm", roomChannelId))
+        .setLabel("DM Dashboard")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(disabled),
+      new ButtonBuilder()
+        .setCustomId(makeRoomPanelCustomId("claim", roomChannelId))
+        .setLabel("Claim")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(disabled)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(makeRoomPanelCustomId("lock", roomChannelId))
+        .setLabel("Lock")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(disabled),
+      new ButtonBuilder()
+        .setCustomId(makeRoomPanelCustomId("unlock", roomChannelId))
+        .setLabel("Unlock")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(disabled)
+    )
+  ];
 }
 
 export async function deliverVoiceRoomDashboard({
@@ -169,7 +212,11 @@ export async function deliverVoiceRoomDashboard({
 
     if (textTarget && canSendInChannel(textTarget, me)) {
       try {
-        await textTarget.send({ embeds: [embed] });
+        const textPayload = { embeds: [embed] };
+        if (!textTarget.isDMBased?.() && roomChannel?.id) {
+          textPayload.components = buildVoiceRoomDashboardComponents(roomChannel.id);
+        }
+        await textTarget.send(textPayload);
         channelSent = true;
       } catch (err) {
         errors.push(`channel:${err?.code ?? err?.message ?? "send-failed"}`);

@@ -59,19 +59,27 @@ for (const file of commandFiles) {
 
 const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
 
-(async () => {
-  console.log(`📤 Deploying ${commands.length} commands...`);
-
+console.log(`📤 Deploying ${commands.length} commands...`);
+try {
   if (DEPLOY_MODE === "global") {
     await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
     console.log("✅ Commands deployed globally");
-    return;
+  } else {
+    const guildId = resolveGuildId();
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: commands });
+    console.log(`✅ Commands deployed to guild ${guildId} (${commands.length})`);
   }
-
-  const guildId = resolveGuildId();
-  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: commands });
-  console.log(`✅ Commands deployed to guild ${guildId} (${commands.length})`);
-})().catch(err => {
+} catch (err) {
   console.error("❌ Deployment failed:", err);
   process.exitCode = 1;
-});
+} finally {
+  // Ensure open sockets do not keep the process alive in containers/scripts.
+  try {
+    rest.destroy();
+  } catch {
+    // ignore
+  }
+}
+
+// Force-exit so keep-alive handles inside HTTP clients don't hang one-click ops flows.
+process.exit(process.exitCode || 0);

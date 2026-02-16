@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { canModerateTarget, fetchTargetMember, moderationGuardMessage } from "../moderation/guards.js";
 import { notifyUserByDm, reasonOrDefault, replyModError, replyModSuccess } from "../moderation/output.js";
+import { dispatchModerationLog } from "../utils/modLogs.js";
 
 export const meta = {
   guildOnly: true,
@@ -29,9 +30,22 @@ export async function execute(interaction) {
 
   const gate = canModerateTarget(interaction, targetMember);
   if (!gate.ok) {
+    const failSummary = moderationGuardMessage(gate.reason);
     await replyModError(interaction, {
       title: "Ban Blocked",
-      summary: moderationGuardMessage(gate.reason)
+      summary: failSummary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "ban",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary: failSummary,
+      commandName: "ban",
+      channelId: interaction.channelId
     });
     return;
   }
@@ -57,10 +71,39 @@ export async function execute(interaction) {
         { name: "Reason", value: reason }
       ]
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "ban",
+      ok: true,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary: `Banned ${user.tag}.`,
+      commandName: "ban",
+      channelId: interaction.channelId,
+      details: {
+        deleteDays: String(deleteDays),
+        dmNotify: dmStatus
+      }
+    });
   } catch (err) {
+    const summary = err?.message || "Unable to ban user.";
     await replyModError(interaction, {
       title: "Ban Failed",
-      summary: err?.message || "Unable to ban user."
+      summary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "ban",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary,
+      commandName: "ban",
+      channelId: interaction.channelId
     });
   }
 }

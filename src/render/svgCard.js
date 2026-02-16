@@ -86,8 +86,8 @@ export function embedToCardSvg(embed, { width = 960, height = 540 } = {}) {
       return `
         <g>
           <rect x="${pad + 24}" y="${y}" width="${cardW - 48}" height="${fieldH}" rx="14" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.08)"/>
-          <text x="${pad + 44}" y="${y + 22}" font-size="16" fill="rgba(255,255,255,0.78)">${escapeXml(f.name)}</text>
-          <text x="${pad + 44}" y="${y + 44}" font-size="18" fill="rgba(255,255,255,0.92)">${escapeXml(f.value)}</text>
+          <text x="${pad + 44}" y="${y + 22}" font-family="DejaVu Sans, sans-serif" font-size="16" fill="rgba(255,255,255,0.78)">${escapeXml(f.name)}</text>
+          <text x="${pad + 44}" y="${y + 44}" font-family="DejaVu Sans, sans-serif" font-size="18" fill="rgba(255,255,255,0.92)">${escapeXml(f.value)}</text>
         </g>`;
     })
     .join("\n");
@@ -142,4 +142,3 @@ export async function renderEmbedCardPng(embed, { width = 960, height = 540 } = 
   const svg = embedToCardSvg(embed, { width, height });
   return await svgToPngBuffer(svg, { width, height, density: 192 });
 }
-

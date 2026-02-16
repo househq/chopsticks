@@ -1,13 +1,13 @@
 import { AttachmentBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 import { renderEmbedCardPng } from "../render/svgCard.js";
 
-// Corporate Colors
+// Unified UI colors (professional, lower-saturation palette)
 export const Colors = {
-  PRIMARY: 0x5865F2, // Blurple
-  SUCCESS: 0x57F287, // Green
-  ERROR: 0xED4245,   // Red
-  WARNING: 0xFEE75C, // Yellow
-  INFO: 0x3498DB     // Blue
+  PRIMARY: 0x2563EB, // Blue 600
+  SUCCESS: 0x16A34A, // Green 600
+  ERROR: 0xDC2626,   // Red 600
+  WARNING: 0xD97706, // Amber 600
+  INFO: 0x0284C7     // Sky 600
 };
 
 export function buildEmbed(title, description, color = Colors.PRIMARY) {
