@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { canModerateTarget, fetchTargetMember, moderationGuardMessage } from "../moderation/guards.js";
 import { replyModError, replyModSuccess } from "../moderation/output.js";
+import { dispatchModerationLog } from "../utils/modLogs.js";
 
 export const meta = {
   guildOnly: true,
@@ -28,6 +29,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const sub = interaction.options.getSubcommand();
+  const actionName = "role";
   const user = interaction.options.getUser("user", true);
   const role = interaction.options.getRole("role", true);
   const member = await fetchTargetMember(interaction.guild, user.id);
@@ -36,14 +38,39 @@ export async function execute(interaction) {
       title: "Role Update Failed",
       summary: "User is not a member of this guild."
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: actionName,
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason: `${sub}:${role.id}`,
+      summary: "Role update failed because target user is not in the guild.",
+      commandName: "role",
+      channelId: interaction.channelId
+    });
     return;
   }
 
   const gate = canModerateTarget(interaction, member);
   if (!gate.ok) {
+    const failSummary = moderationGuardMessage(gate.reason);
     await replyModError(interaction, {
       title: "Role Update Blocked",
-      summary: moderationGuardMessage(gate.reason)
+      summary: failSummary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: actionName,
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason: `${sub}:${role.id}`,
+      summary: failSummary,
+      commandName: "role",
+      channelId: interaction.channelId
     });
     return;
   }
@@ -56,12 +83,36 @@ export async function execute(interaction) {
       title: "Role Update Blocked",
       summary: "Your highest role must be above the target role."
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: actionName,
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason: `${sub}:${role.id}`,
+      summary: "Actor role hierarchy is below target role.",
+      commandName: "role",
+      channelId: interaction.channelId
+    });
     return;
   }
   if (rolePosition >= botHighest) {
     await replyModError(interaction, {
       title: "Role Update Blocked",
       summary: "Bot role hierarchy is below the target role."
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: actionName,
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason: `${sub}:${role.id}`,
+      summary: "Bot role hierarchy is below target role.",
+      commandName: "role",
+      channelId: interaction.channelId
     });
     return;
   }
@@ -77,10 +128,35 @@ export async function execute(interaction) {
           { name: "Role", value: `${role.name} (${role.id})` }
         ]
       });
+      await dispatchModerationLog(interaction.guild, {
+        action: actionName,
+        ok: true,
+        actorId: interaction.user.id,
+        actorTag: interaction.user.tag,
+        targetId: user.id,
+        targetTag: user.tag,
+        reason: `add:${role.id}`,
+        summary: `Added role ${role.name} to ${user.tag}.`,
+        commandName: "role",
+        channelId: interaction.channelId
+      });
     } catch (err) {
+      const summary = err?.message || "Unable to add role.";
       await replyModError(interaction, {
         title: "Role Update Failed",
-        summary: err?.message || "Unable to add role."
+        summary
+      });
+      await dispatchModerationLog(interaction.guild, {
+        action: actionName,
+        ok: false,
+        actorId: interaction.user.id,
+        actorTag: interaction.user.tag,
+        targetId: user.id,
+        targetTag: user.tag,
+        reason: `add:${role.id}`,
+        summary,
+        commandName: "role",
+        channelId: interaction.channelId
       });
     }
     return;
@@ -96,10 +172,35 @@ export async function execute(interaction) {
           { name: "Role", value: `${role.name} (${role.id})` }
         ]
       });
+      await dispatchModerationLog(interaction.guild, {
+        action: actionName,
+        ok: true,
+        actorId: interaction.user.id,
+        actorTag: interaction.user.tag,
+        targetId: user.id,
+        targetTag: user.tag,
+        reason: `remove:${role.id}`,
+        summary: `Removed role ${role.name} from ${user.tag}.`,
+        commandName: "role",
+        channelId: interaction.channelId
+      });
     } catch (err) {
+      const summary = err?.message || "Unable to remove role.";
       await replyModError(interaction, {
         title: "Role Update Failed",
-        summary: err?.message || "Unable to remove role."
+        summary
+      });
+      await dispatchModerationLog(interaction.guild, {
+        action: actionName,
+        ok: false,
+        actorId: interaction.user.id,
+        actorTag: interaction.user.tag,
+        targetId: user.id,
+        targetTag: user.tag,
+        reason: `remove:${role.id}`,
+        summary,
+        commandName: "role",
+        channelId: interaction.channelId
       });
     }
     return;

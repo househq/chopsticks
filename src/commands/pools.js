@@ -1,6 +1,18 @@
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  PermissionFlagsBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  StringSelectMenuBuilder,
+  MessageFlags,
+  AttachmentBuilder
+} from 'discord.js';
 import * as storageLayer from '../utils/storage.js';
 import { isBotOwner } from '../utils/owners.js';
+import { Colors } from '../utils/discordOutput.js';
+import { openAdvisorUiHandoff, openDeployUiHandoff } from './agents.js';
 
 export const meta = {
   guildOnly: false, // Pool management can be done outside guilds
@@ -20,6 +32,16 @@ export const data = new SlashCommandBuilder()
       sub
         .setName('public')
         .setDescription('View all public pools (for contribution)')
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('ui')
+        .setDescription('Interactive pool navigator and deployment planner (guild only)')
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('setup')
+        .setDescription('Interactive pool setup (create/select/visibility/delete)')
     )
     .addSubcommand((sub) =>
       sub
@@ -50,6 +72,7 @@ export const data = new SlashCommandBuilder()
           opt
             .setName('pool')
             .setDescription('Pool ID (e.g., pool_goot27)')
+            .setAutocomplete(true)
             .setRequired(true)
         )
     )
@@ -61,6 +84,7 @@ export const data = new SlashCommandBuilder()
           opt
             .setName('pool')
             .setDescription('Pool ID to use for agent deployments')
+            .setAutocomplete(true)
             .setRequired(true)
         )
     )
@@ -77,6 +101,7 @@ export const data = new SlashCommandBuilder()
           opt
             .setName('pool')
             .setDescription('Pool ID to delete')
+            .setAutocomplete(true)
             .setRequired(true)
         )
     )
@@ -88,6 +113,7 @@ export const data = new SlashCommandBuilder()
           opt
             .setName('pool')
             .setDescription('Pool ID to transfer')
+            .setAutocomplete(true)
             .setRequired(true)
         )
         .addUserOption((opt) =>
@@ -105,6 +131,7 @@ export const data = new SlashCommandBuilder()
           opt
             .setName('pool')
             .setDescription('Pool ID (defaults to your pool)')
+            .setAutocomplete(true)
             .setRequired(false)
         )
     )
@@ -143,6 +170,7 @@ export const data = new SlashCommandBuilder()
           opt
             .setName('pool')
             .setDescription('Pool ID')
+            .setAutocomplete(true)
             .setRequired(true)
         )
     );
@@ -158,6 +186,12 @@ export async function execute(interaction) {
         case 'public':
           await handlePublic(interaction);
           break;
+        case 'ui':
+          await handleUi(interaction);
+          break;
+        case 'setup':
+          await handleSetup(interaction);
+          break;
         case 'create':
           await handleCreate(interaction);
           break;
@@ -165,7 +199,7 @@ export async function execute(interaction) {
           await handleView(interaction);
           break;
         case 'select':
-          await handleSelect(interaction);
+          await handleSelectPool(interaction);
           break;
         case 'settings':
           await handleSettings(interaction);
@@ -193,16 +227,16 @@ export async function execute(interaction) {
           break;
         default:
           await interaction.reply({
-            content: 'Unknown subcommand.',
-            ephemeral: true,
+            embeds: [buildPoolEmbed('Unknown Subcommand', 'This pool action is not recognized.', Colors.ERROR)],
+            ephemeral: true
           });
       }
     } catch (error) {
       console.error('[pools]', error);
       const replyMethod = interaction.deferred ? 'editReply' : 'reply';
       await interaction[replyMethod]({
-        content: `Error: ${error.message}`,
-        ephemeral: true,
+        embeds: [buildPoolEmbed('Pool Command Failed', error?.message || 'Unknown error.', Colors.ERROR)],
+        ephemeral: true
       }).catch(() => {});
     }
 }
@@ -230,6 +264,350 @@ async function canAccessPool(userId, poolId, pool) {
   return false;
 }
 
+function buildPoolEmbed(title, description = '', color = Colors.INFO) {
+  return new EmbedBuilder()
+    .setTitle(title)
+    .setDescription(String(description || '').slice(0, 4096))
+    .setColor(color)
+    .setTimestamp();
+}
+
+function buildOpenSetupButtonRow(userId, poolId = null, desired = 10) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(poolUiId('refresh', userId, clampPoolUiDesired(desired), poolId))
+        .setStyle(ButtonStyle.Secondary)
+        .setLabel('Open Pool Navigator')
+    )
+  ];
+}
+
+const POOL_UI_PREFIX = 'poolui';
+const POOL_UI_DESIRED = [10, 20, 30, 40, 49];
+
+function encodeValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '_';
+  return encodeURIComponent(raw);
+}
+
+function decodeValue(value) {
+  const raw = String(value || '');
+  if (!raw || raw === '_') return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+}
+
+function poolUiId(action, userId, desired, poolId) {
+  return `${POOL_UI_PREFIX}:${action}:${userId}:${desired}:${encodeValue(poolId)}`;
+}
+
+function parsePoolUiId(customId) {
+  const parts = String(customId || '').split(':');
+  if (parts.length < 5 || parts[0] !== POOL_UI_PREFIX) return null;
+  const desired = Number(parts[3]);
+  return {
+    action: parts[1],
+    userId: parts[2],
+    desired: Number.isFinite(desired) ? desired : 10,
+    poolId: decodeValue(parts.slice(4).join(':'))
+  };
+}
+
+function clampPoolUiDesired(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 10;
+  if (POOL_UI_DESIRED.includes(n)) return n;
+  if (n >= 49) return 49;
+  if (n >= 40) return 40;
+  if (n >= 30) return 30;
+  if (n >= 20) return 20;
+  return 10;
+}
+
+function summarizePoolAgentHealth(agents) {
+  const total = Array.isArray(agents) ? agents.length : 0;
+  if (total === 0) return '0 total • 0 active • 0 inactive';
+  const active = agents.filter(a => a.status === 'active').length;
+  const inactive = Math.max(0, total - active);
+  return `${total} total • ${active} active • ${inactive} inactive`;
+}
+
+function summarizeDeployDiagnostics(diag) {
+  const d = diag && typeof diag === 'object' ? diag : {};
+  const scopedTotal = Number(d.scopedTotal || 0);
+  const activeTotal = Number(d.activeTotal || 0);
+  const inactiveTotal = Number(d.inactiveTotal || 0);
+  const missingToken = Number(d.missingToken || 0);
+  const missingClientId = Number(d.missingClientId || 0);
+  const alreadyInGuild = Number(d.alreadyInGuild || 0);
+  const invitable = Number(d.invitable || 0);
+  const invitableConnected = Number(d.invitableConnected || 0);
+  const invitableOffline = Number(d.invitableOffline || 0);
+  return [
+    `Scoped pool agents: **${scopedTotal}**`,
+    `Active: **${activeTotal}** • Inactive/Pending: **${inactiveTotal}**`,
+    `Unusable tokens: **${missingToken}**`,
+    `Missing client id: **${missingClientId}**`,
+    `Already in guild: **${alreadyInGuild}**`,
+    `Invitable now: **${invitable}** (connected ${invitableConnected}, offline ${invitableOffline})`
+  ].join('\n');
+}
+
+function explainNoInviteAvailability(plan) {
+  const d = plan?.diagnostics || {};
+  if (Number(d.scopedTotal || 0) === 0) return 'This pool has no registered agents.';
+  if (Number(d.activeTotal || 0) === 0) return 'All agents in this pool are inactive/pending.';
+  if (Number(d.missingToken || 0) > 0) {
+    return 'Some identities exist but cannot run (token unusable, likely AGENT_TOKEN_KEY rotated). Re-register agents with /agents add_token.';
+  }
+  if (Number(d.invitable || 0) === 0 && Number(d.alreadyInGuild || 0) > 0) {
+    return 'All active identities in this pool already appear present in this guild.';
+  }
+  if (Number(d.invitable || 0) === 0) return 'No eligible identities are currently invitable from this pool.';
+  return 'Invite generation is currently limited by pool capacity.';
+}
+
+async function listAccessiblePoolsForUser(userId) {
+  const allPools = await storageLayer.listPools();
+  return allPools.filter(pool => {
+    if (isMaster(userId)) return true;
+    if (pool.owner_user_id === userId) return true;
+    return pool.visibility === 'public';
+  });
+}
+
+async function buildPoolUiContext({ guildId, userId, selectedPoolId = null, desiredTotal = 10 }) {
+  const mgr = global.agentManager;
+  const pools = await listAccessiblePoolsForUser(userId);
+  const guildDefaultPool = guildId ? await storageLayer.getGuildSelectedPool(guildId) : null;
+
+  let selected = null;
+  if (selectedPoolId) selected = pools.find(p => p.pool_id === selectedPoolId) || null;
+  if (!selected && guildDefaultPool) selected = pools.find(p => p.pool_id === guildDefaultPool) || null;
+  if (!selected) selected = pools[0] || null;
+
+  const desired = clampPoolUiDesired(desiredTotal);
+  let poolAgents = [];
+  let plan = null;
+  if (selected) {
+    poolAgents = await storageLayer.fetchPoolAgents(selected.pool_id).catch(() => []);
+    if (guildId && mgr?.buildDeployPlan) {
+      plan = await mgr.buildDeployPlan(guildId, desired, selected.pool_id).catch(() => null);
+    }
+  }
+
+  return {
+    mgr,
+    pools,
+    selectedPool: selected,
+    selectedPoolId: selected?.pool_id || null,
+    ownedPoolId: `pool_${userId}`,
+    desired,
+    inGuild: Boolean(guildId),
+    guildDefaultPool,
+    poolAgents: Array.isArray(poolAgents) ? poolAgents : [],
+    plan
+  };
+}
+
+function buildPoolUiEmbed(ctx, { note = '' } = {}) {
+  if (!ctx.selectedPool) {
+    return buildPoolEmbed(
+      'Pool Navigator',
+      'No accessible pools were found. Use `/pools public` to discover public pools.',
+      Colors.ERROR
+    );
+  }
+
+  const pool = ctx.selectedPool;
+  const plan = ctx.plan;
+  const need = Number(plan?.needInvites || 0);
+  const inviteCount = Array.isArray(plan?.invites) ? plan.invites.length : 0;
+  const color = ctx.inGuild && need > 0 ? Colors.WARNING : Colors.SUCCESS;
+
+  const embed = new EmbedBuilder()
+    .setTitle('Pool Navigator')
+    .setColor(color)
+    .setDescription(`Viewing **${pool.name}** (\`${pool.pool_id}\`)`)
+    .addFields(
+      { name: 'Visibility', value: pool.visibility, inline: true },
+      { name: 'Owner', value: `<@${pool.owner_user_id}>`, inline: true },
+      { name: 'Guild Default', value: ctx.guildDefaultPool ? `\`${ctx.guildDefaultPool}\`` : 'n/a', inline: true },
+      { name: 'Pool Health', value: summarizePoolAgentHealth(ctx.poolAgents), inline: false },
+      { name: 'Desired', value: String(ctx.desired), inline: true }
+    )
+    .setTimestamp();
+
+  if (ctx.inGuild && plan) {
+    embed.addFields(
+      { name: 'Present', value: String(plan?.presentCount ?? 0), inline: true },
+      { name: 'Need Invites', value: String(need), inline: true },
+      { name: 'Invite Availability', value: summarizeDeployDiagnostics(plan?.diagnostics), inline: false }
+    );
+
+    if (need > inviteCount) {
+      embed.addFields({
+        name: 'Capacity Gap',
+        value: `Need ${need}, generated ${inviteCount}.\n${explainNoInviteAvailability(plan)}`,
+        inline: false
+      });
+    }
+  } else {
+    embed.addFields({
+      name: 'Deployment Planning',
+      value: 'Run `/pools ui` inside a server to compute deploy capacity and generate invite links.',
+      inline: false
+    });
+  }
+  if (note) {
+    embed.addFields({ name: 'Update', value: String(note).slice(0, 1024), inline: false });
+  }
+  embed.addFields({
+    name: 'Quick Setup',
+    value: [
+      'Use **Actions** to create, switch, toggle visibility, or delete your pool.',
+      'Use **Set Guild Default** to make this server deploy from the selected pool.',
+      'Use **Invite Links** to export deploy links for missing agents.'
+    ].join('\n'),
+    inline: false
+  });
+  return embed;
+}
+
+function buildPoolUiComponents(ctx, userId) {
+  const desiredSelect = new StringSelectMenuBuilder()
+    .setCustomId(poolUiId('desired', userId, ctx.desired, ctx.selectedPoolId))
+    .setPlaceholder('Desired total')
+    .addOptions(
+      POOL_UI_DESIRED.map(value => ({
+        label: `${value} agents`,
+        value: String(value),
+        default: value === ctx.desired
+      }))
+    );
+
+  const poolSelect = new StringSelectMenuBuilder()
+    .setCustomId(poolUiId('pool', userId, ctx.desired, ctx.selectedPoolId))
+    .setPlaceholder(ctx.pools.length ? 'Select a pool' : 'No pools available')
+    .setDisabled(ctx.pools.length === 0);
+  if (ctx.pools.length) {
+    poolSelect.addOptions(
+      ctx.pools.slice(0, 25).map(pool => ({
+        label: `${pool.name}`.slice(0, 100),
+        value: pool.pool_id,
+        description: `${pool.visibility} • ${pool.pool_id}`.slice(0, 100),
+        default: pool.pool_id === ctx.selectedPoolId
+      }))
+    );
+  } else {
+    poolSelect.addOptions({ label: 'No accessible pools', value: '_', default: true });
+  }
+
+  const actionSelect = new StringSelectMenuBuilder()
+    .setCustomId(poolUiId('action', userId, ctx.desired, ctx.selectedPoolId))
+    .setPlaceholder('Pool actions')
+    .addOptions([
+      {
+        label: 'Open My Pool',
+        value: 'open_my_pool',
+        description: 'Jump to your owned pool.'
+      },
+      {
+        label: 'Create My Pool (Private)',
+        value: 'create_private',
+        description: 'Create your personal pool with private visibility.'
+      },
+      {
+        label: 'Create My Pool (Public)',
+        value: 'create_public',
+        description: 'Create your personal pool with public visibility.'
+      },
+      {
+        label: 'Toggle Selected Visibility',
+        value: 'toggle_visibility',
+        description: 'Owner only: flip selected pool between public/private.'
+      },
+      {
+        label: 'Delete Selected (Empty)',
+        value: 'delete_selected',
+        description: 'Owner only: delete selected pool if no agents are registered.'
+      }
+    ]);
+
+  const refresh = new ButtonBuilder()
+    .setCustomId(poolUiId('refresh', userId, ctx.desired, ctx.selectedPoolId))
+    .setStyle(ButtonStyle.Secondary)
+    .setLabel('Refresh');
+  const deployUi = new ButtonBuilder()
+    .setCustomId(poolUiId('deployui', userId, ctx.desired, ctx.selectedPoolId))
+    .setStyle(ButtonStyle.Primary)
+    .setLabel('Open Deploy UI')
+    .setDisabled(!ctx.inGuild || !ctx.selectedPoolId);
+  const advisorUi = new ButtonBuilder()
+    .setCustomId(poolUiId('advisorui', userId, ctx.desired, ctx.selectedPoolId))
+    .setStyle(ButtonStyle.Secondary)
+    .setLabel('Open Advisor UI')
+    .setDisabled(!ctx.inGuild);
+  const inviteLinks = new ButtonBuilder()
+    .setCustomId(poolUiId('links', userId, ctx.desired, ctx.selectedPoolId))
+    .setStyle(ButtonStyle.Primary)
+    .setLabel('Invite Links')
+    .setDisabled(!ctx.inGuild || !ctx.selectedPoolId);
+  const setDefault = new ButtonBuilder()
+    .setCustomId(poolUiId('setdefault', userId, ctx.desired, ctx.selectedPoolId))
+    .setStyle(ButtonStyle.Secondary)
+    .setLabel('Set Guild Default')
+    .setDisabled(!ctx.inGuild || !ctx.selectedPoolId || ctx.selectedPoolId === ctx.guildDefaultPool);
+
+  return [
+    new ActionRowBuilder().addComponents(desiredSelect),
+    new ActionRowBuilder().addComponents(poolSelect),
+    new ActionRowBuilder().addComponents(actionSelect),
+    new ActionRowBuilder().addComponents(refresh, deployUi, inviteLinks, advisorUi, setDefault)
+  ];
+}
+
+function buildPoolListJumpRow(userId, pools, { desired = 10 } = {}) {
+  const list = Array.isArray(pools) ? pools : [];
+  if (list.length === 0) return [];
+
+  const select = new StringSelectMenuBuilder()
+    // Reuse the pool navigator handler: selecting a pool transitions the message into the navigator UI.
+    .setCustomId(poolUiId('pool', userId, clampPoolUiDesired(desired), null))
+    .setPlaceholder('Jump to a pool (opens navigator)')
+    .addOptions(
+      list.slice(0, 25).map(pool => ({
+        label: String(pool.name || pool.pool_id).slice(0, 100),
+        value: pool.pool_id,
+        description: `${pool.visibility} • ${pool.pool_id}`.slice(0, 100),
+      }))
+    );
+
+  return [new ActionRowBuilder().addComponents(select)];
+}
+
+async function renderPoolUi(interaction, { update = false, requested = {}, note = '' } = {}) {
+  const ctx = await buildPoolUiContext({
+    guildId: interaction.guildId,
+    userId: interaction.user.id,
+    selectedPoolId: requested.poolId ?? null,
+    desiredTotal: requested.desiredTotal ?? 10
+  });
+  const embed = buildPoolUiEmbed(ctx, { note });
+  const components = buildPoolUiComponents(ctx, interaction.user.id);
+  if (update) {
+    await interaction.update({ embeds: [embed], components });
+  } else {
+    await interaction.reply({ embeds: [embed], components, flags: MessageFlags.Ephemeral });
+  }
+  return ctx;
+}
+
 // ========== LIST POOLS ==========
 
 async function handleList(interaction) {
@@ -240,7 +618,8 @@ async function handleList(interaction) {
   
   if (!allPools || allPools.length === 0) {
     return interaction.editReply({
-      content: 'No pools found.',
+      embeds: [buildPoolEmbed('No Pools Found', 'No pools are currently registered.', Colors.INFO)],
+      components: buildOpenSetupButtonRow(userId, null, 10)
     });
   }
 
@@ -254,13 +633,14 @@ async function handleList(interaction) {
 
   if (visiblePools.length === 0) {
     return interaction.editReply({
-      content: 'No pools available.',
+      embeds: [buildPoolEmbed('No Accessible Pools', 'You do not currently have access to any pools.', Colors.INFO)],
+      components: buildOpenSetupButtonRow(userId, null, 10)
     });
   }
 
   const embed = new EmbedBuilder()
     .setTitle('Agent Pools')
-    .setColor(0x5865f2)
+    .setColor(Colors.INFO)
     .setDescription('Available agent pools for deployments')
     .setTimestamp();
 
@@ -272,9 +652,6 @@ async function handleList(interaction) {
     const pool = visiblePools[i];
     const agents = allAgents[i];
     const totalAgents = agents ? agents.length : 0;
-    
-    // Visibility icon
-    const visIcon = pool.visibility === 'public' ? '🌐' : '🔒';
     
     // Owner display
     const owner = isMaster(pool.owner_user_id) ? 'Bot Owner' : `<@${pool.owner_user_id}>`;
@@ -296,7 +673,7 @@ async function handleList(interaction) {
       }
     }
     
-    let fieldValue = `${visIcon} ${pool.visibility === 'public' ? '**Public**' : '**Private**'} | Owner: ${owner}\n`;
+    let fieldValue = `${pool.visibility === 'public' ? '**Public**' : '**Private**'} | Owner: ${owner}\n`;
     fieldValue += `${agentStatus}`;
     
     embed.addFields({
@@ -308,7 +685,13 @@ async function handleList(interaction) {
 
   embed.setFooter({ text: `Total visible pools: ${visiblePools.length}` });
 
-  await interaction.editReply({ embeds: [embed] });
+  await interaction.editReply({
+    embeds: [embed],
+    components: [
+      ...buildPoolListJumpRow(userId, visiblePools, { desired: 10 }),
+      ...buildOpenSetupButtonRow(userId, null, 10)
+    ]
+  });
 }
 
 // ========== PUBLIC POOLS (FOR CONTRIBUTION) ==========
@@ -321,13 +704,20 @@ async function handlePublic(interaction) {
   
   if (publicPools.length === 0) {
     return interaction.editReply({
-      content: 'No public pools available for contribution.',
+      embeds: [
+        buildPoolEmbed(
+          'No Public Pools',
+          'No public pools are available for contribution right now.',
+          Colors.INFO
+        )
+      ],
+      components: buildOpenSetupButtonRow(interaction.user.id, null, 10)
     });
   }
 
   const embed = new EmbedBuilder()
     .setTitle('Public Pools - Available for Contribution')
-    .setColor(0x5865f2)
+    .setColor(Colors.INFO)
     .setDescription('Choose a pool to contribute your agents to')
     .setTimestamp();
 
@@ -342,13 +732,12 @@ async function handlePublic(interaction) {
     const activeAgents = agents ? agents.filter(a => a.status === 'active') : [];
     const owner = isMaster(pool.owner_user_id) ? 'Bot Owner' : `<@${pool.owner_user_id}>`;
     
-    // Health indicator
-    let healthIcon = '🟢';
-    if (totalAgents === 0) healthIcon = '🔴';
-    else if (activeAgents.length === 0) healthIcon = '🟡';
-    else if (activeAgents.length < totalAgents / 2) healthIcon = '🟡';
+    let healthLabel = 'Healthy';
+    if (totalAgents === 0) healthLabel = 'Empty';
+    else if (activeAgents.length === 0 || activeAgents.length < totalAgents / 2) healthLabel = 'Limited';
     
-    let fieldValue = `${healthIcon} **${totalAgents} agents** (✅ ${activeAgents.length} active)\n`;
+    let fieldValue = `Status: **${healthLabel}**\n`;
+    fieldValue += `Agents: **${totalAgents}** total, **${activeAgents.length}** active\n`;
     fieldValue += `**Owner:** ${owner}\n`;
     fieldValue += `**Contribute:** \`/agents add_token pool:${pool.pool_id}\``;
     
@@ -363,7 +752,31 @@ async function handlePublic(interaction) {
     text: `${publicPools.length} public pool${publicPools.length === 1 ? '' : 's'} available - Contributions require approval` 
   });
 
-  await interaction.editReply({ embeds: [embed] });
+  await interaction.editReply({
+    embeds: [embed],
+    components: [
+      ...buildPoolListJumpRow(interaction.user.id, publicPools, { desired: 10 }),
+      ...buildOpenSetupButtonRow(interaction.user.id, null, 10)
+    ]
+  });
+}
+
+// ========== INTERACTIVE POOL UI ==========
+
+async function handleUi(interaction) {
+  if (!interaction.guildId) {
+    await interaction.reply({
+      embeds: [buildPoolEmbed('Guild Only', 'Pool navigator UI requires a server context.', Colors.ERROR)],
+      ephemeral: true
+    });
+    return;
+  }
+
+  await renderPoolUi(interaction, { update: false });
+}
+
+async function handleSetup(interaction) {
+  await handleUi(interaction);
 }
 
 // ========== CREATE POOL ==========
@@ -382,7 +795,14 @@ async function handleCreate(interaction) {
   const existing = await storageLayer.fetchPool(poolId);
   if (existing) {
     return interaction.editReply({
-      content: `You already have a pool: **${existing.name}** (\`${poolId}\`)`,
+      embeds: [
+        buildPoolEmbed(
+          'Pool Already Exists',
+          `You already have **${existing.name}** (\`${poolId}\`).`,
+          Colors.WARNING
+        )
+      ],
+      components: buildOpenSetupButtonRow(userId, existing.pool_id, 10)
     });
   }
 
@@ -391,13 +811,13 @@ async function handleCreate(interaction) {
   
   if (!created) {
     return interaction.editReply({
-      content: 'Failed to create pool. Please try again.',
+      embeds: [buildPoolEmbed('Create Failed', 'Failed to create pool. Please try again.', Colors.ERROR)]
     });
   }
 
   const embed = new EmbedBuilder()
     .setTitle('Pool Created')
-    .setColor(0x57f287)
+    .setColor(Colors.SUCCESS)
     .setDescription(`Your pool **${poolName}** has been created.`)
     .addFields(
       { name: 'Pool ID', value: `\`${poolId}\``, inline: true },
@@ -407,7 +827,10 @@ async function handleCreate(interaction) {
     .setFooter({ text: 'Use /agents add_token to add agents to your pool' })
     .setTimestamp();
 
-  await interaction.editReply({ embeds: [embed] });
+  await interaction.editReply({
+    embeds: [embed],
+    components: buildOpenSetupButtonRow(userId, poolId, 10)
+  });
 }
 
 // ========== VIEW POOL ==========
@@ -422,7 +845,7 @@ async function handleView(interaction) {
   
   if (!pool) {
     return interaction.editReply({
-      content: `Pool \`${poolId}\` not found.`,
+      embeds: [buildPoolEmbed('Pool Not Found', `Pool \`${poolId}\` does not exist.`, Colors.ERROR)]
     });
   }
 
@@ -431,7 +854,13 @@ async function handleView(interaction) {
   
   if (!hasAccess) {
     return interaction.editReply({
-      content: `Pool \`${poolId}\` is private and you don't have access.`,
+      embeds: [
+        buildPoolEmbed(
+          'Pool Access Denied',
+          `Pool \`${poolId}\` is private and you do not have access.`,
+          Colors.ERROR
+        )
+      ]
     });
   }
 
@@ -442,7 +871,7 @@ async function handleView(interaction) {
 
   const embed = new EmbedBuilder()
     .setTitle(`${pool.name}`)
-    .setColor(pool.visibility === 'public' ? 0x5865f2 : 0x99aab5)
+    .setColor(pool.visibility === 'public' ? Colors.INFO : Colors.WARNING)
     .setDescription(`Pool ID: \`${pool.pool_id}\``)
     .addFields(
       { name: 'Owner', value: `<@${pool.owner_user_id}>`, inline: true },
@@ -459,8 +888,8 @@ async function handleView(interaction) {
       const agentList = agents
         .slice(0, 10) // Max 10 agents
         .map((a) => {
-          const statusIcon = a.status === 'active' ? '' : '';
-          return `${statusIcon} ${a.tag} (\`${a.agent_id}\`)`;
+          const statusText = a.status === 'active' ? 'active' : 'inactive';
+          return `• ${a.tag} (\`${a.agent_id}\`) - ${statusText}`;
         })
         .join('\n');
       
@@ -476,12 +905,15 @@ async function handleView(interaction) {
     }
   }
 
-  await interaction.editReply({ embeds: [embed] });
+  await interaction.editReply({
+    embeds: [embed],
+    components: buildOpenSetupButtonRow(userId, pool.pool_id, 10)
+  });
 }
 
 // ========== SELECT POOL ==========
 
-async function handleSelect(interaction) {
+async function handleSelectPool(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
   const userId = interaction.user.id;
@@ -490,14 +922,20 @@ async function handleSelect(interaction) {
 
   if (!guildId) {
     return interaction.editReply({
-      content: 'Pool selection must be run inside a server.',
+      embeds: [buildPoolEmbed('Guild Only', 'Pool selection must be run inside a server.', Colors.ERROR)]
     });
   }
 
   // Check if user is guild admin or master
   if (!isGuildAdmin(interaction.member) && !isMaster(userId)) {
     return interaction.editReply({
-      content: 'You need Administrator permissions to select a pool for this guild.',
+      embeds: [
+        buildPoolEmbed(
+          'Permission Required',
+          'You need Administrator permissions to select a pool for this guild.',
+          Colors.ERROR
+        )
+      ]
     });
   }
 
@@ -505,23 +943,47 @@ async function handleSelect(interaction) {
   const pool = await storageLayer.fetchPool(poolId);
   if (!pool) {
     return interaction.editReply({
-      content: `Pool \`${poolId}\` not found.`,
+      embeds: [buildPoolEmbed('Pool Not Found', `Pool \`${poolId}\` does not exist.`, Colors.ERROR)]
+    });
+  }
+
+  // Check pool access: non-owners cannot select someone else's private pool.
+  if (!isMaster(userId) && pool.owner_user_id !== userId && pool.visibility !== 'public') {
+    return interaction.editReply({
+      embeds: [
+        buildPoolEmbed(
+          'Pool Access Denied',
+          `Pool \`${poolId}\` is private and cannot be selected unless you own it or it is public.`,
+          Colors.ERROR
+        )
+      ]
     });
   }
 
   // Set guild's selected pool
   await storageLayer.setGuildSelectedPool(guildId, poolId);
 
+  const poolAgents = await storageLayer.fetchPoolAgents(poolId);
+  const totalAgents = Array.isArray(poolAgents) ? poolAgents.length : 0;
+  const activeAgents = Array.isArray(poolAgents)
+    ? poolAgents.filter(a => a.status === 'active').length
+    : 0;
+
   const embed = new EmbedBuilder()
     .setTitle('Pool Selected')
-    .setColor(0x57f287)
+    .setColor(activeAgents > 0 ? Colors.SUCCESS : Colors.WARNING)
     .setDescription(`This guild will now use pool **${pool.name}** for agent deployments.`)
     .addFields(
       { name: 'Pool', value: `\`${poolId}\``, inline: true },
       { name: 'Visibility', value: pool.visibility === 'public' ? 'Public' : 'Private', inline: true },
-      { name: 'Owner', value: `<@${pool.owner_user_id}>`, inline: true }
+      { name: 'Owner', value: `<@${pool.owner_user_id}>`, inline: true },
+      { name: 'Pool Agents', value: `${totalAgents} total / ${activeAgents} active`, inline: true }
     )
-    .setFooter({ text: 'Use /agents deploy to deploy agents from this pool' })
+    .setFooter({
+      text: activeAgents > 0
+        ? 'Use /agents deploy to deploy agents from this pool'
+        : 'This pool currently has no active agents; consider /pools public or /agents add_token'
+    })
     .setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });
@@ -539,13 +1001,20 @@ async function handleSettings(interaction) {
   
   if (!pool) {
     return interaction.editReply({
-      content: 'You don\'t have a pool yet. Use `/pools create` to create one.',
+      embeds: [
+        buildPoolEmbed(
+          'No Owned Pool',
+          "You don't have a pool yet. Use `/pools create` to create one.",
+          Colors.INFO
+        )
+      ],
+      components: buildOpenSetupButtonRow(userId, null, 10)
     });
   }
 
   const embed = new EmbedBuilder()
     .setTitle('Pool Settings')
-    .setColor(0x5865f2)
+    .setColor(Colors.INFO)
     .setDescription(`Manage settings for **${pool.name}**`)
     .addFields(
       { name: 'Pool ID', value: `\`${pool.pool_id}\``, inline: true },
@@ -554,7 +1023,10 @@ async function handleSettings(interaction) {
     .setFooter({ text: 'Use /pools delete to remove your pool' })
     .setTimestamp();
 
-  await interaction.editReply({ embeds: [embed] });
+  await interaction.editReply({
+    embeds: [embed],
+    components: buildOpenSetupButtonRow(userId, pool.pool_id, 10)
+  });
 }
 
 // ========== DELETE POOL ==========
@@ -569,14 +1041,14 @@ async function handleDelete(interaction) {
   
   if (!pool) {
     return interaction.editReply({
-      content: `Pool \`${poolId}\` not found.`,
+      embeds: [buildPoolEmbed('Pool Not Found', `Pool \`${poolId}\` does not exist.`, Colors.ERROR)]
     });
   }
 
   // Check ownership
   if (pool.owner_user_id !== userId && !isMaster(userId)) {
     return interaction.editReply({
-      content: 'You can only delete pools you own.',
+      embeds: [buildPoolEmbed('Delete Denied', 'You can only delete pools you own.', Colors.ERROR)]
     });
   }
 
@@ -584,7 +1056,13 @@ async function handleDelete(interaction) {
   const agents = await storageLayer.fetchPoolAgents(poolId);
   if (agents && agents.length > 0) {
     return interaction.editReply({
-      content: `Cannot delete pool with agents. Remove all agents first (${agents.length} agents registered).`,
+      embeds: [
+        buildPoolEmbed(
+          'Pool Not Empty',
+          `Cannot delete this pool while agents are registered.\nCurrent agents: **${agents.length}**.`,
+          Colors.WARNING
+        )
+      ]
     });
   }
 
@@ -593,13 +1071,13 @@ async function handleDelete(interaction) {
   
   if (!deleted) {
     return interaction.editReply({
-      content: 'Failed to delete pool. Please try again.',
+      embeds: [buildPoolEmbed('Delete Failed', 'Failed to delete pool. Please try again.', Colors.ERROR)]
     });
   }
 
   const embed = new EmbedBuilder()
     .setTitle('Pool Deleted')
-    .setColor(0xed4245)
+    .setColor(Colors.ERROR)
     .setDescription(`Pool **${pool.name}** has been deleted.`)
     .addFields(
       { name: 'Pool ID', value: `\`${poolId}\``, inline: true }
@@ -622,14 +1100,14 @@ async function handleTransfer(interaction) {
   
   if (!pool) {
     return interaction.editReply({
-      content: `Pool \`${poolId}\` not found.`,
+      embeds: [buildPoolEmbed('Pool Not Found', `Pool \`${poolId}\` does not exist.`, Colors.ERROR)]
     });
   }
 
   // Check ownership
   if (pool.owner_user_id !== userId && !isMaster(userId)) {
     return interaction.editReply({
-      content: 'You can only transfer pools you own.',
+      embeds: [buildPoolEmbed('Transfer Denied', 'You can only transfer pools you own.', Colors.ERROR)]
     });
   }
 
@@ -640,13 +1118,13 @@ async function handleTransfer(interaction) {
   
   if (!updated) {
     return interaction.editReply({
-      content: 'Failed to transfer pool. Please try again.',
+      embeds: [buildPoolEmbed('Transfer Failed', 'Failed to transfer pool. Please try again.', Colors.ERROR)]
     });
   }
 
   const embed = new EmbedBuilder()
     .setTitle('Pool Transferred')
-    .setColor(0xfee75c)
+    .setColor(Colors.WARNING)
     .setDescription(`Pool **${pool.name}** has been transferred.`)
     .addFields(
       { name: 'Pool ID', value: `\`${poolId}\``, inline: true },
@@ -674,7 +1152,13 @@ async function handleContributions(interaction) {
     const userPools = await storageLayer.fetchPoolsByOwner(userId);
     if (!userPools || userPools.length === 0) {
       return interaction.editReply({
-        content: 'You don\'t own any pools. Create one with `/pools create`.',
+        embeds: [
+          buildPoolEmbed(
+            'No Owned Pools',
+            "You don't own any pools. Create one with `/pools create`.",
+            Colors.INFO
+          )
+        ]
       });
     }
     poolId = userPools[0].pool_id;
@@ -683,14 +1167,14 @@ async function handleContributions(interaction) {
   const pool = await storageLayer.fetchPool(poolId);
   if (!pool) {
     return interaction.editReply({
-      content: `Pool \`${poolId}\` not found.`,
+      embeds: [buildPoolEmbed('Pool Not Found', `Pool \`${poolId}\` does not exist.`, Colors.ERROR)]
     });
   }
   
   // Check ownership
   if (pool.owner_user_id !== userId && !isMaster(userId)) {
     return interaction.editReply({
-      content: 'You can only view contributions to pools you own.',
+      embeds: [buildPoolEmbed('Access Denied', 'You can only view contributions to pools you own.', Colors.ERROR)]
     });
   }
   
@@ -700,13 +1184,19 @@ async function handleContributions(interaction) {
   
   if (pending.length === 0) {
     return interaction.editReply({
-      content: `No pending contributions for **${pool.name}**.`,
+      embeds: [
+        buildPoolEmbed(
+          'No Pending Contributions',
+          `No pending contributions for **${pool.name}**.`,
+          Colors.SUCCESS
+        )
+      ]
     });
   }
   
   const embed = new EmbedBuilder()
     .setTitle(`Pending Contributions - ${pool.name}`)
-    .setColor(0xfee75c)
+    .setColor(Colors.WARNING)
     .setDescription(`Pool: \`${poolId}\``)
     .setTimestamp();
   
@@ -749,7 +1239,7 @@ async function handleApprove(interaction) {
   
   if (!agent) {
     return interaction.editReply({
-      content: `Agent \`${agentId}\` not found.`,
+      embeds: [buildPoolEmbed('Agent Not Found', `Agent \`${agentId}\` was not found.`, Colors.ERROR)]
     });
   }
   
@@ -757,13 +1247,13 @@ async function handleApprove(interaction) {
   const pool = await fetchPool(agent.pool_id);
   if (!pool) {
     return interaction.editReply({
-      content: `Pool not found for this agent.`,
+      embeds: [buildPoolEmbed('Pool Not Found', 'Pool not found for this agent.', Colors.ERROR)]
     });
   }
   
   if (pool.owner_user_id !== userId && !isMaster(userId)) {
     return interaction.editReply({
-      content: 'You can only approve contributions to pools you own.',
+      embeds: [buildPoolEmbed('Approval Denied', 'You can only approve contributions to pools you own.', Colors.ERROR)]
     });
   }
   
@@ -772,7 +1262,7 @@ async function handleApprove(interaction) {
   
   const embed = new EmbedBuilder()
     .setTitle('Contribution Approved')
-    .setColor(0x57f287)
+    .setColor(Colors.SUCCESS)
     .setDescription(`**${agent.tag}** is now active in **${pool.name}**.`)
     .addFields(
       { name: 'Agent ID', value: `\`${agentId}\``, inline: true },
@@ -802,7 +1292,7 @@ async function handleReject(interaction) {
   
   if (!agent) {
     return interaction.editReply({
-      content: `Agent \`${agentId}\` not found.`,
+      embeds: [buildPoolEmbed('Agent Not Found', `Agent \`${agentId}\` was not found.`, Colors.ERROR)]
     });
   }
   
@@ -810,13 +1300,13 @@ async function handleReject(interaction) {
   const pool = await fetchPool(agent.pool_id);
   if (!pool) {
     return interaction.editReply({
-      content: `Pool not found for this agent.`,
+      embeds: [buildPoolEmbed('Pool Not Found', 'Pool not found for this agent.', Colors.ERROR)]
     });
   }
   
   if (pool.owner_user_id !== userId && !isMaster(userId)) {
     return interaction.editReply({
-      content: 'You can only reject contributions to pools you own.',
+      embeds: [buildPoolEmbed('Rejection Denied', 'You can only reject contributions to pools you own.', Colors.ERROR)]
     });
   }
   
@@ -825,7 +1315,7 @@ async function handleReject(interaction) {
   
   const embed = new EmbedBuilder()
     .setTitle('Contribution Rejected')
-    .setColor(0xed4245)
+    .setColor(Colors.ERROR)
     .setDescription(`**${agent.tag}** contribution has been removed.`)
     .addFields(
       { name: 'Agent ID', value: `\`${agentId}\``, inline: true },
@@ -843,8 +1333,8 @@ async function handleAdminList(interaction) {
   
   if (!isMaster(userId)) {
     return interaction.reply({
-      content: 'This command is restricted to the bot master (goot27).',
-      ephemeral: true,
+      embeds: [buildPoolEmbed('Restricted Command', 'This command is restricted to bot owners.', Colors.ERROR)],
+      ephemeral: true
     });
   }
 
@@ -854,13 +1344,13 @@ async function handleAdminList(interaction) {
   
   if (!allPools || allPools.length === 0) {
     return interaction.editReply({
-      content: 'No pools found.',
+      embeds: [buildPoolEmbed('No Pools Found', 'No pools are currently registered.', Colors.INFO)]
     });
   }
 
   const embed = new EmbedBuilder()
     .setTitle('All Pools (Master View)')
-    .setColor(0xfee75c)
+    .setColor(Colors.WARNING)
     .setDescription('Complete list of all pools including private')
     .setTimestamp();
 
@@ -892,8 +1382,8 @@ async function handleAdminView(interaction) {
   
   if (!isMaster(userId)) {
     return interaction.reply({
-      content: 'This command is restricted to the bot master (goot27).',
-      ephemeral: true,
+      embeds: [buildPoolEmbed('Restricted Command', 'This command is restricted to bot owners.', Colors.ERROR)],
+      ephemeral: true
     });
   }
 
@@ -904,7 +1394,7 @@ async function handleAdminView(interaction) {
   
   if (!pool) {
     return interaction.editReply({
-      content: `Pool \`${poolId}\` not found.`,
+      embeds: [buildPoolEmbed('Pool Not Found', `Pool \`${poolId}\` does not exist.`, Colors.ERROR)]
     });
   }
 
@@ -914,7 +1404,7 @@ async function handleAdminView(interaction) {
 
   const embed = new EmbedBuilder()
     .setTitle(`${pool.name} (Master View)`)
-    .setColor(0xfee75c)
+    .setColor(Colors.WARNING)
     .setDescription(`Pool ID: \`${pool.pool_id}\``)
     .addFields(
       { name: 'Owner', value: `<@${pool.owner_user_id}>`, inline: true },
@@ -938,4 +1428,323 @@ async function handleAdminView(interaction) {
   }
 
   await interaction.editReply({ embeds: [embed] });
+}
+
+async function handlePoolUiAction(interaction, parsed, actionValue) {
+  const userId = interaction.user.id;
+  const requested = { desiredTotal: parsed.desired, poolId: parsed.poolId };
+  const ownPoolId = `pool_${userId}`;
+  const action = String(actionValue || '').trim();
+
+  if (action === 'open_my_pool') {
+    const ownPool = await storageLayer.fetchPool(ownPoolId);
+    if (!ownPool) {
+      return { requested, note: 'No owned pool found yet. Use Actions to create one.' };
+    }
+    requested.poolId = ownPoolId;
+    return { requested, note: `Opened your pool \`${ownPoolId}\`.` };
+  }
+
+  if (action === 'create_private' || action === 'create_public') {
+    const visibility = action === 'create_public' ? 'public' : 'private';
+    const existing = await storageLayer.fetchPool(ownPoolId);
+    if (existing) {
+      requested.poolId = existing.pool_id;
+      return { requested, note: `You already have \`${existing.pool_id}\`.` };
+    }
+    const poolName = `${interaction.user.username}'s Pool`;
+    const created = await storageLayer.createPool(ownPoolId, userId, poolName, visibility);
+    if (!created) {
+      return { requested, note: 'Pool creation failed. Try again in a few seconds.' };
+    }
+    requested.poolId = ownPoolId;
+    return {
+      requested,
+      note: `Created \`${ownPoolId}\` as **${visibility}**. You can change this anytime from Actions.`
+    };
+  }
+
+  if (action === 'toggle_visibility') {
+    if (!parsed.poolId) {
+      return { requested, note: 'Select a pool first, then run Toggle Selected Visibility.' };
+    }
+    const pool = await storageLayer.fetchPool(parsed.poolId);
+    if (!pool) {
+      requested.poolId = null;
+      return { requested, note: `Pool \`${parsed.poolId}\` no longer exists.` };
+    }
+    if (!isMaster(userId) && pool.owner_user_id !== userId) {
+      return { requested, note: 'Visibility changes are limited to the pool owner.' };
+    }
+    const nextVisibility = pool.visibility === 'public' ? 'private' : 'public';
+    const updated = await storageLayer.updatePool(parsed.poolId, { visibility: nextVisibility });
+    if (!updated) {
+      return { requested, note: 'Visibility update failed. Try again.' };
+    }
+    return { requested, note: `Pool \`${parsed.poolId}\` visibility is now **${nextVisibility}**.` };
+  }
+
+  if (action === 'delete_selected') {
+    if (!parsed.poolId) {
+      return { requested, note: 'Select a pool first, then run Delete Selected.' };
+    }
+    const pool = await storageLayer.fetchPool(parsed.poolId);
+    if (!pool) {
+      requested.poolId = null;
+      return { requested, note: `Pool \`${parsed.poolId}\` no longer exists.` };
+    }
+    if (!isMaster(userId) && pool.owner_user_id !== userId) {
+      return { requested, note: 'Pool deletion is limited to the pool owner.' };
+    }
+    const agents = await storageLayer.fetchPoolAgents(parsed.poolId).catch(() => []);
+    if (Array.isArray(agents) && agents.length > 0) {
+      return { requested, note: `Cannot delete \`${parsed.poolId}\`: pool still has ${agents.length} agent(s).` };
+    }
+    const deleted = await storageLayer.deletePool(parsed.poolId);
+    if (!deleted) {
+      return { requested, note: 'Pool delete failed. Try again in a few seconds.' };
+    }
+
+    const fallbackPool = await storageLayer.fetchPool(ownPoolId);
+    requested.poolId = fallbackPool ? ownPoolId : null;
+    return { requested, note: `Deleted pool \`${parsed.poolId}\`.` };
+  }
+
+  return { requested, note: 'Unknown action selected.' };
+}
+
+export async function handleSelect(interaction) {
+  if (!interaction.isStringSelectMenu?.()) return false;
+  const parsed = parsePoolUiId(interaction.customId);
+  if (!parsed) return false;
+  if (!['desired', 'pool', 'action'].includes(parsed.action)) return false;
+
+  if (parsed.userId !== interaction.user.id) {
+    await interaction.reply({
+      embeds: [buildPoolEmbed('Panel Locked', 'This pool panel belongs to another user.', Colors.ERROR)],
+      flags: MessageFlags.Ephemeral
+    });
+    return true;
+  }
+
+  const value = interaction.values?.[0] || '';
+  if (parsed.action === 'action') {
+    const result = await handlePoolUiAction(interaction, parsed, value);
+    await renderPoolUi(interaction, {
+      update: true,
+      requested: result.requested,
+      note: result.note
+    });
+    return true;
+  }
+
+  const requested = {
+    desiredTotal: parsed.action === 'desired' ? clampPoolUiDesired(value) : parsed.desired,
+    poolId: parsed.action === 'pool' ? (value === '_' ? null : value) : parsed.poolId
+  };
+  await renderPoolUi(interaction, { update: true, requested });
+  return true;
+}
+
+export async function handleButton(interaction) {
+  if (!interaction.isButton?.()) return false;
+  const parsed = parsePoolUiId(interaction.customId);
+  if (!parsed) return false;
+  if (!['refresh', 'setdefault', 'links', 'deployui', 'advisorui'].includes(parsed.action)) return false;
+
+  if (parsed.userId !== interaction.user.id) {
+    await interaction.reply({
+      embeds: [buildPoolEmbed('Panel Locked', 'This pool panel belongs to another user.', Colors.ERROR)],
+      flags: MessageFlags.Ephemeral
+    });
+    return true;
+  }
+
+  const requested = { desiredTotal: parsed.desired, poolId: parsed.poolId };
+  if (parsed.action === 'refresh') {
+    await renderPoolUi(interaction, { update: true, requested, note: 'Refreshed pool status.' });
+    return true;
+  }
+
+  if (parsed.action === 'deployui') {
+    if (!interaction.guildId) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('Guild Only', 'Deploy UI requires a server context.', Colors.ERROR)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+    await openDeployUiHandoff(interaction, requested);
+    return true;
+  }
+
+  if (parsed.action === 'advisorui') {
+    if (!interaction.guildId) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('Guild Only', 'Advisor UI requires a server context.', Colors.ERROR)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+    await openAdvisorUiHandoff(interaction, requested);
+    return true;
+  }
+
+  if (parsed.action === 'setdefault') {
+    if (!interaction.guildId) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('Guild Only', 'This action requires a server.', Colors.ERROR)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+    if (!isGuildAdmin(interaction.member) && !isMaster(interaction.user.id)) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('Permission Required', 'You need Administrator to set guild default pool.', Colors.ERROR)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+    if (!parsed.poolId) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('No Pool Selected', 'Select a pool first.', Colors.WARNING)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+    await storageLayer.setGuildSelectedPool(interaction.guildId, parsed.poolId);
+    await renderPoolUi(interaction, {
+      update: true,
+      requested,
+      note: `Guild default pool updated to \`${parsed.poolId}\`.`
+    });
+    return true;
+  }
+
+  if (parsed.action === 'links') {
+    const ctx = await buildPoolUiContext({
+      guildId: interaction.guildId,
+      userId: interaction.user.id,
+      selectedPoolId: parsed.poolId,
+      desiredTotal: parsed.desired
+    });
+    const plan = ctx.plan;
+    if (!plan || plan.error) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('Invite Plan Failed', plan?.error || 'No deployment plan available.', Colors.ERROR)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+    if (!Array.isArray(plan.invites) || plan.invites.length === 0) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('No Invite Links', explainNoInviteAvailability(plan), Colors.WARNING)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+
+    const lines = [];
+    lines.push('# Chopsticks Pool Invite Links');
+    lines.push(`guild=${interaction.guildId}`);
+    lines.push(`pool=${ctx.selectedPoolId}`);
+    lines.push(`desired=${ctx.desired}`);
+    lines.push(`present=${plan.presentCount}`);
+    lines.push(`need=${plan.needInvites}`);
+    lines.push(`generated=${plan.invites.length}`);
+    lines.push('');
+    for (let i = 0; i < plan.invites.length; i += 1) {
+      const inv = plan.invites[i];
+      const label = inv.tag ? `${inv.agentId} (${inv.tag})` : inv.agentId;
+      lines.push(`${i + 1}. ${label}`);
+      lines.push(inv.inviteUrl);
+      lines.push('');
+    }
+
+    const file = new AttachmentBuilder(Buffer.from(lines.join('\n'), 'utf8'), {
+      name: `pool-invites-${ctx.selectedPoolId}-${Date.now()}.txt`
+    });
+
+    await interaction.reply({
+      embeds: [
+        buildPoolEmbed(
+          'Invite Links Ready',
+          `Generated **${plan.invites.length}** invite link(s) from \`${ctx.selectedPoolId}\`.`,
+          Colors.SUCCESS
+        )
+      ],
+      files: [file],
+      flags: MessageFlags.Ephemeral
+    });
+    return true;
+  }
+
+  return false;
+}
+
+export async function autocomplete(interaction) {
+  try {
+    const focused = interaction.options.getFocused(true);
+    const subcommand = interaction.options.getSubcommand(false);
+    const query = String(focused?.value || '').toLowerCase().trim();
+    const userId = interaction.user.id;
+    const master = isMaster(userId);
+
+    if (focused?.name === 'pool') {
+      const pools = await storageLayer.listPools();
+      const visiblePools = pools.filter(pool => {
+        if (master) return true;
+        if (subcommand === 'delete' || subcommand === 'transfer' || subcommand === 'contributions') {
+          return pool.owner_user_id === userId;
+        }
+        return pool.owner_user_id === userId || pool.visibility === 'public';
+      });
+
+      const options = visiblePools
+        .filter(pool => {
+          if (!query) return true;
+          return String(pool.pool_id).toLowerCase().includes(query)
+            || String(pool.name || '').toLowerCase().includes(query);
+        })
+        .slice(0, 25)
+        .map(pool => ({
+          name: `${pool.name} [${pool.visibility}] (${pool.pool_id})`.slice(0, 100),
+          value: pool.pool_id
+        }));
+
+      await interaction.respond(options);
+      return;
+    }
+
+    if (focused?.name === 'agent_id' && (subcommand === 'approve' || subcommand === 'reject')) {
+      const allAgents = await storageLayer.fetchAgentBots();
+      let ownerPoolIds = new Set();
+      if (master) {
+        ownerPoolIds = new Set((await storageLayer.listPools()).map(p => p.pool_id));
+      } else {
+        const owned = await storageLayer.fetchPoolsByOwner(userId);
+        ownerPoolIds = new Set((owned || []).map(p => p.pool_id));
+      }
+
+      const pendingAgents = allAgents
+        .filter(a => ownerPoolIds.has(a.pool_id) && a.status === 'inactive')
+        .filter(a => {
+          if (!query) return true;
+          return String(a.agent_id).toLowerCase().includes(query)
+            || String(a.tag || '').toLowerCase().includes(query);
+        })
+        .slice(0, 25)
+        .map(a => ({
+          name: `${a.tag} (${a.agent_id})`.slice(0, 100),
+          value: a.agent_id
+        }));
+
+      await interaction.respond(pendingAgents);
+      return;
+    }
+
+    await interaction.respond([]);
+  } catch {
+    try { await interaction.respond([]); } catch {}
+  }
 }

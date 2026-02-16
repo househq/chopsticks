@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { canModerateTarget, fetchTargetMember, moderationGuardMessage } from "../moderation/guards.js";
 import { notifyUserByDm, reasonOrDefault, replyModError, replyModSuccess } from "../moderation/output.js";
+import { dispatchModerationLog } from "../utils/modLogs.js";
 
 export const meta = {
   guildOnly: true,
@@ -27,14 +28,39 @@ export async function execute(interaction) {
       title: "Kick Failed",
       summary: "User is not a member of this guild."
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "kick",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary: "Target user is not in the guild.",
+      commandName: "kick",
+      channelId: interaction.channelId
+    });
     return;
   }
 
   const gate = canModerateTarget(interaction, member);
   if (!gate.ok) {
+    const failSummary = moderationGuardMessage(gate.reason);
     await replyModError(interaction, {
       title: "Kick Blocked",
-      summary: moderationGuardMessage(gate.reason)
+      summary: failSummary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "kick",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary: failSummary,
+      commandName: "kick",
+      channelId: interaction.channelId
     });
     return;
   }
@@ -56,10 +82,36 @@ export async function execute(interaction) {
         { name: "Reason", value: reason }
       ]
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "kick",
+      ok: true,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary: `Kicked ${user.tag}.`,
+      commandName: "kick",
+      channelId: interaction.channelId,
+      details: { dmNotify: dmStatus }
+    });
   } catch (err) {
+    const summary = err?.message || "Unable to kick user.";
     await replyModError(interaction, {
       title: "Kick Failed",
-      summary: err?.message || "Unable to kick user."
+      summary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "kick",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary,
+      commandName: "kick",
+      channelId: interaction.channelId
     });
   }
 }

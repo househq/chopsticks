@@ -7,7 +7,9 @@ import {
   ButtonStyle,
   StringSelectMenuBuilder,
   MessageFlags,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  PermissionsBitField,
+  ChannelType
 } from "discord.js";
 import {
   ensureSessionAgent,
@@ -17,10 +19,13 @@ import {
   formatMusicError
 } from "../music/service.js";
 import { getMusicConfig, setDefaultMusicMode, updateMusicSettings } from "../music/config.js";
+import { loadGuildData, saveGuildData } from "../utils/storage.js";
 import { auditLog } from "../utils/audit.js";
 import { handleInteractionError, handleSafeError, ErrorCategory } from "../utils/errorHandler.js";
 import { getCache, setCache } from "../utils/redis.js";
+import { checkRateLimit } from "../utils/ratelimit.js";
 import { makeEmbed } from "../utils/discordOutput.js";
+import { openAdvisorUiHandoff } from "./agents.js";
 
 export const meta = {
   guildOnly: true,
@@ -145,6 +150,45 @@ export const data = new SlashCommandBuilder()
       )
   )
   .addSubcommand(s => s.setName("status").setDescription("Show session status"));
+  // Note: additional subcommand groups appended below.
+
+// "Audio Drops" (opt-in): show a play panel when users upload audio files in configured channels.
+data.addSubcommandGroup(g =>
+  g
+    .setName("drops")
+    .setDescription("Configure audio attachment drop-to-play panels (Manage Server)")
+    .addSubcommand(s =>
+      s
+        .setName("enable")
+        .setDescription("Enable audio drops in a text channel (default: this channel)")
+        .addChannelOption(o =>
+          o
+            .setName("channel")
+            .setDescription("Text channel to enable")
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+            .setRequired(false)
+        )
+    )
+    .addSubcommand(s =>
+      s
+        .setName("disable")
+        .setDescription("Disable audio drops in a text channel (default: this channel)")
+        .addChannelOption(o =>
+          o
+            .setName("channel")
+            .setDescription("Text channel to disable")
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+            .setRequired(false)
+        )
+        .addBooleanOption(o =>
+          o
+            .setName("all")
+            .setDescription("Disable audio drops in all channels")
+            .setRequired(false)
+        )
+    )
+    .addSubcommand(s => s.setName("status").setDescription("Show audio drops status for this server"))
+);
 
 function requireVoice(interaction) {
   const member = interaction.member;
@@ -218,6 +262,10 @@ const QUEUE_PAGE_SIZE = 10;
 const QUEUE_COLOR = 0x5865F2;
 const SEARCH_TTL_MS = 10 * 60_000;
 const SEARCH_TTL_SEC = 10 * 60;
+const AUDIO_DROP_TTL_SEC = 15 * 60;
+const AUDIO_DROP_MAX_MB = Math.max(1, Math.trunc(Number(process.env.MUSIC_DROP_MAX_MB ?? 25)));
+const AUDIO_DROP_MAX_BYTES = AUDIO_DROP_MAX_MB * 1024 * 1024;
+const AUDIO_DROP_ALLOWED_EXT = new Set(["mp3", "wav", "ogg", "m4a", "flac", "opus", "webm", "mp4"]);
 // Note: searchCache is now backed by Redis for persistence across restarts
 // const searchCache = new Map(); (Legacy in-memory cache removed)
 
@@ -254,6 +302,159 @@ function randomKey() {
   const random = Math.random().toString(36).slice(2, 11);
   const random2 = Math.random().toString(36).slice(2, 11);
   return `${timestamp}${random}${random2}`;
+}
+
+function humanBytes(bytes) {
+  const b = Number(bytes);
+  if (!Number.isFinite(b) || b <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let n = b;
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i += 1;
+  }
+  const fixed = i === 0 ? String(Math.trunc(n)) : n.toFixed(n >= 10 ? 1 : 2);
+  return `${fixed} ${units[i]}`;
+}
+
+function getExt(name) {
+  const s = String(name ?? "").toLowerCase();
+  const idx = s.lastIndexOf(".");
+  if (idx < 0) return "";
+  return s.slice(idx + 1);
+}
+
+function isSupportedAudioAttachment(att) {
+  if (!att) return { ok: false, reason: "missing" };
+  const ct = String(att.contentType ?? "").toLowerCase();
+  const name = String(att.name ?? "");
+  const ext = getExt(name);
+  const isAudioCt = ct.startsWith("audio/");
+  const isAllowedExt = ext && AUDIO_DROP_ALLOWED_EXT.has(ext);
+  if (!isAudioCt && !isAllowedExt) return { ok: false, reason: "unsupported" };
+  const size = Number(att.size ?? 0);
+  if (Number.isFinite(size) && size > AUDIO_DROP_MAX_BYTES) return { ok: false, reason: "too-large" };
+  const url = String(att.url ?? "");
+  if (!/^https?:\/\//i.test(url)) return { ok: false, reason: "bad-url" };
+  return { ok: true };
+}
+
+async function setAudioDropCache(entry) {
+  const key = randomKey();
+  const ok = await setCache(`audiodrop:${key}`, { ...entry, createdAt: Date.now() }, AUDIO_DROP_TTL_SEC);
+  if (!ok) console.warn("[music:drops] Redis cache failed; audio drop panel may not work.");
+  return key;
+}
+
+async function getAudioDropCache(key) {
+  if (!key) return null;
+  return getCache(`audiodrop:${key}`);
+}
+
+async function setAudioDropSelection(key, userId, index) {
+  const idx = Math.max(0, Math.trunc(Number(index) || 0));
+  return setCache(`audiodropSel:${key}:${userId}`, { idx }, AUDIO_DROP_TTL_SEC);
+}
+
+async function getAudioDropSelection(key, userId) {
+  const v = await getCache(`audiodropSel:${key}:${userId}`);
+  const idx = Math.max(0, Math.trunc(Number(v?.idx) || 0));
+  return idx;
+}
+
+function buildAudioDropPanel(message, dropKey, uploaderId, attachments) {
+  const expiresAt = Math.floor((Date.now() + AUDIO_DROP_TTL_SEC * 1000) / 1000);
+  const lines = attachments.slice(0, 8).map((a, i) => {
+    const label = a.name ? a.name : `Attachment ${i + 1}`;
+    const size = Number.isFinite(a.size) ? ` (${humanBytes(a.size)})` : "";
+    return `• ${label}${size}`;
+  });
+  const fields = [
+    { name: "Uploaded by", value: `<@${uploaderId}>`, inline: true },
+    { name: "Files", value: lines.length ? lines.join("\n") : "(none)", inline: false },
+    { name: "Expires", value: `<t:${expiresAt}:R>`, inline: true }
+  ];
+
+  const embed = makeEmbed(
+    "Audio Drop",
+    "Use the buttons below to play an uploaded audio file in voice.",
+    fields,
+    null,
+    null,
+    QUEUE_COLOR
+  );
+
+  const base = `audiodrop:${dropKey}:${uploaderId}`;
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`${base}:play_my_vc`).setLabel("Play In My VC").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`${base}:choose_file`).setLabel("Choose File").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${base}:pick_vc`).setLabel("Pick VC").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${base}:deploy_ui`).setLabel("Deploy Agents").setStyle(ButtonStyle.Secondary)
+  );
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`${base}:dismiss`).setLabel("Dismiss").setStyle(ButtonStyle.Danger)
+  );
+  return { embeds: [embed], components: [row1, row2] };
+}
+
+export async function maybeHandleAudioDropMessage(message, guildData) {
+  try {
+    if (!message?.guildId) return;
+    if (!message?.channelId) return;
+    const enabled = guildData?.music?.drops?.channelIds;
+    if (!Array.isArray(enabled) || enabled.length === 0) return;
+    if (!enabled.includes(message.channelId)) return;
+    if (!message.attachments?.size) return;
+
+    // Throttle panels to avoid spam in busy drop channels.
+    const rl = await checkRateLimit(`musicdrops:${message.guildId}:${message.channelId}:${message.author.id}`, 2, 15);
+    if (!rl.ok) return;
+
+    const atts = Array.from(message.attachments.values());
+    const supported = [];
+    let sawAudioLike = false;
+    let sawTooLarge = false;
+    for (const a of atts) {
+      const ct = String(a?.contentType ?? "").toLowerCase();
+      const ext = getExt(a?.name ?? "");
+      if (ct.startsWith("audio/") || (ext && AUDIO_DROP_ALLOWED_EXT.has(ext))) sawAudioLike = true;
+
+      const ok = isSupportedAudioAttachment(a);
+      if (!ok.ok) {
+        if (ok.reason === "too-large") sawTooLarge = true;
+        continue;
+      }
+      supported.push({
+        url: a.url,
+        name: String(a.name ?? ""),
+        size: Number(a.size ?? 0),
+        contentType: String(a.contentType ?? "")
+      });
+      if (supported.length >= 12) break;
+    }
+    if (!supported.length) {
+      if (sawAudioLike && sawTooLarge) {
+        await message.reply({
+          embeds: [makeEmbed("Audio Drop", `That file is too large to play here.\nMax upload size: **${AUDIO_DROP_MAX_MB} MB**.`, [], null, null, 0xFF0000)]
+        }).catch(() => {});
+      }
+      return;
+    }
+
+    const dropKey = await setAudioDropCache({
+      guildId: message.guildId,
+      textChannelId: message.channelId,
+      messageId: message.id,
+      uploaderId: message.author.id,
+      attachments: supported
+    });
+
+    const payload = buildAudioDropPanel(message, dropKey, message.author.id, supported);
+    await message.reply(payload).catch(() => {});
+  } catch (err) {
+    console.error("[music:drops] message handler failed:", err?.stack ?? err?.message ?? err);
+  }
 }
 
 async function setSearchCache(entry) {
@@ -457,10 +658,228 @@ function actionLabel(sub, action) {
   return a || "Done";
 }
 
+async function sendAudioDropEphemeral(interaction, payload, { preferFollowUp = false } = {}) {
+  const body = { ...payload, ephemeral: true };
+  if (preferFollowUp) {
+    return interaction.followUp(body).catch(() => {});
+  }
+  if (interaction.deferred || interaction.replied) {
+    // If we deferred a reply, prefer editing the original ephemeral reply.
+    if (interaction.deferred) return interaction.editReply(payload).catch(() => {});
+    return interaction.followUp(body).catch(() => {});
+  }
+  return interaction.reply(body).catch(() => {});
+}
+
+function buildAudioDropDeployRow(dropKey, uploaderId) {
+  const base = `audiodrop:${dropKey}:${uploaderId}`;
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`${base}:deploy_ui`).setLabel("Deploy Agents").setStyle(ButtonStyle.Secondary)
+  );
+}
+
+async function playAudioDropToVc(interaction, dropKey, uploaderId, voiceChannelId, { preferFollowUp = false } = {}) {
+  const state = await getAudioDropCache(dropKey);
+  if (!state) {
+    await sendAudioDropEphemeral(interaction, {
+      embeds: [makeEmbed("Audio Drop", "This drop panel expired. Upload the file again.", [], null, null, 0xFF0000)]
+    }, { preferFollowUp });
+    return;
+  }
+
+  const guild = interaction.guild;
+  if (!guild) {
+    await sendAudioDropEphemeral(interaction, {
+      embeds: [makeEmbed("Audio Drop", "This action requires a server context.", [], null, null, 0xFF0000)]
+    }, { preferFollowUp });
+    return;
+  }
+
+  const ch = guild.channels.cache.get(voiceChannelId) ?? null;
+  if (!ch || (ch.type !== ChannelType.GuildVoice && ch.type !== ChannelType.GuildStageVoice)) {
+    await sendAudioDropEphemeral(interaction, {
+      embeds: [makeEmbed("Audio Drop", "That voice channel is no longer available.", [], null, null, 0xFF0000)]
+    }, { preferFollowUp });
+    return;
+  }
+
+  const me = guild.members.me ?? (await guild.members.fetchMe().catch(() => null));
+  const botPerms = me ? ch.permissionsFor(me) : null;
+  if (!botPerms?.has?.(PermissionsBitField.Flags.Connect)) {
+    await sendAudioDropEphemeral(interaction, {
+      embeds: [makeEmbed("Audio Drop", `I can't connect to <#${ch.id}>. Check channel permissions.`, [], null, null, 0xFF0000)]
+    }, { preferFollowUp });
+    return;
+  }
+
+  const attachments = Array.isArray(state.attachments) ? state.attachments : [];
+  if (!attachments.length) {
+    await sendAudioDropEphemeral(interaction, {
+      embeds: [makeEmbed("Audio Drop", "No files found for this panel.", [], null, null, 0xFF0000)]
+    }, { preferFollowUp });
+    return;
+  }
+
+  const selIdxRaw = await getAudioDropSelection(dropKey, interaction.user.id);
+  const selIdx = Math.max(0, Math.min(attachments.length - 1, selIdxRaw));
+  const att = attachments[selIdx];
+  const url = String(att?.url ?? "");
+  if (!/^https?:\/\//i.test(url)) {
+    await sendAudioDropEphemeral(interaction, {
+      embeds: [makeEmbed("Audio Drop", "That file URL is invalid.", [], null, null, 0xFF0000)]
+    }, { preferFollowUp });
+    return;
+  }
+
+  const guildId = guild.id;
+  let config = null;
+  try {
+    config = await getMusicConfig(guildId);
+  } catch {}
+
+  const alloc = await ensureSessionAgent(guildId, ch.id, {
+    textChannelId: state.textChannelId ?? interaction.channelId,
+    ownerUserId: interaction.user.id
+  });
+  if (!alloc.ok) {
+    const msg = formatMusicError(alloc.reason);
+    const extra = (alloc.reason === "no-agents-in-guild" || alloc.reason === "no-free-agents")
+      ? [buildAudioDropDeployRow(dropKey, uploaderId)]
+      : [];
+    await sendAudioDropEphemeral(interaction, {
+      embeds: [makeEmbed("Music Error", msg, [], null, null, 0xFF0000)],
+      components: extra
+    }, { preferFollowUp });
+    return;
+  }
+
+  try {
+    const result = await sendAgentCommand(alloc.agent, "play", {
+      guildId,
+      voiceChannelId: ch.id,
+      textChannelId: state.textChannelId ?? interaction.channelId,
+      ownerUserId: interaction.user.id,
+      actorUserId: interaction.user.id,
+      query: url,
+      defaultMode: config?.defaultMode,
+      defaultVolume: config?.defaultVolume,
+      limits: config?.limits,
+      controlMode: config?.controlMode,
+      searchProviders: config?.searchProviders,
+      fallbackProviders: config?.fallbackProviders,
+      requester: buildRequester(interaction.user)
+    });
+
+    const playedTrack = result?.track ?? { title: att?.name || "Audio file", uri: url };
+    const action = String(result?.action ?? "queued");
+    await sendAudioDropEphemeral(interaction, {
+      embeds: [buildTrackEmbed(action, playedTrack)]
+    }, { preferFollowUp });
+  } catch (err) {
+    const msg = formatMusicError(err);
+    await sendAudioDropEphemeral(interaction, {
+      embeds: [makeEmbed("Music Error", msg, [], null, null, 0xFF0000)]
+    }, { preferFollowUp });
+  }
+}
+
 export async function execute(interaction) {
   const guildId = interaction.guildId;
   const userId = interaction.user.id;
+  const group = interaction.options.getSubcommandGroup(false);
   const sub = interaction.options.getSubcommand();
+
+  if (group === "drops") {
+    const perms = interaction.memberPermissions;
+    if (!perms?.has?.(PermissionFlagsBits.ManageGuild)) {
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        embeds: [makeEmbed("Music", "Manage Server permission required.")]
+      });
+      return;
+    }
+
+    const data = await loadGuildData(guildId);
+    data.music ??= {};
+    data.music.drops ??= { channelIds: [] };
+    if (!Array.isArray(data.music.drops.channelIds)) data.music.drops.channelIds = [];
+
+    const maxMb = Math.max(1, Math.trunc(Number(process.env.MUSIC_DROP_MAX_MB ?? 25)));
+
+    if (sub === "status") {
+      const enabled = data.music.drops.channelIds;
+      const fields = [
+        { name: "Enabled Channels", value: enabled.length ? enabled.map(id => `<#${id}>`).join(", ") : "(none)", inline: false },
+        { name: "Max Upload Size", value: `${maxMb} MB`, inline: true }
+      ];
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        embeds: [makeEmbed("Audio Drops", "When a user uploads an audio file in an enabled channel, Chopsticks posts a play panel.", fields, null, null, QUEUE_COLOR)]
+      });
+      return;
+    }
+
+    if (sub === "enable") {
+      const ch = interaction.options.getChannel("channel") ?? interaction.channel;
+      if (!ch?.id) {
+        await interaction.reply({
+          flags: MessageFlags.Ephemeral,
+          embeds: [makeEmbed("Audio Drops", "Choose a text channel.")]
+        });
+        return;
+      }
+      if (!data.music.drops.channelIds.includes(ch.id)) data.music.drops.channelIds.push(ch.id);
+      await saveGuildData(guildId, data);
+
+      await auditLog({ guildId, userId, action: "music.drops.enable", details: { channelId: ch.id } });
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        embeds: [makeEmbed("Audio Drops", `Enabled in <#${ch.id}>.\nUpload an audio file there to get a play panel.`, [
+          { name: "Max Upload Size", value: `${maxMb} MB`, inline: true }
+        ], null, null, QUEUE_COLOR)]
+      });
+      return;
+    }
+
+    if (sub === "disable") {
+      const all = Boolean(interaction.options.getBoolean("all") ?? false);
+      const ch = interaction.options.getChannel("channel") ?? interaction.channel;
+
+      if (all) {
+        data.music.drops.channelIds = [];
+        await saveGuildData(guildId, data);
+        await auditLog({ guildId, userId, action: "music.drops.disable_all", details: {} });
+        await interaction.reply({
+          flags: MessageFlags.Ephemeral,
+          embeds: [makeEmbed("Audio Drops", "Disabled in all channels.", [], null, null, QUEUE_COLOR)]
+        });
+        return;
+      }
+
+      if (!ch?.id) {
+        await interaction.reply({
+          flags: MessageFlags.Ephemeral,
+          embeds: [makeEmbed("Audio Drops", "Choose a text channel.")]
+        });
+        return;
+      }
+
+      data.music.drops.channelIds = data.music.drops.channelIds.filter(id => id !== ch.id);
+      await saveGuildData(guildId, data);
+      await auditLog({ guildId, userId, action: "music.drops.disable", details: { channelId: ch.id } });
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        embeds: [makeEmbed("Audio Drops", `Disabled in <#${ch.id}>.`, [], null, null, QUEUE_COLOR)]
+      });
+      return;
+    }
+
+    await interaction.reply({
+      flags: MessageFlags.Ephemeral,
+      embeds: [makeEmbed("Audio Drops", "Unknown action.", [], null, null, 0xFF0000)]
+    });
+    return;
+  }
 
   if (sub === "default") {
     const perms = interaction.memberPermissions;
@@ -965,6 +1384,120 @@ export async function execute(interaction) {
 export async function handleButton(interaction) {
   if (!interaction.isButton?.()) return false;
   const id = String(interaction.customId || "");
+
+  if (id.startsWith("audiodrop:")) {
+    const parts = id.split(":");
+    const key = parts[1];
+    const uploaderId = parts[2];
+    const action = parts[3] || "";
+
+    const state = await getAudioDropCache(key);
+    if (!state) {
+      await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "This drop panel expired. Upload the file again.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
+
+    // Common permission: allow anyone to play into their own VC; restrict arbitrary-VC actions.
+    const isUploader = interaction.user.id === uploaderId;
+    const canAdmin = interaction.memberPermissions?.has?.(PermissionFlagsBits.ManageGuild);
+    const canArbitrary = isUploader || canAdmin;
+
+    if (action === "dismiss") {
+      if (!canArbitrary) {
+        await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "Only the uploader or an admin can dismiss this panel.", [], null, null, 0xFF0000)] }).catch(() => {});
+        return true;
+      }
+      await interaction.deferUpdate().catch(() => {});
+      const embed = makeEmbed("Audio Drop", "Panel dismissed.", [], null, null, QUEUE_COLOR);
+      await interaction.message?.edit?.({ embeds: [embed], components: [] }).catch(() => {});
+      return true;
+    }
+
+    if (action === "deploy_ui") {
+      // Advisor UI is the lowest-typing path to get music agents available.
+      await openAdvisorUiHandoff(interaction, { desiredTotal: 10 }).catch(() => {});
+      return true;
+    }
+
+    if (action === "choose_file") {
+      const attachments = Array.isArray(state.attachments) ? state.attachments : [];
+      if (!attachments.length) {
+        await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "No files found for this panel.", [], null, null, 0xFF0000)] }).catch(() => {});
+        return true;
+      }
+      const options = attachments.slice(0, 25).map((a, idx) => ({
+        label: truncate(a?.name || `Attachment ${idx + 1}`, 100),
+        value: String(idx),
+        description: truncate(humanBytes(a?.size || 0), 100)
+      }));
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId(`audiodropfile:${key}:${uploaderId}`)
+        .setPlaceholder("Pick which file to play")
+        .addOptions(options);
+      const row = new ActionRowBuilder().addComponents(menu);
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [makeEmbed("Audio Drop", "Choose which uploaded file you want to play.", [
+          { name: "Tip", value: "Your selection is saved for this panel for ~15 minutes.", inline: false }
+        ], null, null, QUEUE_COLOR)],
+        components: [row]
+      }).catch(() => {});
+      return true;
+    }
+
+    if (action === "pick_vc") {
+      if (!canArbitrary) {
+        await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "Only the uploader or an admin can pick an arbitrary voice channel.", [], null, null, 0xFF0000)] }).catch(() => {});
+        return true;
+      }
+      const guild = interaction.guild;
+      if (!guild) {
+        await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "This action requires a server context.", [], null, null, 0xFF0000)] }).catch(() => {});
+        return true;
+      }
+      const all = Array.from(guild.channels.cache.values());
+      const member = interaction.member;
+      const vcOptions = [];
+      for (const ch of all) {
+        if (vcOptions.length >= 25) break;
+        if (!ch || (ch.type !== ChannelType.GuildVoice && ch.type !== ChannelType.GuildStageVoice)) continue;
+        const perms = ch.permissionsFor?.(member);
+        if (!perms?.has?.(PermissionsBitField.Flags.ViewChannel)) continue;
+        if (!perms?.has?.(PermissionsBitField.Flags.Connect)) continue;
+        vcOptions.push({ label: truncate(ch.name, 100), value: ch.id });
+      }
+      if (!vcOptions.length) {
+        await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "No voice channels available.", [], null, null, 0xFF0000)] }).catch(() => {});
+        return true;
+      }
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId(`audiodropvc:${key}:${uploaderId}`)
+        .setPlaceholder("Choose a voice channel")
+        .addOptions(vcOptions);
+      const row = new ActionRowBuilder().addComponents(menu);
+      await interaction.reply({
+        ephemeral: true,
+        embeds: [makeEmbed("Audio Drop", "Choose where to play this file.", [], null, null, QUEUE_COLOR)],
+        components: [row]
+      }).catch(() => {});
+      return true;
+    }
+
+    if (action === "play_my_vc") {
+      const memberVcId = await resolveMemberVoiceId(interaction);
+      if (!memberVcId) {
+        await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "Join a voice channel first, then press Play.", [], null, null, 0xFF0000)] }).catch(() => {});
+        return true;
+      }
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
+      await playAudioDropToVc(interaction, key, uploaderId, memberVcId);
+      return true;
+    }
+
+    await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "Unknown action.", [], null, null, 0xFF0000)] }).catch(() => {});
+    return true;
+  }
+
   if (!id.startsWith("musicq:")) return false;
 
   // Anti-spam: Check if already processing this interaction
@@ -1097,6 +1630,68 @@ export async function handleButton(interaction) {
 export async function handleSelect(interaction) {
   if (!interaction.isStringSelectMenu?.()) return false;
   const id = String(interaction.customId || "");
+  if (id.startsWith("audiodropfile:")) {
+    await interaction.deferUpdate().catch(() => {});
+    const parts = id.split(":");
+    const key = parts[1];
+    const uploaderId = parts[2];
+
+    const state = await getAudioDropCache(key);
+    if (!state) {
+      await interaction.followUp({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "This drop panel expired. Upload the file again.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
+
+    const idx = Math.max(0, Math.trunc(Number(interaction.values?.[0] ?? 0)));
+    const attachments = Array.isArray(state.attachments) ? state.attachments : [];
+    const selected = attachments[idx];
+    if (!selected) {
+      await interaction.followUp({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "Invalid selection.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
+
+    await setAudioDropSelection(key, interaction.user.id, idx).catch(() => {});
+    const label = selected.name ? `**${selected.name}**` : `Attachment ${idx + 1}`;
+    await interaction.followUp({
+      ephemeral: true,
+      embeds: [makeEmbed("Audio Drop", `Selected ${label}.\nUse **Play In My VC** on the panel to start playback.`, [
+        { name: "Size", value: humanBytes(selected.size), inline: true }
+      ], null, null, QUEUE_COLOR)]
+    }).catch(() => {});
+    return true;
+  }
+
+  if (id.startsWith("audiodropvc:")) {
+    await interaction.deferUpdate().catch(() => {});
+    const parts = id.split(":");
+    const key = parts[1];
+    const uploaderId = parts[2];
+
+    const state = await getAudioDropCache(key);
+    if (!state) {
+      await interaction.followUp({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "This drop panel expired. Upload the file again.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
+
+    const isUploader = interaction.user.id === uploaderId;
+    const canAdmin = interaction.memberPermissions?.has?.(PermissionFlagsBits.ManageGuild);
+    if (!isUploader && !canAdmin) {
+      await interaction.followUp({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "Only the uploader or an admin can pick an arbitrary voice channel.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
+
+    const vcId = String(interaction.values?.[0] ?? "");
+    if (!vcId) {
+      await interaction.followUp({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "Choose a voice channel.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
+
+    await interaction.followUp({ ephemeral: true, embeds: [makeEmbed("Audio Drop", "Starting playback...", [], null, null, QUEUE_COLOR)] }).catch(() => {});
+    // Use followUp context: run playback and then send a final result embed.
+    await playAudioDropToVc(interaction, key, uploaderId, vcId, { preferFollowUp: true });
+    return true;
+  }
+
   if (!id.startsWith("musicsearch:")) return false;
 
   // Defer immediately to prevent interaction timeout

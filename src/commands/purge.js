@@ -7,6 +7,7 @@ import {
   SlashCommandBuilder
 } from "discord.js";
 import { buildModEmbed, replyModEmbed, replyModError, sanitizeText } from "../moderation/output.js";
+import { dispatchModerationLog } from "../utils/modLogs.js";
 
 const PURGE_UI_PREFIX = "purgeui";
 const PURGE_TTL_MS = 10 * 60_000;
@@ -261,6 +262,16 @@ export async function execute(interaction) {
       title: "Purge Unsupported",
       summary: "This channel does not support purge operations."
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "purge",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      reason: "Unsupported channel type",
+      summary: "Purge blocked because channel does not support message deletion.",
+      commandName: "purge",
+      channelId: interaction.channelId
+    });
     return;
   }
 
@@ -378,6 +389,16 @@ export async function handleButton(interaction) {
         color: 0xED4245
       })]
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "purge",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      reason: "Channel unavailable",
+      summary: "Purge failed because the target channel was unavailable.",
+      commandName: "purge",
+      channelId: request.channelId
+    });
     return true;
   }
 
@@ -397,5 +418,20 @@ export async function handleButton(interaction) {
   });
 
   await interaction.editReply({ embeds: [embed], components: [] });
+  await dispatchModerationLog(interaction.guild, {
+    action: "purge",
+    ok: true,
+    actorId: interaction.user.id,
+    actorTag: interaction.user.tag,
+    reason: "Filtered purge run",
+    summary: `Purge removed ${result.deleted} message(s).`,
+    commandName: "purge",
+    channelId: request.channelId,
+    details: {
+      matched: String(request.matched),
+      deleted: String(result.deleted),
+      failed: String(result.failed)
+    }
+  });
   return true;
 }

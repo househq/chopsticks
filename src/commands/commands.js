@@ -7,6 +7,7 @@ import {
   StringSelectMenuBuilder
 } from "discord.js";
 import { replyInteraction } from "../utils/interactionReply.js";
+import { Colors } from "../utils/discordOutput.js";
 
 const UI_PREFIX = "cmdui";
 
@@ -39,10 +40,10 @@ function categorize(commands) {
     mod: new Set(["ban","unban","kick","timeout","purge","slowmode","warn","warnings","clearwarns","lock","unlock","nick","softban","role"]),
     util: new Set(["ping","uptime","help","serverinfo","userinfo","avatar","roleinfo","botinfo","invite","echo"]),
     fun: new Set(["8ball","coinflip","roll","choose","fun"]),
-    admin: new Set(["config","prefix","alias","agents"]),
+    admin: new Set(["config","prefix","alias","agents","reactionroles","levels","automations","setup","modlogs"]),
     music: new Set(["music"]),
     voice: new Set(["voice","welcome","autorole"]),
-    tools: new Set(["poll","giveaway","remind"]),
+    tools: new Set(["poll","giveaway","remind","starboard","tickets"]),
     assistant: new Set(["assistant"])
   };
   const out = new Map();
@@ -108,6 +109,19 @@ function commandSummary(command) {
   };
 }
 
+function categoryListEmbed(cats) {
+  const names = Array.from(cats.keys()).sort();
+  const lines = names.map(name => {
+    const count = cats.get(name)?.length ?? 0;
+    return `• \`${name}\` - ${count} command${count === 1 ? "" : "s"}`;
+  });
+  return new EmbedBuilder()
+    .setTitle("Command Categories")
+    .setColor(Colors.INFO)
+    .setDescription(lines.length ? lines.join("\n") : "No categories available.")
+    .setTimestamp();
+}
+
 function buildCommandCenterEmbed(client, selectedCategory = null, selectedCommand = null) {
   const categories = categorize(client.commands);
   const categoryNames = Array.from(categories.keys()).sort();
@@ -118,13 +132,17 @@ function buildCommandCenterEmbed(client, selectedCategory = null, selectedComman
 
   const embed = new EmbedBuilder()
     .setTitle("Chopsticks Command Center")
-    .setDescription(categoryLine || "No command categories available.");
+    .setColor(Colors.INFO)
+    .setDescription(
+      (categoryLine || "No command categories available.") +
+      "\n\nUse the dropdowns to filter by category and inspect command variants."
+    );
 
   if (selectedCategory && categories.has(selectedCategory)) {
     const commands = categories.get(selectedCategory) || [];
     embed.addFields({
       name: `Category: ${selectedCategory}`,
-      value: commands.length ? commands.map(name => `/${name}`).join(" ") : "No commands in this category."
+      value: commands.length ? commands.map(name => `• /${name}`).join("\n").slice(0, 1024) : "No commands in this category."
     });
 
     if (selectedCommand && commands.includes(selectedCommand)) {
@@ -200,8 +218,7 @@ export async function execute(interaction) {
   const cats = categorize(cmds);
 
   if (sub === "list") {
-    const list = Array.from(cats.keys()).sort();
-    await replyInteraction(interaction, { content: "Categories:\n" + list.join(", ") });
+    await replyInteraction(interaction, { embeds: [categoryListEmbed(cats)] });
     return;
   }
 
@@ -209,11 +226,28 @@ export async function execute(interaction) {
     const name = interaction.options.getString("name", true);
     const list = cats.get(name);
     if (!list) {
-      await replyInteraction(interaction, { content: "Category not found." });
+      await replyInteraction(interaction, {
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Category Not Found")
+            .setColor(Colors.ERROR)
+            .setDescription(`No category named \`${name}\` was found.\nUse \`/commands list\` to browse available categories.`)
+        ]
+      });
       return;
     }
+    const lines = list.map(cmdName => {
+      const summary = commandSummary(cmds.get(cmdName));
+      return `• **/${cmdName}** - ${summary.description}`;
+    });
     await replyInteraction(interaction, {
-      content: `/${name}: ` + list.map(c => `/${c}`).join(", ")
+      embeds: [
+        new EmbedBuilder()
+          .setTitle(`Category: ${name}`)
+          .setColor(Colors.INFO)
+          .setDescription(lines.join("\n").slice(0, 4096))
+          .setFooter({ text: `${list.length} command${list.length === 1 ? "" : "s"}` })
+      ]
     });
     return;
   }
@@ -226,7 +260,17 @@ export async function execute(interaction) {
       if (name.includes(term)) hits.push(name);
     }
     await replyInteraction(interaction, {
-      content: hits.length ? hits.map(n => `/${n}`).join(", ") : "No matches."
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Command Search")
+          .setColor(hits.length ? Colors.SUCCESS : Colors.WARNING)
+          .setDescription(
+            hits.length
+              ? hits.slice(0, 40).map(n => `• /${n}`).join("\n")
+              : `No command names matched \`${term}\`.`
+          )
+          .setFooter({ text: hits.length ? `${hits.length} match${hits.length === 1 ? "" : "es"}` : "Try a shorter keyword." })
+      ]
     });
     return;
   }
@@ -244,7 +288,14 @@ export async function handleSelect(interaction) {
   if (!parsed) return false;
 
   if (parsed.userId !== interaction.user.id) {
-    await replyInteraction(interaction, { content: "This panel belongs to another user." });
+    await replyInteraction(interaction, {
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Panel Locked")
+          .setColor(Colors.ERROR)
+          .setDescription("This command panel belongs to another user.")
+      ]
+    });
     return true;
   }
 
@@ -261,7 +312,14 @@ export async function handleSelect(interaction) {
     return true;
   }
 
-  await replyInteraction(interaction, { content: "Unsupported command center action." });
+  await replyInteraction(interaction, {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Unsupported Action")
+        .setColor(Colors.WARNING)
+        .setDescription("This command center action is not supported.")
+    ]
+  });
   return true;
 }
 
@@ -271,7 +329,14 @@ export async function handleButton(interaction) {
   if (!parsed) return false;
 
   if (parsed.userId !== interaction.user.id) {
-    await replyInteraction(interaction, { content: "This panel belongs to another user." });
+    await replyInteraction(interaction, {
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Panel Locked")
+          .setColor(Colors.ERROR)
+          .setDescription("This command panel belongs to another user.")
+      ]
+    });
     return true;
   }
 
@@ -287,6 +352,13 @@ export async function handleButton(interaction) {
     return true;
   }
 
-  await replyInteraction(interaction, { content: "Unsupported command center button." });
+  await replyInteraction(interaction, {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Unsupported Button")
+        .setColor(Colors.WARNING)
+        .setDescription("This command center button is not supported.")
+    ]
+  });
   return true;
 }

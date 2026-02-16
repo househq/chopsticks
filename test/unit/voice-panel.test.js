@@ -1,6 +1,10 @@
 import { describe, it } from 'mocha';
 import { strict as assert } from 'assert';
-import { ensurePanelConfig, resolvePanelDelivery } from '../../src/tools/voice/panel.js';
+import {
+  ensurePanelConfig,
+  resolvePanelDelivery,
+  buildVoiceRoomDashboardComponents
+} from '../../src/tools/voice/panel.js';
 
 describe('Voice panel delivery defaults', function () {
   it('initializes panel config when missing', function () {
@@ -36,5 +40,17 @@ describe('Voice panel delivery defaults', function () {
     assert.equal(resolved.mode, 'both');
     assert.equal(resolved.channelId, 'c2');
     assert.equal(resolved.autoSendOnCreate, false);
+  });
+
+  it('builds room dashboard action buttons', function () {
+    const rows = buildVoiceRoomDashboardComponents('123');
+    assert.ok(Array.isArray(rows));
+    assert.equal(rows.length, 2);
+    const ids = rows.flatMap(row => row.components.map(c => c.data.custom_id));
+    assert.ok(ids.includes('voiceroom:refresh:123'));
+    assert.ok(ids.includes('voiceroom:dm:123'));
+    assert.ok(ids.includes('voiceroom:claim:123'));
+    assert.ok(ids.includes('voiceroom:lock:123'));
+    assert.ok(ids.includes('voiceroom:unlock:123'));
   });
 });

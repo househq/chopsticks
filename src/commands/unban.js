@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { reasonOrDefault, replyModError, replyModSuccess } from "../moderation/output.js";
+import { dispatchModerationLog } from "../utils/modLogs.js";
 
 export const meta = {
   guildOnly: true,
@@ -23,10 +24,33 @@ export async function execute(interaction) {
       summary: `Successfully unbanned **${userId}**.`,
       fields: [{ name: "Reason", value: reason }]
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "unban",
+      ok: true,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: userId,
+      reason,
+      summary: `Unbanned ${userId}.`,
+      commandName: "unban",
+      channelId: interaction.channelId
+    });
   } catch (err) {
+    const summary = err?.message || "Unable to unban user.";
     await replyModError(interaction, {
       title: "Unban Failed",
-      summary: err?.message || "Unable to unban user."
+      summary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "unban",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: userId,
+      reason,
+      summary,
+      commandName: "unban",
+      channelId: interaction.channelId
     });
   }
 }

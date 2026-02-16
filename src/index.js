@@ -19,11 +19,17 @@ console.log("✅ Configuration validated.");
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { Client, Collection, GatewayIntentBits, Events } from "discord.js";
+import { Client, Collection, GatewayIntentBits, Events, Partials } from "discord.js";
 import { AgentManager } from "./agents/agentManager.js";
-import { handleButton as handleMusicButton, handleSelect as handleMusicSelect } from "./commands/music.js";
+import { handleButton as handleAgentsButton, handleSelect as handleAgentsSelect } from "./commands/agents.js";
+import {
+  handleButton as handleMusicButton,
+  handleSelect as handleMusicSelect,
+  maybeHandleAudioDropMessage
+} from "./commands/music.js";
 import { handleButton as handleAssistantButton } from "./commands/assistant.js";
 import { handleButton as handleCommandsButton, handleSelect as handleCommandsSelect } from "./commands/commands.js";
+import { handleButton as handlePoolsButton, handleSelect as handlePoolsSelect } from "./commands/pools.js";
 import { handleButton as handleVoiceButton, handleSelect as handleVoiceSelect } from "./commands/voice.js";
 import { handleSelect as handleHelpSelect } from "./commands/help.js";
 import { handleButton as handlePurgeButton } from "./commands/purge.js";
@@ -31,6 +37,9 @@ import { handleButton as handleGameButton, handleSelect as handleGameSelect } fr
 import { handleButton as handleQuestsButton } from "./commands/quests.js";
 import { handleButton as handleCraftButton, handleSelect as handleCraftSelect } from "./commands/craft.js";
 import { handleButton as handleTriviaButton, handleSelect as handleTriviaSelect } from "./commands/trivia.js";
+import { handleButton as handleSetupButton, handleSelect as handleSetupSelect } from "./commands/setup.js";
+import { handleButton as handleTicketsButton, handleSelect as handleTicketsSelect } from "./commands/tickets.js";
+import { handleButton as handleTutorialsButton, handleSelect as handleTutorialsSelect } from "./commands/tutorials.js";
 import {
   startHealthServer,
   getAndResetCommandDeltas
@@ -45,10 +54,12 @@ import { addCommandLog } from "./utils/commandlog.js";
 import { botLogger } from "./utils/modernLogger.js";
 import { trackCommand, trackRateLimit } from "./utils/metrics.js";
 import { buildErrorEmbed, replyInteraction, replyInteractionIfFresh } from "./utils/interactionReply.js";
+import { patchInteractionUiMethods } from "./utils/interactionUiPatch.js";
 import { generateCorrelationId } from "./utils/logger.js";
 import { claimIdempotencyKey } from "./utils/idempotency.js";
 import { installProcessSafety } from "./utils/processSafety.js";
 import { recordUserCommandStat } from "./profile/usage.js";
+import { runGuildEventAutomations } from "./utils/automations.js";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -59,11 +70,14 @@ const __dirname = path.dirname(__filename);
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildIntegrations
-  ]
+  ],
+  partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.User]
 });
 
 installProcessSafety("chopsticks-bot", botLogger);
@@ -523,6 +537,16 @@ const MUTATION_COMMANDS = new Set([
 client.on(Events.MessageCreate, async message => {
   if (message.author?.bot) return;
 
+  if (message.guildId) {
+    void runGuildEventAutomations({
+      guild: message.guild,
+      eventKey: "message_create",
+      channel: message.channel,
+      user: message.author,
+      message
+    }).catch(() => {});
+  }
+
   let prefix = "!";
   let aliases = {};
   let guildData = null;
@@ -532,6 +556,12 @@ client.on(Events.MessageCreate, async message => {
       prefix = guildData?.prefix?.value || "!";
       aliases = guildData?.prefix?.aliases || {};
     } catch {}
+  }
+
+  // Music "Audio Drops": if enabled for this channel, show a button-driven panel
+  // to play uploaded audio attachments in voice via agents.
+  if (message.guildId && guildData) {
+    void maybeHandleAudioDropMessage(message, guildData).catch(() => {});
   }
 
   if (!message.content?.startsWith(prefix)) return;
@@ -659,11 +689,18 @@ client.on(Events.MessageCreate, async message => {
 /* ===================== INTERACTIONS ===================== */
 
 client.on(Events.InteractionCreate, async interaction => {
-  if (interaction.isStringSelectMenu?.()) {
+  patchInteractionUiMethods(interaction);
+
+  if (interaction.isStringSelectMenu?.() || interaction.isRoleSelectMenu?.()) {
     try {
+      if (await handleAgentsSelect(interaction)) return;
+      if (await handlePoolsSelect(interaction)) return;
+      if (await handleTicketsSelect(interaction)) return;
+      if (await handleSetupSelect(interaction)) return;
       if (await handleTriviaSelect(interaction)) return;
       if (await handleGameSelect(interaction)) return;
       if (await handleCraftSelect(interaction)) return;
+      if (await handleTutorialsSelect(interaction)) return;
       if (await handleHelpSelect(interaction)) return;
       if (await handleMusicSelect(interaction)) return;
       if (await handleCommandsSelect(interaction)) return;
@@ -680,6 +717,10 @@ client.on(Events.InteractionCreate, async interaction => {
 
   if (interaction.isButton?.()) {
     try {
+      if (await handleAgentsButton(interaction)) return;
+      if (await handlePoolsButton(interaction)) return;
+      if (await handleTicketsButton(interaction)) return;
+      if (await handleSetupButton(interaction)) return;
       if (await handleTriviaButton(interaction)) return;
       if (await handleGameButton(interaction)) return;
       if (await handleQuestsButton(interaction)) return;
@@ -689,6 +730,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (await handleCommandsButton(interaction)) return;
       if (await handleVoiceButton(interaction)) return;
       if (await handlePurgeButton(interaction)) return;
+      if (await handleTutorialsButton(interaction)) return;
     } catch (err) {
       console.error("[button]", err?.stack ?? err?.message ?? err);
       try {

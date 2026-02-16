@@ -4,6 +4,7 @@
 import { getPool } from "../utils/storage_pg.js";
 import { levelFromXp } from "./progression.js";
 import { levelRewardCrate } from "./crates.js";
+import { syncUserLevelRewardsAcrossGuilds } from "./levelRewards.js";
 
 export async function getGameProfile(userId) {
   const p = getPool();
@@ -97,7 +98,7 @@ export async function addGameXp(userId, baseAmount, { reason = "unknown", multip
 
     await client.query("COMMIT");
     const after = res.rows[0] || { user_id: userId, xp: nextXp, level: nextLevel };
-    return {
+    const result = {
       ok: true,
       applied,
       leveledUp: nextLevel > beforeLevel,
@@ -107,6 +108,11 @@ export async function addGameXp(userId, baseAmount, { reason = "unknown", multip
       profile: { ...after, xp: nextXp, level: nextLevel },
       reason
     };
+    if (result.leveledUp) {
+      // Best-effort sync: update configured guild level reward roles on level-up.
+      void syncUserLevelRewardsAcrossGuilds(userId, nextLevel).catch(() => {});
+    }
+    return result;
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch {}
     throw err;

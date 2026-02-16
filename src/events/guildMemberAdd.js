@@ -1,5 +1,7 @@
 import { loadGuildData } from "../utils/storage.js";
 import { maybeBuildGuildFunLine } from "../fun/integrations.js";
+import { maybeSyncMemberLevelRoleRewards } from "../game/levelRewards.js";
+import { runGuildEventAutomations } from "../utils/automations.js";
 
 export default {
   name: "guildMemberAdd",
@@ -38,6 +40,21 @@ export default {
           await ch.send(text);
         }
       }
+    } catch {}
+
+    // Level reward sync (best effort)
+    try {
+      await maybeSyncMemberLevelRoleRewards(member, { guildData: data, force: true });
+    } catch {}
+
+    // Event automations
+    try {
+      await runGuildEventAutomations({
+        guild: member.guild,
+        eventKey: "member_join",
+        user: member.user,
+        member
+      });
     } catch {}
   }
 };

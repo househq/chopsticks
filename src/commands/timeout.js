@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { canModerateTarget, fetchTargetMember, moderationGuardMessage } from "../moderation/guards.js";
 import { notifyUserByDm, reasonOrDefault, replyModError, replyModSuccess } from "../moderation/output.js";
+import { dispatchModerationLog } from "../utils/modLogs.js";
 
 export const meta = {
   guildOnly: true,
@@ -31,14 +32,41 @@ export async function execute(interaction) {
       title: "Timeout Failed",
       summary: "User is not a member of this guild."
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "timeout",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary: "Target user is not in the guild.",
+      commandName: "timeout",
+      channelId: interaction.channelId,
+      details: { minutes: String(minutes) }
+    });
     return;
   }
 
   const gate = canModerateTarget(interaction, member);
   if (!gate.ok) {
+    const failSummary = moderationGuardMessage(gate.reason);
     await replyModError(interaction, {
       title: "Timeout Blocked",
-      summary: moderationGuardMessage(gate.reason)
+      summary: failSummary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "timeout",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary: failSummary,
+      commandName: "timeout",
+      channelId: interaction.channelId,
+      details: { minutes: String(minutes) }
     });
     return;
   }
@@ -65,10 +93,40 @@ export async function execute(interaction) {
         { name: "Reason", value: reason }
       ]
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "timeout",
+      ok: true,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary: minutes === 0 ? `Cleared timeout for ${user.tag}.` : `Timed out ${user.tag} for ${minutes} minute(s).`,
+      commandName: "timeout",
+      channelId: interaction.channelId,
+      details: {
+        minutes: String(minutes),
+        dmNotify: dmStatus
+      }
+    });
   } catch (err) {
+    const summary = err?.message || "Unable to apply timeout.";
     await replyModError(interaction, {
       title: "Timeout Failed",
-      summary: err?.message || "Unable to apply timeout."
+      summary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "timeout",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      targetId: user.id,
+      targetTag: user.tag,
+      reason,
+      summary,
+      commandName: "timeout",
+      channelId: interaction.channelId,
+      details: { minutes: String(minutes) }
     });
   }
 }

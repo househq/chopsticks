@@ -30,18 +30,18 @@ help:
 
 # Start the platform
 start:
-	@./scripts/start.sh
+	@./scripts/ops/chopsticksctl.sh up
 
 # Stop the platform
 stop:
-	@docker compose -f docker-compose.production.yml down
+	@./scripts/ops/chopsticksctl.sh down
 
 # Restart the platform
 restart: stop start
 
 # Follow logs
 logs:
-	@docker logs chopsticks-bot -f
+	@./scripts/ops/chopsticksctl.sh logs bot
 
 # Check health
 health:
@@ -49,7 +49,7 @@ health:
 
 # Show status
 status:
-	@docker compose -f docker-compose.production.yml ps
+	@./scripts/ops/chopsticksctl.sh status
 
 # Clean everything
 clean:

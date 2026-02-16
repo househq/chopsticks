@@ -33,8 +33,8 @@ Group=$RUN_GROUP
 WorkingDirectory=$ROOT_DIR
 Environment=COMPOSE_PROFILES=$COMPOSE_PROFILES
 ExecStart=/usr/bin/env bash -lc 'cd $ROOT_DIR && ./scripts/start.sh'
-ExecStop=/usr/bin/env bash -lc 'cd $ROOT_DIR && docker compose -f docker-compose.production.yml --profile dashboard --profile monitoring --profile fun down'
-ExecReload=/usr/bin/env bash -lc 'cd $ROOT_DIR && docker compose -f docker-compose.production.yml --profile dashboard --profile monitoring --profile fun up -d --remove-orphans'
+ExecStop=/usr/bin/env bash -lc 'cd $ROOT_DIR && ./scripts/ops/chopsticksctl.sh down'
+ExecReload=/usr/bin/env bash -lc 'cd $ROOT_DIR && ./scripts/ops/chopsticksctl.sh up'
 TimeoutStartSec=240
 TimeoutStopSec=180
 

@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from "discord.js";
 import { loadGuildData, saveGuildData } from "../utils/storage.js";
+import { Colors } from "../utils/discordOutput.js";
 
 export const meta = {
   guildOnly: true,
@@ -21,7 +22,22 @@ export const data = new SlashCommandBuilder()
       .setDescription("Set welcome message")
       .addStringOption(o => o.setName("text").setDescription("Message with {user}").setRequired(true))
   )
+  .addSubcommand(s => s.setName("preview").setDescription("Preview current welcome configuration"))
   .addSubcommand(s => s.setName("disable").setDescription("Disable welcome"));
+
+function buildWelcomeEmbed(title, description, color = Colors.INFO) {
+  return {
+    embeds: [
+      {
+        title,
+        description,
+        color,
+        timestamp: new Date().toISOString()
+      }
+    ],
+    flags: MessageFlags.Ephemeral
+  };
+}
 
 export async function execute(interaction) {
   const sub = interaction.options.getSubcommand();
@@ -33,7 +49,9 @@ export async function execute(interaction) {
     data.welcome.channelId = channel.id;
     data.welcome.enabled = true;
     await saveGuildData(interaction.guildId, data);
-    await interaction.reply({ flags: MessageFlags.Ephemeral, content: `Welcome channel set to ${channel}` });
+    await interaction.reply(
+      buildWelcomeEmbed("Welcome Channel Updated", `Welcome messages will post in <#${channel.id}>.`, Colors.SUCCESS)
+    );
     return;
   }
 
@@ -42,13 +60,34 @@ export async function execute(interaction) {
     data.welcome.message = text;
     data.welcome.enabled = true;
     await saveGuildData(interaction.guildId, data);
-    await interaction.reply({ flags: MessageFlags.Ephemeral, content: "Welcome message updated." });
+    await interaction.reply(
+      buildWelcomeEmbed(
+        "Welcome Message Updated",
+        `Template saved.\n\nPreview:\n${text.slice(0, 900)}`,
+        Colors.SUCCESS
+      )
+    );
+    return;
+  }
+
+  if (sub === "preview") {
+    const channelLine = data.welcome.channelId ? `<#${data.welcome.channelId}>` : "Not set";
+    await interaction.reply(
+      buildWelcomeEmbed(
+        "Welcome Configuration",
+        `Status: **${data.welcome.enabled ? "Enabled" : "Disabled"}**\n` +
+        `Channel: ${channelLine}\n` +
+        `Template:\n${String(data.welcome.message || "Welcome {user}!").slice(0, 900)}\n\n` +
+        "Placeholders: `{user}`",
+        Colors.INFO
+      )
+    );
     return;
   }
 
   if (sub === "disable") {
     data.welcome.enabled = false;
     await saveGuildData(interaction.guildId, data);
-    await interaction.reply({ flags: MessageFlags.Ephemeral, content: "Welcome disabled." });
+    await interaction.reply(buildWelcomeEmbed("Welcome Disabled", "Welcome messages are now disabled.", Colors.WARNING));
   }
 }

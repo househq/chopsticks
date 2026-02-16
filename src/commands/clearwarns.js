@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { clearWarnings } from "../utils/moderation.js";
 import { replyModSuccess } from "../moderation/output.js";
+import { dispatchModerationLog } from "../utils/modLogs.js";
 
 export const meta = {
   guildOnly: true,
@@ -20,5 +21,17 @@ export async function execute(interaction) {
     title: "Warnings Cleared",
     summary: `Cleared all warnings for **${user.tag}**.`,
     fields: [{ name: "User", value: `${user.tag} (${user.id})` }]
+  });
+  await dispatchModerationLog(interaction.guild, {
+    action: "clearwarns",
+    ok: true,
+    actorId: interaction.user.id,
+    actorTag: interaction.user.tag,
+    targetId: user.id,
+    targetTag: user.tag,
+    reason: "Warnings reset by moderator.",
+    summary: `Warnings cleared for ${user.tag}.`,
+    commandName: "clearwarns",
+    channelId: interaction.channelId
   });
 }

@@ -2,6 +2,9 @@
 // UI-ONLY COMMAND DEFINITION
 
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   SlashCommandBuilder,
   ChannelType,
   PermissionFlagsBits,
@@ -59,6 +62,15 @@ function buildEmbed(title, description) {
 
 function buildErrorEmbed(message) {
   return buildEmbed("Voice error", message);
+}
+
+function buildSpawnDiagnosticsButton(userId, guildId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`voiceui:spawn_diag:${userId}:${guildId}`)
+      .setLabel("Spawn Diagnostics")
+      .setStyle(ButtonStyle.Secondary)
+  );
 }
 
 function lobbyErrorMessage(code) {
@@ -714,7 +726,11 @@ export async function execute(interaction) {
         "Voice status",
         "No lobbies configured. Use /voice add or /voice setup to register a lobby."
       );
-      await interaction.reply({ embeds: [embed], ephemeral: true });
+      await interaction.reply({
+        embeds: [embed],
+        components: [buildSpawnDiagnosticsButton(interaction.user.id, guildId)],
+        ephemeral: true
+      });
       return;
     }
     const tempChannels = Object.values(res.tempChannels ?? {});
@@ -738,7 +754,11 @@ export async function execute(interaction) {
         value: `Additional lobbies: ${entries.length - maxFields}`
       });
     }
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({
+      embeds: [embed],
+      components: [buildSpawnDiagnosticsButton(interaction.user.id, guildId)],
+      ephemeral: true
+    });
     return;
   }
 

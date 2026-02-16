@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { replyModError, replyModSuccess } from "../moderation/output.js";
+import { dispatchModerationLog } from "../utils/modLogs.js";
 
 export const meta = {
   guildOnly: true,
@@ -19,6 +20,16 @@ export async function execute(interaction) {
       title: "Unlock Failed",
       summary: "This channel does not support permission overwrites."
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "unlock",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      reason: "Unsupported channel type",
+      summary: "Channel unlock blocked because permission overwrites are unavailable.",
+      commandName: "unlock",
+      channelId: interaction.channelId
+    });
     return;
   }
   try {
@@ -30,10 +41,31 @@ export async function execute(interaction) {
       summary: `Unlocked <#${channel.id}> for @everyone.`,
       fields: [{ name: "Channel", value: `${channel.name || channel.id} (${channel.id})` }]
     });
+    await dispatchModerationLog(interaction.guild, {
+      action: "unlock",
+      ok: true,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      reason: "Channel unlocked",
+      summary: `Unlocked #${channel.name || channel.id} for @everyone.`,
+      commandName: "unlock",
+      channelId: channel.id
+    });
   } catch (err) {
+    const summary = err?.message || "Unable to unlock channel.";
     await replyModError(interaction, {
       title: "Unlock Failed",
-      summary: err?.message || "Unable to unlock channel."
+      summary
+    });
+    await dispatchModerationLog(interaction.guild, {
+      action: "unlock",
+      ok: false,
+      actorId: interaction.user.id,
+      actorTag: interaction.user.tag,
+      reason: "Channel unlock failed",
+      summary,
+      commandName: "unlock",
+      channelId: interaction.channelId
     });
   }
 }

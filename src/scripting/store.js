@@ -144,6 +144,22 @@ export async function listGuildScripts(guildId, { activeOnly = false, limit = 25
   return result.rows;
 }
 
+export async function listGuildEventScripts(guildId, { limit = 100 } = {}) {
+  const pool = getPool();
+  const gid = String(guildId || "").trim();
+  if (!gid) throw new Error("guild_id is required.");
+  const lim = Math.max(1, Math.min(300, Math.trunc(Number(limit) || 100)));
+  const result = await pool.query(
+    `SELECT script_id, name, trigger_type, trigger_value, definition, is_active, current_version, created_by, updated_by, created_at, updated_at
+     FROM guild_scripts
+     WHERE guild_id = $1 AND trigger_type = 'event' AND is_active = true
+     ORDER BY updated_at DESC
+     LIMIT $2`,
+    [gid, lim]
+  );
+  return result.rows;
+}
+
 export async function getGuildScript(guildId, scriptId) {
   const pool = getPool();
   const gid = String(guildId || "").trim();
@@ -168,6 +184,64 @@ export async function getGuildScriptByName(guildId, name) {
     [gid, scriptName]
   );
   return result.rows[0] || null;
+}
+
+export async function setGuildScriptActive(guildId, scriptId, isActive, actorUserId = "") {
+  const pool = getPool();
+  const gid = String(guildId || "").trim();
+  const sid = normalizeScriptId(scriptId);
+  const actor = String(actorUserId || "").trim().slice(0, 64);
+  const active = Boolean(isActive);
+  const result = await pool.query(
+    `UPDATE guild_scripts
+     SET is_active = $3,
+         updated_by = CASE WHEN $4 = '' THEN updated_by ELSE $4 END,
+         updated_at = NOW()
+     WHERE guild_id = $1 AND script_id = $2
+     RETURNING script_id, name, trigger_type, trigger_value, is_active, current_version`,
+    [gid, sid, active, actor]
+  );
+  const row = result.rows[0] || null;
+  if (row && actor) {
+    await insertScriptAudit({
+      guildId: gid,
+      scriptId: sid,
+      actorUserId: actor,
+      action: active ? "enable" : "disable",
+      details: { isActive: active }
+    });
+  }
+  return row;
+}
+
+export async function deleteGuildScript(guildId, scriptId, actorUserId = "") {
+  const pool = getPool();
+  const gid = String(guildId || "").trim();
+  const sid = normalizeScriptId(scriptId);
+  const actor = String(actorUserId || "").trim().slice(0, 64);
+
+  const existing = await pool.query(
+    `SELECT script_id, name FROM guild_scripts WHERE guild_id = $1 AND script_id = $2`,
+    [gid, sid]
+  );
+  if (!existing.rows.length) return null;
+  const row = existing.rows[0];
+
+  await pool.query(
+    `DELETE FROM guild_scripts WHERE guild_id = $1 AND script_id = $2`,
+    [gid, sid]
+  );
+
+  if (actor) {
+    await insertScriptAudit({
+      guildId: gid,
+      scriptId: sid,
+      actorUserId: actor,
+      action: "delete",
+      details: { name: row.name || sid }
+    });
+  }
+  return row;
 }
 
 export async function insertScriptAudit({

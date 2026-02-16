@@ -1,12 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Chopsticks Docker Restart Script
 # Handles graceful restart with proper startup sequencing
 
-set -e
+set -euo pipefail
 
 COMPOSE_FILE="docker-compose.production.yml"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+if [ -x "$SCRIPT_DIR/scripts/ops/chopsticksctl.sh" ]; then
+  # Prefer the unified control entrypoint to avoid drift.
+  exec "$SCRIPT_DIR/scripts/ops/chopsticksctl.sh" "${1:-up}" "${2:-}"
+fi
 
 echo "═══════════════════════════════════════════════════════════════"
 echo "🔄 Chopsticks Docker Restart Script"
