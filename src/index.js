@@ -25,7 +25,9 @@ import { handleButton as handleAgentsButton, handleSelect as handleAgentsSelect 
 import {
   handleButton as handleMusicButton,
   handleSelect as handleMusicSelect,
-  maybeHandleAudioDropMessage
+  maybeHandleAudioDropMessage,
+  maybeHandlePlaylistIngestMessage,
+  handleModal as handleMusicModal
 } from "./commands/music.js";
 import { handleButton as handleAssistantButton } from "./commands/assistant.js";
 import { handleButton as handleCommandsButton, handleSelect as handleCommandsSelect } from "./commands/commands.js";
@@ -562,6 +564,7 @@ client.on(Events.MessageCreate, async message => {
   // to play uploaded audio attachments in voice via agents.
   if (message.guildId && guildData) {
     void maybeHandleAudioDropMessage(message, guildData).catch(() => {});
+    void maybeHandlePlaylistIngestMessage(message, guildData).catch(() => {});
   }
 
   if (!message.content?.startsWith(prefix)) return;
@@ -736,6 +739,19 @@ client.on(Events.InteractionCreate, async interaction => {
       try {
         await replyInteractionIfFresh(interaction, {
           embeds: [buildErrorEmbed("Button action failed.")]
+        });
+      } catch {}
+    }
+  }
+
+  if (interaction.isModalSubmit?.()) {
+    try {
+      if (await handleMusicModal(interaction)) return;
+    } catch (err) {
+      console.error("[modal]", err?.stack ?? err?.message ?? err);
+      try {
+        await replyInteractionIfFresh(interaction, {
+          embeds: [buildErrorEmbed("Form submit failed.")]
         });
       } catch {}
     }

@@ -63,7 +63,19 @@ function baseData() {
       limits: {},
       // "Audio Drops" feature: allow configured text channels to show a UI panel
       // when users upload audio attachments, enabling one-click playback via agents.
-      drops: { channelIds: [] }
+      drops: { channelIds: [] },
+      // Playlists: bind one or more text channels to a playlist that ingests audio drops + links.
+      // Keep items capped to avoid unbounded guild_settings growth.
+      playlists: {
+        maxItemsPerPlaylist: 200,
+        maxPlaylists: 25,
+        playlists: {
+          // playlistId -> { id, name, channelId, visibility, createdBy, collaborators, createdAt, updatedAt, items: [] }
+        },
+        channelBindings: {
+          // channelId -> playlistId
+        }
+      }
     }, // "open" | "dj"
     game: {
       // Visual theme for generated game cards (e.g., /gather images).
