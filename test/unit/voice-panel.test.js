@@ -49,7 +49,7 @@ describe('Voice panel delivery defaults', function () {
     const ids = rows.flatMap(row => row.components.map(c => c.data.custom_id));
     assert.ok(ids.includes('voiceroom:refresh:123'));
     assert.ok(ids.includes('voiceroom:dm:123'));
-    assert.ok(ids.includes('voiceroom:claim:123'));
+    assert.ok(ids.includes('voiceroom:release:123'));
     assert.ok(ids.includes('voiceroom:lock:123'));
     assert.ok(ids.includes('voiceroom:unlock:123'));
   });

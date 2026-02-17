@@ -14,7 +14,7 @@ import {
 import * as VoiceDomain from "./domain.js";
 import { getVoiceState } from "./schema.js";
 import { auditLog } from "../../utils/audit.js";
-import { deliverVoiceRoomDashboard } from "./panel.js";
+import { buildVoiceRoomDashboardEmbed, deliverVoiceRoomDashboard } from "./panel.js";
 import {
   refreshRegisteredRoomPanelsForRoom,
   showLiveRoomPanel,
@@ -35,6 +35,7 @@ import {
   describeOwnerPermissions,
   ownerPermissionOverwrite
 } from "./ownerPerms.js";
+import { removeTempChannel } from "./state.js";
 
 const adminSubs = new Set([
   "add",
@@ -59,6 +60,7 @@ const roomSubs = new Set([
   "room_unlock",
   "room_panel",
   "room_claim",
+  "room_release",
   "room_transfer",
   "panel"
 ]);
@@ -428,6 +430,12 @@ export const data = new SlashCommandBuilder()
     sub
       .setName("room_claim")
       .setDescription("Claim room ownership when current owner is absent")
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName("room_release")
+      .setDescription("Release your room (delete it and move members out)")
   )
 
   .addSubcommand(sub =>
@@ -1159,6 +1167,40 @@ export async function execute(interaction) {
       return;
     }
 
+    if (sub === "room_release") {
+      const lobbyChannelId = ctx.temp?.lobbyId ?? null;
+      const lobbyChannel = lobbyChannelId
+        ? (interaction.guild.channels.cache.get(lobbyChannelId)
+          ?? (await interaction.guild.channels.fetch(lobbyChannelId).catch(() => null)))
+        : null;
+      const canMoveToLobby = Boolean(lobbyChannel && lobbyChannel.type === ChannelType.GuildVoice);
+
+      const humans = Array.from(channel.members.values()).filter(m => !m.user?.bot);
+      for (const m of humans) {
+        try {
+          if (canMoveToLobby) await m.voice?.setChannel?.(lobbyChannel).catch(() => {});
+          else await m.voice?.setChannel?.(null).catch(() => {});
+        } catch {}
+      }
+
+      await removeTempChannel(guildId, channel.id, voice).catch(() => {});
+      await channel.delete().catch(() => {});
+
+      await auditLog({
+        guildId,
+        userId: interaction.user.id,
+        action: "voice.room.release",
+        details: { channelId: channel.id, lobbyId: lobbyChannelId, moved: humans.length }
+      });
+
+      await interaction.reply({
+        embeds: [buildEmbed("Room released", "Room deleted.")],
+        ephemeral: true
+      });
+      await refreshRegisteredRoomPanelsForRoom(interaction.guild, channel.id, "deleted").catch(() => {});
+      return;
+    }
+
     if (sub === "room_rename") {
       const name = interaction.options.getString("name", true).slice(0, 90);
       await channel.setName(name);
@@ -1284,6 +1326,19 @@ export async function execute(interaction) {
         interactionChannel: interaction.channel,
         reason: "manual"
       });
+
+      if (!sent.ok && (sent.mode === "dm" || delivery === "dm")) {
+        const embed = buildVoiceRoomDashboardEmbed({
+          roomChannel: channel,
+          tempRecord: ctx.temp,
+          lobby,
+          ownerUserId: interaction.user.id,
+          reason: "manual"
+        });
+        embed.setFooter({ text: "DM failed. Enable DMs from server members, or choose a different delivery mode." });
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+        return;
+      }
 
       const status = sent.ok
         ? `Delivered (DM: ${sent.dmSent ? "yes" : "no"}, channel: ${sent.channelSent ? "yes" : "no"}).`

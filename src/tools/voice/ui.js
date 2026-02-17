@@ -10,9 +10,10 @@ import {
 
 import * as VoiceDomain from "./domain.js";
 import { getVoiceState } from "./schema.js";
-import { deliverVoiceRoomDashboard, resolvePanelDelivery } from "./panel.js";
+import { buildVoiceRoomDashboardEmbed, deliverVoiceRoomDashboard, resolvePanelDelivery } from "./panel.js";
 import { ownerPermissionOverwrite } from "./ownerPerms.js";
 import { auditLog } from "../../utils/audit.js";
+import { removeTempChannel } from "./state.js";
 
 const UI_PREFIX = "voiceui";
 const ROOM_PANEL_PREFIX = "voiceroom";
@@ -325,8 +326,7 @@ function buildConsoleComponents(ctx, targetUserId, panelForUser) {
   const everyoneRoleId = ctx.guild.roles.everyone?.id;
   const locked = getLockedState(ctx.roomChannel, everyoneRoleId);
   const canControl = ctx.isOwner || ctx.isAdmin;
-  const ownerPresent = ctx.roomChannel.members.has(ctx.temp.ownerId);
-  const canClaim = !ctx.isOwner && ctx.inRoom && (!ownerPresent || ctx.isAdmin);
+  const canRelease = canControl;
 
   const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -346,10 +346,10 @@ function buildConsoleComponents(ctx, targetUserId, panelForUser) {
       .setLabel("Panel DM")
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
-      .setCustomId(makeCustomId("claim", targetUserId, ctx.roomChannel.id))
-      .setLabel("Claim")
-      .setStyle(ButtonStyle.Success)
-      .setDisabled(!canClaim)
+      .setCustomId(makeCustomId("release", targetUserId, ctx.roomChannel.id))
+      .setLabel("Release")
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(!canRelease)
   );
 
   const row2 = new ActionRowBuilder().addComponents(
@@ -450,6 +450,43 @@ async function handleClaim(interaction, ctx) {
   return { ok: true, notice: "Room ownership claimed." };
 }
 
+async function handleRelease(interaction, ctx) {
+  const roomId = ctx.roomChannel.id;
+
+  const lobbyChannelId = ctx.temp?.lobbyId ?? null;
+  const lobbyChannel =
+    lobbyChannelId
+      ? (ctx.guild.channels.cache.get(lobbyChannelId) ?? (await ctx.guild.channels.fetch(lobbyChannelId).catch(() => null)))
+      : null;
+  const canMoveToLobby = Boolean(lobbyChannel && lobbyChannel.type === ChannelType.GuildVoice);
+
+  const humans = Array.from(ctx.roomChannel.members.values()).filter(m => !m.user?.bot);
+
+  // Try to move members out first for a clean shutdown.
+  for (const m of humans) {
+    if (!m?.voice) continue;
+    try {
+      if (canMoveToLobby) {
+        await m.voice.setChannel(lobbyChannel).catch(() => {});
+      } else {
+        await m.voice.setChannel(null).catch(() => {});
+      }
+    } catch {}
+  }
+
+  await removeTempChannel(interaction.guildId, roomId, ctx.voice).catch(() => {});
+  await ctx.roomChannel.delete().catch(() => {});
+
+  await auditLog({
+    guildId: interaction.guildId,
+    userId: interaction.user.id,
+    action: "voice.room.release",
+    details: { channelId: roomId, lobbyId: lobbyChannelId, moved: humans.length }
+  }).catch(() => {});
+
+  return { ok: true, notice: "Room released (deleted)." };
+}
+
 async function handleLockToggle(interaction, ctx, shouldLock) {
   const everyoneRoleId = interaction.guild.roles.everyone?.id;
   if (!everyoneRoleId) return { ok: false, error: "Unable to resolve @everyone role." };
@@ -516,9 +553,9 @@ function buildLiveRoomPanelComponents(roomChannelId, { closed = false } = {}) {
         .setStyle(ButtonStyle.Primary)
         .setDisabled(closed),
       new ButtonBuilder()
-        .setCustomId(makeRoomPanelCustomId("claim", roomChannelId))
-        .setLabel("Claim")
-        .setStyle(ButtonStyle.Success)
+        .setCustomId(makeRoomPanelCustomId("release", roomChannelId))
+        .setLabel("Release")
+        .setStyle(ButtonStyle.Danger)
         .setDisabled(closed)
     ),
     new ActionRowBuilder().addComponents(
@@ -766,6 +803,19 @@ async function handleLivePanelButton(interaction, parsed) {
       interactionChannel: interaction.channel,
       reason: "manual"
     });
+    if (!sent.ok) {
+      // DM failed (most commonly: user has server DMs disabled). Show the dashboard ephemerally as a fallback.
+      const embed = buildVoiceRoomDashboardEmbed({
+        roomChannel: ctx.roomChannel,
+        tempRecord: ctx.temp,
+        lobby: ctx.lobby,
+        ownerUserId: interaction.user.id,
+        reason: "manual"
+      });
+      embed.setFooter({ text: "DM failed. Enable DMs from server members, or use Panel Here / channel delivery." });
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+      return true;
+    }
     await interaction.reply({ embeds: [buildEmbed("Voice panel", panelDeliveryMessage(sent))], ephemeral: true });
     return true;
   }
@@ -791,6 +841,33 @@ async function handleLivePanelButton(interaction, parsed) {
       notice: result.notice
     });
     await refreshRegisteredRoomPanelsForRoom(interaction.guild, parsed.roomChannelId, "claim", {
+      excludeMessageId: interaction.message.id,
+      notice: result.notice
+    }).catch(() => {});
+    return true;
+  }
+
+  if (action === "release") {
+    const ctx = await resolveContext(interaction, parsed.roomChannelId, {
+      requireMembership: false,
+      requireControl: true
+    });
+    if (!ctx.ok) {
+      await interaction.reply({ embeds: [buildErrorEmbed(contextErrorMessage(ctx.error))], ephemeral: true });
+      return true;
+    }
+
+    const result = await handleRelease(interaction, ctx);
+    if (!result.ok) {
+      await interaction.reply({ embeds: [buildErrorEmbed(result.error)], ephemeral: true });
+      return true;
+    }
+
+    await updateLivePanelInteraction(interaction, parsed.roomChannelId, {
+      reason: "release",
+      notice: result.notice
+    });
+    await refreshRegisteredRoomPanelsForRoom(interaction.guild, parsed.roomChannelId, "deleted", {
       excludeMessageId: interaction.message.id,
       notice: result.notice
     }).catch(() => {});
@@ -877,11 +954,36 @@ export async function handleVoiceUIButton(interaction) {
       interactionChannel: interaction.channel,
       reason: "manual"
     });
+    if (parsed.kind === "panel_dm" && !sent.ok) {
+      const embed = buildVoiceRoomDashboardEmbed({
+        roomChannel: ctx.roomChannel,
+        tempRecord: ctx.temp,
+        lobby: ctx.lobby,
+        ownerUserId: interaction.user.id,
+        reason: "manual"
+      });
+      embed.setFooter({ text: "DM failed. Enable DMs from server members, or use Panel Here / channel delivery." });
+      await interaction.followUp({ embeds: [embed], ephemeral: true }).catch(() => {});
+    }
     return updateConsole(interaction, parsed.userId, parsed.channelId, panelDeliveryMessage(sent));
   }
 
   if (parsed.kind === "claim") {
     const result = await handleClaim(interaction, ctx);
+    if (!result.ok) {
+      await interaction.reply({ embeds: [buildErrorEmbed(result.error)], ephemeral: true });
+      return true;
+    }
+    return updateConsole(interaction, parsed.userId, parsed.channelId, result.notice);
+  }
+
+  if (parsed.kind === "release") {
+    const relCtx = await resolveContext(interaction, parsed.channelId, { requireMembership: false, requireControl: true });
+    if (!relCtx.ok) {
+      await interaction.reply({ embeds: [buildErrorEmbed(contextErrorMessage(relCtx.error))], ephemeral: true });
+      return true;
+    }
+    const result = await handleRelease(interaction, relCtx);
     if (!result.ok) {
       await interaction.reply({ embeds: [buildErrorEmbed(result.error)], ephemeral: true });
       return true;

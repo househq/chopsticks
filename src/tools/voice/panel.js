@@ -130,9 +130,9 @@ export function buildVoiceRoomDashboardComponents(roomChannelId, { disabled = fa
         .setStyle(ButtonStyle.Primary)
         .setDisabled(disabled),
       new ButtonBuilder()
-        .setCustomId(makeRoomPanelCustomId("claim", roomChannelId))
-        .setLabel("Claim")
-        .setStyle(ButtonStyle.Success)
+        .setCustomId(makeRoomPanelCustomId("release", roomChannelId))
+        .setLabel("Release")
+        .setStyle(ButtonStyle.Danger)
         .setDisabled(disabled)
     ),
     new ActionRowBuilder().addComponents(
