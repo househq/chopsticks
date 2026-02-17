@@ -130,7 +130,7 @@ Operational notes:
   - Server admins can override per-guild with `/agents idle_policy`
   - On idle timeout with no humans in VC, session is released and deployer/session owner is notified
 
-## VoiceMaster (Custom VC)
+## VoiceMaster (Auto Rooms)
 
 Voice lobby system supports:
 - auto-create temp rooms from lobby channels
@@ -138,12 +138,25 @@ Voice lobby system supports:
 - per-lobby owner permission templates (`Manage Channels`, `Move Members`, `Mute/Deafen`, `Priority Speaker`)
 - interactive VC control console (`/voice console`) with buttons + dropdowns
 - live dynamic room panel (`/voice room_panel`) that refreshes with room events
-- room controls (`/voice room_status`, `/voice room_rename`, `/voice room_limit`, `/voice room_lock`, `/voice room_unlock`, `/voice room_claim`, `/voice room_transfer`)
+- room controls (`/voice room_status`, `/voice room_rename`, `/voice room_limit`, `/voice room_lock`, `/voice room_unlock`, `/voice room_release`, `/voice room_claim`, `/voice room_transfer`)
 - room dashboard delivery controls:
   - manual `/voice panel`
   - user default `/voice panel_user_default`
   - guild default `/voice panel_guild_default`
   - delivery modes: `temp`, `dm`, `channel`, `here`, `both`, `off`
+
+## Custom VCs (Panel Rooms, In Development)
+
+Custom VCs are a separate system from VoiceMaster. They let members request an on-demand voice channel with:
+- public/private privacy
+- private guestlists
+- deny-join and deny-speak restrictions
+- size and bitrate controls
+
+Admin commands:
+- `/voice customs_setup` (enable + configure)
+- `/voice customs_panel` (post the request panel)
+- `/voice customs_status` (status)
 
 ## Bot-wide UI
 
@@ -157,7 +170,10 @@ Voice lobby system supports:
 - `/gather` runs a loot mission and returns a professional card image + embed.
 - `/work` earns Credits and returns a professional card image + embed.
 - `/inventory`, `/collection`, `/vault` show your progress.
+- `/trivia solo` runs a solo round (no opponents).
+- `/trivia versus @user` runs a PvP match (opponent must accept).
 - `/trivia start` runs a duel against a deployed agent with a lobby + countdown + dropdown answers.
+- `/trivia fleet` runs a match against multiple deployed agents.
 - `/agent chat` lets users chat with a deployed agent identity (optional local LLM).
 - `/profile` now includes progression, economy, inventory, command usage, and activity sections.
   - Users can set visibility controls directly in `/profile` (privacy preset + per-section toggles).
