@@ -251,6 +251,15 @@ function isGuildAdmin(member) {
   return Boolean(member?.permissions?.has(PermissionFlagsBits.Administrator));
 }
 
+function canManageGuild(interaction) {
+  const perms = interaction?.memberPermissions ?? interaction?.member?.permissions;
+  if (!perms?.has) return false;
+  return (
+    perms.has(PermissionFlagsBits.Administrator) ||
+    perms.has(PermissionFlagsBits.ManageGuild)
+  );
+}
+
 async function canAccessPool(userId, poolId, pool) {
   // Master can access everything
   if (isMaster(userId)) return true;
@@ -411,7 +420,8 @@ async function buildPoolUiContext({ guildId, userId, selectedPoolId = null, desi
     inGuild: Boolean(guildId),
     guildDefaultPool,
     poolAgents: Array.isArray(poolAgents) ? poolAgents : [],
-    plan
+    plan,
+    canManageGuild: false
   };
 }
 
@@ -480,6 +490,7 @@ function buildPoolUiEmbed(ctx, { note = '' } = {}) {
 }
 
 function buildPoolUiComponents(ctx, userId) {
+  const canManage = Boolean(ctx.canManageGuild);
   const desiredSelect = new StringSelectMenuBuilder()
     .setCustomId(poolUiId('desired', userId, ctx.desired, ctx.selectedPoolId))
     .setPlaceholder('Desired total')
@@ -547,22 +558,22 @@ function buildPoolUiComponents(ctx, userId) {
     .setCustomId(poolUiId('deployui', userId, ctx.desired, ctx.selectedPoolId))
     .setStyle(ButtonStyle.Primary)
     .setLabel('Open Deploy UI')
-    .setDisabled(!ctx.inGuild || !ctx.selectedPoolId);
+    .setDisabled(!ctx.inGuild || !ctx.selectedPoolId || !canManage);
   const advisorUi = new ButtonBuilder()
     .setCustomId(poolUiId('advisorui', userId, ctx.desired, ctx.selectedPoolId))
     .setStyle(ButtonStyle.Secondary)
     .setLabel('Open Advisor UI')
-    .setDisabled(!ctx.inGuild);
+    .setDisabled(!ctx.inGuild || !canManage);
   const inviteLinks = new ButtonBuilder()
     .setCustomId(poolUiId('links', userId, ctx.desired, ctx.selectedPoolId))
     .setStyle(ButtonStyle.Primary)
     .setLabel('Invite Links')
-    .setDisabled(!ctx.inGuild || !ctx.selectedPoolId);
+    .setDisabled(!ctx.inGuild || !ctx.selectedPoolId || !canManage);
   const setDefault = new ButtonBuilder()
     .setCustomId(poolUiId('setdefault', userId, ctx.desired, ctx.selectedPoolId))
     .setStyle(ButtonStyle.Secondary)
     .setLabel('Set Guild Default')
-    .setDisabled(!ctx.inGuild || !ctx.selectedPoolId || ctx.selectedPoolId === ctx.guildDefaultPool);
+    .setDisabled(!ctx.inGuild || !ctx.selectedPoolId || ctx.selectedPoolId === ctx.guildDefaultPool || !canManage);
 
   return [
     new ActionRowBuilder().addComponents(desiredSelect),
@@ -598,6 +609,7 @@ async function renderPoolUi(interaction, { update = false, requested = {}, note 
     selectedPoolId: requested.poolId ?? null,
     desiredTotal: requested.desiredTotal ?? 10
   });
+  ctx.canManageGuild = canManageGuild(interaction) || isMaster(interaction.user.id);
   const embed = buildPoolUiEmbed(ctx, { note });
   const components = buildPoolUiComponents(ctx, interaction.user.id);
   if (update) {
@@ -1574,6 +1586,13 @@ export async function handleButton(interaction) {
       });
       return true;
     }
+    if (!canManageGuild(interaction) && !isMaster(interaction.user.id)) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('Permission Required', 'You need `Manage Server` to open Deploy UI.', Colors.ERROR)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
     await openDeployUiHandoff(interaction, requested);
     return true;
   }
@@ -1582,6 +1601,13 @@ export async function handleButton(interaction) {
     if (!interaction.guildId) {
       await interaction.reply({
         embeds: [buildPoolEmbed('Guild Only', 'Advisor UI requires a server context.', Colors.ERROR)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+    if (!canManageGuild(interaction) && !isMaster(interaction.user.id)) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('Permission Required', 'You need `Manage Server` to open Advisor UI.', Colors.ERROR)],
         flags: MessageFlags.Ephemeral
       });
       return true;
@@ -1622,6 +1648,20 @@ export async function handleButton(interaction) {
   }
 
   if (parsed.action === 'links') {
+    if (!interaction.guildId) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('Guild Only', 'Invite links require a server context.', Colors.ERROR)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
+    if (!canManageGuild(interaction) && !isMaster(interaction.user.id)) {
+      await interaction.reply({
+        embeds: [buildPoolEmbed('Permission Required', 'You need `Manage Server` to export invite links.', Colors.ERROR)],
+        flags: MessageFlags.Ephemeral
+      });
+      return true;
+    }
     const ctx = await buildPoolUiContext({
       guildId: interaction.guildId,
       userId: interaction.user.id,

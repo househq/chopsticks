@@ -46,6 +46,15 @@ export const meta = {
   category: "admin"
 };
 
+function canManageGuild(interaction, ownerIds = []) {
+  if (!interaction?.inGuild?.() || !interaction.guildId) return false;
+  const perms = interaction.memberPermissions;
+  if (perms?.has?.(PermissionFlagsBits.ManageGuild) || perms?.has?.(PermissionFlagsBits.Administrator)) return true;
+  const userId = interaction.user?.id;
+  if (!userId) return false;
+  return Array.isArray(ownerIds) && ownerIds.includes(userId);
+}
+
 function fmtTs(ms) {
   if (!ms) return "n/a";
   const s = Math.floor((Date.now() - ms) / 1000);
@@ -647,14 +656,24 @@ async function renderDeployUi(interaction, mgr, ownerIds, requested = {}, { upda
 
 // External handoff helper: lets other command UIs open the Agents deploy panel without duplicating UI code.
 export async function openDeployUiHandoff(interaction, requested = {}) {
+  const ownerIds = getBotOwnerIds();
+  if (!canManageGuild(interaction, ownerIds)) {
+    const payload = {
+      embeds: [buildInfoEmbed("Permission Required", "You need `Manage Server` to open Deploy UI.", Colors.ERROR)],
+      flags: MessageFlags.Ephemeral
+    };
+    if (interaction.deferred || interaction.replied) return interaction.followUp(payload);
+    return interaction.reply(payload);
+  }
+
   const mgr = global.agentManager;
-  const ownerIds = new Set(getBotOwnerIds());
+  const ownerSet = new Set(ownerIds);
   const payloadRequested = {
     desiredTotal: requested?.desiredTotal,
     poolId: requested?.poolId
   };
 
-  const context = await buildDeployUiContext(interaction.guildId, interaction.user.id, ownerIds, mgr, payloadRequested);
+  const context = await buildDeployUiContext(interaction.guildId, interaction.user.id, ownerSet, mgr, payloadRequested);
   const embed = buildDeployUiEmbed(context);
   const components = buildDeployUiComponents(context.state, interaction.user.id);
   const payload = { embeds: [embed], components, flags: MessageFlags.Ephemeral };
@@ -664,10 +683,20 @@ export async function openDeployUiHandoff(interaction, requested = {}) {
 }
 
 export async function openAdvisorUiHandoff(interaction, requested = {}) {
-  const mgr = global.agentManager;
-  const ownerIds = new Set(getBotOwnerIds());
+  const ownerIds = getBotOwnerIds();
+  if (!canManageGuild(interaction, ownerIds)) {
+    const payload = {
+      embeds: [buildInfoEmbed("Permission Required", "You need `Manage Server` to open Advisor UI.", Colors.ERROR)],
+      flags: MessageFlags.Ephemeral
+    };
+    if (interaction.deferred || interaction.replied) return interaction.followUp(payload);
+    return interaction.reply(payload);
+  }
 
-  const state = await resolveAdvisorUiState(interaction.guildId, interaction.user.id, ownerIds, mgr, {
+  const mgr = global.agentManager;
+  const ownerSet = new Set(ownerIds);
+
+  const state = await resolveAdvisorUiState(interaction.guildId, interaction.user.id, ownerSet, mgr, {
     desiredTotal: requested?.desiredTotal,
     poolId: requested?.poolId
   });
@@ -2284,6 +2313,13 @@ export async function handleButton(interaction) {
     }
 
     if (deployParsed.action === "links") {
+      if (!canManageGuild(interaction, ownerIds)) {
+        await interaction.reply({
+          embeds: [buildInfoEmbed("Permission Required", "You need `Manage Server` to export invite links.", Colors.ERROR)],
+          flags: MessageFlags.Ephemeral
+        });
+        return true;
+      }
       const context = await buildDeployUiContext(interaction.guildId, interaction.user.id, ownerIds, mgr, requested);
       const plan = context.plan;
       if (!plan || plan.error) {
@@ -2386,6 +2422,13 @@ export async function handleButton(interaction) {
     }
 
     if (advisorParsed.action === "links") {
+      if (!canManageGuild(interaction, ownerIds)) {
+        await interaction.reply({
+          embeds: [buildInfoEmbed("Permission Required", "You need `Manage Server` to export invite links.", Colors.ERROR)],
+          flags: MessageFlags.Ephemeral
+        });
+        return true;
+      }
       const state = await resolveAdvisorUiState(interaction.guildId, interaction.user.id, ownerIds, mgr, requested);
       const selected = state.selectedRow || state.rows[0];
       if (!selected || !selected.plan || selected.plan.error) {

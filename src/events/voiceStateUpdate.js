@@ -4,6 +4,7 @@
 
 import { ChannelType, PermissionsBitField } from "discord.js";
 import { getVoiceState } from "../tools/voice/schema.js";
+import { ensureCustomVcsState, getCustomRoom, removeCustomRoom } from "../tools/voice/customVcsState.js";
 import {
   registerTempChannel,
   removeTempChannel,
@@ -47,8 +48,31 @@ export default {
 
     voice.tempChannels ??= {};
     voice.lobbies ??= {};
+    ensureCustomVcsState(voice);
 
     /* ---------- LEAVE TEMP ---------- */
+
+    /* ---------- LEAVE CUSTOM VC ---------- */
+
+    if (oldChannel && voice.customRooms?.[oldChannel.id]) {
+      const channelId = oldChannel.id;
+      const record = getCustomRoom(voice, channelId);
+      if (record?.ownerId === member.id) {
+        const cleanup = async () => {
+          const channel =
+            guild.channels.cache.get(channelId) ??
+            (await guild.channels.fetch(channelId).catch(() => null));
+          if (channel) {
+            await channel.delete().catch(() => {});
+          }
+          await removeCustomRoom(guild.id, channelId, voice).catch(() => {});
+          log("custom vc deleted (host left)", { channelId, ownerId: member.id });
+        };
+        setTimeout(() => {
+          cleanup().catch(err => log("custom cleanup failed", { channelId, error: err?.message }));
+        }, 500);
+      }
+    }
 
     if (oldChannel && voice.tempChannels[oldChannel.id]) {
       const channelId = oldChannel.id;

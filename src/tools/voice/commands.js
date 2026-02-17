@@ -23,6 +23,14 @@ import {
   showVoiceConsole
 } from "./ui.js";
 import {
+  buildCustomVcPanelMessage,
+  handleCustomVcButton,
+  handleCustomVcSelect,
+  handleCustomVcModal,
+  loadAndSaveCustomVcsConfig
+} from "./customVcsUi.js";
+import { ensureCustomVcsState, getCustomVcConfig } from "./customVcsState.js";
+import {
   OWNER_PERMISSION_FIELDS,
   describeOwnerPermissions,
   ownerPermissionOverwrite
@@ -37,7 +45,10 @@ const adminSubs = new Set([
   "update",
   "status",
   "reset",
-  "panel_guild_default"
+  "panel_guild_default",
+  "customs_setup",
+  "customs_panel",
+  "customs_status"
 ]);
 
 const roomSubs = new Set([
@@ -495,6 +506,72 @@ export const data = new SlashCommandBuilder()
           .setName("auto_send_on_create")
           .setDescription("Auto-send dashboard on room creation by default")
       )
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName("customs_setup")
+      .setDescription("Configure Custom VCs (Manage Server)")
+      .addBooleanOption(o =>
+        o
+          .setName("enabled")
+          .setDescription("Enable or disable Custom VCs")
+      )
+      .addChannelOption(o =>
+        o
+          .setName("category")
+          .setDescription("Category where custom voice channels are created")
+          .addChannelTypes(ChannelType.GuildCategory)
+      )
+      .addRoleOption(o =>
+        o
+          .setName("mod_role")
+          .setDescription("Role that can always join any custom VC (Voice Mods)")
+      )
+      .addBooleanOption(o =>
+        o
+          .setName("clear_mod_roles")
+          .setDescription("Clear all Voice Mod roles from this feature")
+      )
+      .addIntegerOption(o =>
+        o
+          .setName("max_rooms_per_user")
+          .setDescription("Max custom rooms per user")
+          .setMinValue(1)
+          .setMaxValue(5)
+      )
+      .addIntegerOption(o =>
+        o
+          .setName("default_user_limit")
+          .setDescription("Default VC size (0 = unlimited)")
+          .setMinValue(0)
+          .setMaxValue(99)
+      )
+      .addIntegerOption(o =>
+        o
+          .setName("default_bitrate_kbps")
+          .setDescription("Default bitrate for custom VCs (kbps)")
+          .setMinValue(8)
+          .setMaxValue(512)
+      )
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName("customs_panel")
+      .setDescription("Post a Custom VCs request panel (Manage Server)")
+      .addChannelOption(o =>
+        o
+          .setName("channel")
+          .setDescription("Text channel where the panel should be posted")
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+      )
+  )
+
+  .addSubcommand(sub =>
+    sub
+      .setName("customs_status")
+      .setDescription("Show Custom VCs configuration (Manage Server)")
   );
 
 export async function execute(interaction) {
@@ -556,6 +633,129 @@ export async function execute(interaction) {
       `${status}\nLobby: <#${lobbyChannel.id}>\nCategory: <#${category.id}>`
     );
     await interaction.reply({ embeds: [embed], ephemeral: true });
+    return;
+  }
+
+  if (sub === "customs_setup") {
+    const patch = {};
+    const enabled = interaction.options.getBoolean("enabled");
+    const category = interaction.options.getChannel("category");
+    const modRole = interaction.options.getRole("mod_role");
+    const clearModRoles = interaction.options.getBoolean("clear_mod_roles");
+    const maxRoomsPerUser = interaction.options.getInteger("max_rooms_per_user");
+    const defaultUserLimit = interaction.options.getInteger("default_user_limit");
+    const defaultBitrateKbps = interaction.options.getInteger("default_bitrate_kbps");
+
+    if (typeof enabled === "boolean") patch.enabled = enabled;
+    if (category) patch.categoryId = category.id;
+    if (modRole) patch.modRoleId = modRole.id;
+    if (typeof clearModRoles === "boolean" && clearModRoles) patch.clearModRoles = true;
+    if (typeof maxRoomsPerUser === "number") patch.maxRoomsPerUser = maxRoomsPerUser;
+    if (typeof defaultUserLimit === "number") patch.defaultUserLimit = defaultUserLimit;
+    if (typeof defaultBitrateKbps === "number") patch.defaultBitrateKbps = defaultBitrateKbps;
+
+    const res = await loadAndSaveCustomVcsConfig(guildId, patch);
+    const cfg = res.cfg;
+
+    await auditLog({
+      guildId,
+      userId: interaction.user.id,
+      action: "voice.customvc.setup",
+      details: patch
+    }).catch(() => {});
+
+    const modRoles = Array.isArray(cfg.modRoleIds) && cfg.modRoleIds.length
+      ? cfg.modRoleIds.map(id => `<@&${id}>`).join(", ")
+      : "none";
+    const text = [
+      `Enabled: ${cfg.enabled ? "yes" : "no"}`,
+      `Category: ${cfg.categoryId ? `<#${cfg.categoryId}>` : "not set"}`,
+      `Voice Mod roles: ${modRoles}`,
+      `Max rooms per user: ${cfg.maxRoomsPerUser || 1}`,
+      `Default VC size: ${cfg.defaultUserLimit ? String(cfg.defaultUserLimit) : "unlimited"}`,
+      `Default bitrate: ${cfg.defaultBitrateKbps ? `${cfg.defaultBitrateKbps}kbps` : "server default"}`
+    ].join("\n");
+
+    await interaction.reply({
+      embeds: [buildEmbed("Custom VCs configured", text)],
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (sub === "customs_panel") {
+    const voice = await getVoiceState(guildId);
+    ensureCustomVcsState(voice);
+    const cfg = getCustomVcConfig(voice);
+
+    const target = interaction.options.getChannel("channel")
+      ?? (interaction.channel?.isTextBased?.() && !interaction.channel?.isDMBased?.() ? interaction.channel : null);
+
+    if (!target?.isTextBased?.() || target.isDMBased?.()) {
+      await interaction.reply({
+        embeds: [buildErrorEmbed("Run this in a text channel or provide a target channel.")],
+        ephemeral: true
+      });
+      return;
+    }
+
+    let message = null;
+    if (cfg.panelChannelId && cfg.panelMessageId && cfg.panelChannelId === target.id) {
+      message = await target.messages.fetch(cfg.panelMessageId).catch(() => null);
+      if (message) {
+        await message.edit(buildCustomVcPanelMessage(cfg)).catch(() => {});
+      }
+    }
+    if (!message) {
+      message = await target.send(buildCustomVcPanelMessage(cfg)).catch(() => null);
+    }
+    if (!message) {
+      await interaction.reply({
+        embeds: [buildErrorEmbed("Failed to post the Custom VCs panel in that channel.")],
+        ephemeral: true
+      });
+      return;
+    }
+
+    await loadAndSaveCustomVcsConfig(guildId, { panelChannelId: message.channelId, panelMessageId: message.id });
+    await auditLog({
+      guildId,
+      userId: interaction.user.id,
+      action: "voice.customvc.panel",
+      details: { channelId: message.channelId, messageId: message.id }
+    }).catch(() => {});
+
+    await interaction.reply({
+      embeds: [buildEmbed("Custom VCs panel posted", `Panel posted in <#${message.channelId}>.`)],
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (sub === "customs_status") {
+    const voice = await getVoiceState(guildId);
+    ensureCustomVcsState(voice);
+    const cfg = getCustomVcConfig(voice);
+    const roomCount = Object.keys(voice.customRooms || {}).length;
+    const modRoles = Array.isArray(cfg.modRoleIds) && cfg.modRoleIds.length
+      ? cfg.modRoleIds.map(id => `<@&${id}>`).join(", ")
+      : "none";
+
+    const text = [
+      `Enabled: ${cfg.enabled ? "yes" : "no"}`,
+      `Category: ${cfg.categoryId ? `<#${cfg.categoryId}>` : "not set"}`,
+      `Panel: ${cfg.panelMessageId ? `set (<#${cfg.panelChannelId}>)` : "not set"}`,
+      `Voice Mod roles: ${modRoles}`,
+      `Max rooms per user: ${cfg.maxRoomsPerUser || 1}`,
+      `Default VC size: ${cfg.defaultUserLimit ? String(cfg.defaultUserLimit) : "unlimited"}`,
+      `Default bitrate: ${cfg.defaultBitrateKbps ? `${cfg.defaultBitrateKbps}kbps` : "server default"}`,
+      `Active custom rooms tracked: ${roomCount}`
+    ].join("\n");
+
+    await interaction.reply({
+      embeds: [buildEmbed("Custom VCs status", text)],
+      ephemeral: true
+    });
     return;
   }
 
@@ -1116,9 +1316,16 @@ export async function execute(interaction) {
 }
 
 export async function handleButton(interaction) {
+  if (await handleCustomVcButton(interaction)) return true;
   return handleVoiceUIButton(interaction);
 }
 
 export async function handleSelect(interaction) {
+  if (await handleCustomVcSelect(interaction)) return true;
   return handleVoiceUISelect(interaction);
+}
+
+export async function handleModal(interaction) {
+  if (await handleCustomVcModal(interaction)) return true;
+  return false;
 }

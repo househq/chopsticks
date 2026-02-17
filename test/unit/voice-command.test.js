@@ -32,6 +32,15 @@ describe('Voice command definition', function () {
     assert.ok(names.has('panel_guild_default'));
   });
 
+  it('includes Custom VCs admin commands', function () {
+    const json = voiceCommand.toJSON();
+    const names = new Set((json.options || []).map(o => o.name));
+
+    assert.ok(names.has('customs_setup'));
+    assert.ok(names.has('customs_panel'));
+    assert.ok(names.has('customs_status'));
+  });
+
   it('includes owner permission toggles on lobby setup commands', function () {
     const json = voiceCommand.toJSON();
     const addSub = (json.options || []).find(o => o.name === 'add');

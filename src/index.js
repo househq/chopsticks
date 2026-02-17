@@ -33,7 +33,11 @@ import {
 import { handleButton as handleAssistantButton } from "./commands/assistant.js";
 import { handleButton as handleCommandsButton, handleSelect as handleCommandsSelect } from "./commands/commands.js";
 import { handleButton as handlePoolsButton, handleSelect as handlePoolsSelect } from "./commands/pools.js";
-import { handleButton as handleVoiceButton, handleSelect as handleVoiceSelect } from "./commands/voice.js";
+import {
+  handleButton as handleVoiceButton,
+  handleSelect as handleVoiceSelect,
+  handleModal as handleVoiceModal
+} from "./commands/voice.js";
 import { handleSelect as handleHelpSelect } from "./commands/help.js";
 import { handleButton as handlePurgeButton } from "./commands/purge.js";
 import { handleButton as handleGameButton, handleSelect as handleGameSelect } from "./commands/game.js";
@@ -790,6 +794,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isModalSubmit?.()) {
     try {
       if (await handleMusicModal(interaction)) return;
+      if (await handleVoiceModal(interaction)) return;
     } catch (err) {
       console.error("[modal]", err?.stack ?? err?.message ?? err);
       try {
