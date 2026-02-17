@@ -1080,7 +1080,13 @@ export async function execute(interaction) {
   }
 
   if (roomSubs.has(sub)) {
-    const requireControl = !new Set(["room_status", "room_claim", "panel"]).has(sub);
+    // Hardening: room_claim is admin-only. Non-admin users should not be able to take ownership.
+    if (sub === "room_claim" && !hasAdmin(interaction)) {
+      await interaction.reply({ embeds: [buildErrorEmbed("Manage Server permission required for room claim.")], ephemeral: true });
+      return;
+    }
+
+    const requireControl = !new Set(["room_status", "panel"]).has(sub);
     const ctx = await getRoomContext(interaction, { requireControl });
     if (!ctx.ok) {
       await interaction.reply({ embeds: [buildErrorEmbed(roomErrorMessage(ctx.error))], ephemeral: true });

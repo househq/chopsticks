@@ -116,14 +116,24 @@ function parseRoomPanelCustomId(customId) {
     return {
       kind: parts[1],
       guildId: null,
-      roomChannelId: parts[2]
+      roomChannelId: parts[2],
+      userId: null
     };
   }
   if (parts.length === 4) {
     return {
       kind: parts[1],
       guildId: parts[2],
-      roomChannelId: parts[3]
+      roomChannelId: parts[3],
+      userId: null
+    };
+  }
+  if (parts.length === 5) {
+    return {
+      kind: parts[1],
+      guildId: parts[2],
+      roomChannelId: parts[3],
+      userId: parts[4]
     };
   }
   return null;
@@ -822,6 +832,14 @@ async function updateLivePanelInteraction(interaction, roomChannelId, { reason =
 async function handleLivePanelButton(interaction, parsed) {
   const action = parsed.kind;
 
+  if (parsed.userId && parsed.userId !== interaction.user.id) {
+    // Allow admins to override user-scoped panels.
+    if (!hasAdmin(interaction)) {
+      await interaction.reply({ embeds: [buildErrorEmbed("This dashboard belongs to another user.")], ephemeral: true }).catch(() => {});
+      return true;
+    }
+  }
+
   if (action === "refresh") {
     await updateLivePanelInteraction(interaction, parsed.roomChannelId, {
       reason: "refresh",
@@ -1119,7 +1137,8 @@ function buildDmDashboardPayload(ctx, { notice = null, closed = false } = {}) {
           guildId: ctx.guild?.id,
           includeDmButton: false,
           controlsDisabled,
-          disableQuickPlay: true
+          disableQuickPlay: true,
+          actorUserId: ctx?.temp?.ownerId || ctx?.member?.id
         })
       : [];
 
@@ -1130,6 +1149,14 @@ async function handleRoomPanelButtonInDm(interaction, parsed) {
   const gid = String(parsed.guildId || "").trim();
   if (!gid) {
     await interaction.update(buildDmRoomErrorPayload("This dashboard button needs a server context. Re-open the dashboard from inside the server.")).catch(() => {});
+    return true;
+  }
+
+  if (parsed.userId && parsed.userId !== interaction.user.id) {
+    await interaction.reply({
+      embeds: [buildErrorEmbed("This dashboard belongs to another user.")],
+      ...maybeEphemeralFlags(interaction)
+    }).catch(() => {});
     return true;
   }
 

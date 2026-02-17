@@ -122,6 +122,13 @@ function makeRoomPanelCustomIdWithGuild(kind, guildId, roomChannelId) {
   return `${ROOM_PANEL_PREFIX}:${kind}:${gid}:${roomChannelId}`;
 }
 
+function makeRoomPanelCustomIdWithGuildAndUser(kind, guildId, roomChannelId, userId) {
+  const gid = String(guildId || "").trim();
+  const uid = String(userId || "").trim();
+  if (!gid || !uid) return makeRoomPanelCustomIdWithGuild(kind, guildId, roomChannelId);
+  return `${ROOM_PANEL_PREFIX}:${kind}:${gid}:${roomChannelId}:${uid}`;
+}
+
 export function buildVoiceRoomDashboardComponents(
   roomChannelId,
   {
@@ -129,16 +136,22 @@ export function buildVoiceRoomDashboardComponents(
     controlsDisabled = false,
     includeDmButton = true,
     guildId = null,
-    disableQuickPlay = false
+    disableQuickPlay = false,
+    actorUserId = null
   } = {}
 ) {
   const makeId = guildId
     ? (kind => makeRoomPanelCustomIdWithGuild(kind, guildId, roomChannelId))
     : (kind => makeRoomPanelCustomId(kind, roomChannelId));
 
+  const makePrivId =
+    guildId && actorUserId
+      ? (kind => makeRoomPanelCustomIdWithGuildAndUser(kind, guildId, roomChannelId, actorUserId))
+      : makeId;
+
   const row1Buttons = [
     new ButtonBuilder()
-      .setCustomId(makeId("refresh"))
+      .setCustomId(makePrivId("refresh"))
       .setLabel("Refresh")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(disabled)
@@ -147,7 +160,7 @@ export function buildVoiceRoomDashboardComponents(
   if (includeDmButton) {
     row1Buttons.push(
       new ButtonBuilder()
-        .setCustomId(makeId("dm"))
+        .setCustomId(makePrivId("dm"))
         .setLabel("DM Dashboard")
         .setStyle(ButtonStyle.Primary)
         .setDisabled(disabled)
@@ -156,12 +169,12 @@ export function buildVoiceRoomDashboardComponents(
 
   row1Buttons.push(
     new ButtonBuilder()
-      .setCustomId(makeId("rename"))
+      .setCustomId(makePrivId("rename"))
       .setLabel("Rename")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(disabled || controlsDisabled),
     new ButtonBuilder()
-      .setCustomId(makeId("limit"))
+      .setCustomId(makePrivId("limit"))
       .setLabel("Member Cap")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(disabled || controlsDisabled)
@@ -169,7 +182,7 @@ export function buildVoiceRoomDashboardComponents(
 
   row1Buttons.push(
     new ButtonBuilder()
-      .setCustomId(makeId("release"))
+      .setCustomId(makePrivId("release"))
       .setLabel("Release")
       .setStyle(ButtonStyle.Danger)
       .setDisabled(disabled || controlsDisabled)
@@ -181,24 +194,24 @@ export function buildVoiceRoomDashboardComponents(
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(makeId("lock"))
+        .setCustomId(makePrivId("lock"))
         .setLabel("Lock")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(disabled || controlsDisabled),
       new ButtonBuilder()
-        .setCustomId(makeId("unlock"))
+        .setCustomId(makePrivId("unlock"))
         .setLabel("Unlock")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(disabled || controlsDisabled)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(makeId("music"))
+        .setCustomId(makePrivId("music"))
         .setLabel("Quick Play")
         .setStyle(ButtonStyle.Primary)
         .setDisabled(disabled || controlsDisabled || disableQuickPlay),
       new ButtonBuilder()
-        .setCustomId(makeId("game"))
+        .setCustomId(makePrivId("game"))
         .setLabel("Game")
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(disabled)
@@ -262,7 +275,8 @@ export async function deliverVoiceRoomDashboard({
           guildId: guild?.id,
           includeDmButton: false,
           controlsDisabled,
-          disableQuickPlay: true
+          disableQuickPlay: true,
+          actorUserId: tempRecord?.ownerId || member.id
         });
       }
       await member.send(dmPayload);
@@ -287,7 +301,10 @@ export async function deliverVoiceRoomDashboard({
       try {
         const textPayload = { embeds: [embed] };
         if (!textTarget.isDMBased?.() && roomChannel?.id) {
-          textPayload.components = buildVoiceRoomDashboardComponents(roomChannel.id, { guildId: guild?.id });
+          textPayload.components = buildVoiceRoomDashboardComponents(roomChannel.id, {
+            guildId: guild?.id,
+            actorUserId: tempRecord?.ownerId || member.id
+          });
         }
         await textTarget.send(textPayload);
         channelSent = true;
