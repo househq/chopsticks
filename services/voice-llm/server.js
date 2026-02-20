@@ -125,16 +125,107 @@ async function generateWithFallback(prompt, system) {
   throw Object.assign(new Error("all_backends_failed"), { errors });
 }
 
+// ── Per-request provider override (used when textLlm.js passes guild config) ─
+
+async function generateWithProvider(prompt, system, provider, apiKey, ollamaUrlOverride) {
+  if (provider === "anthropic") {
+    // Temporarily use provided key if different from env
+    const origKey = ANTHROPIC_API_KEY;
+    if (apiKey) {
+      // Clone and call with override key
+      const r = await requestWithKey(
+        "https://api.anthropic.com/v1/messages",
+        {
+          model: ANTHROPIC_MODEL,
+          max_tokens: ANTHROPIC_MAX_TOKENS,
+          messages: [{ role: "user", content: prompt }],
+          ...(system && { system }),
+        },
+        { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+      );
+      return { text: r, backend: "anthropic:guild" };
+    }
+    if (!origKey) throw Object.assign(new Error("anthropic_not_configured"), { errors: [{ backend: "anthropic", error: "no_key" }] });
+    const text = await generateAnthropic(prompt, system);
+    return { text, backend: "anthropic" };
+  }
+
+  if (provider === "openai") {
+    const key = apiKey || OPENAI_API_KEY;
+    if (!key) throw Object.assign(new Error("openai_not_configured"), { errors: [{ backend: "openai", error: "no_key" }] });
+    const r = await requestWithKey(
+      `${OPENAI_BASE_URL}/chat/completions`,
+      { model: OPENAI_MODEL, max_tokens: 512, messages: [{ role: "user", content: prompt }] },
+      { Authorization: `Bearer ${key}` }
+    );
+    return { text: r, backend: apiKey ? "openai:guild" : "openai" };
+  }
+
+  if (provider === "ollama") {
+    const url = (ollamaUrlOverride || OLLAMA_URL).replace(/\/$/, "");
+    const body = { model: OLLAMA_MODEL, prompt, stream: false };
+    if (system) body.system = system;
+    const rr = await request(`${url}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      bodyTimeout: TIMEOUT_MS,
+      headersTimeout: TIMEOUT_MS,
+    });
+    if (rr.statusCode >= 400) throw new Error(`ollama_failed:${rr.statusCode}`);
+    const data = await rr.body.json().catch(() => null);
+    const text = String(data?.response || "").trim();
+    if (!text) throw new Error("ollama_empty");
+    return { text, backend: ollamaUrlOverride ? "ollama:guild" : "ollama" };
+  }
+
+  throw new Error(`unknown_provider:${provider}`);
+}
+
+async function requestWithKey(url, body, extraHeaders = {}) {
+  const r = await request(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...extraHeaders },
+    body: JSON.stringify(body),
+    bodyTimeout: TIMEOUT_MS,
+    headersTimeout: TIMEOUT_MS,
+  });
+  if (r.statusCode >= 400) {
+    const t = await r.body.text().catch(() => "");
+    throw new Error(`provider_failed:${r.statusCode}:${t.slice(0, 120)}`);
+  }
+  const data = await r.body.json().catch(() => null);
+  // Support both anthropic and openai response shapes
+  const text = String(
+    data?.content?.[0]?.text || data?.choices?.[0]?.message?.content || ""
+  ).trim();
+  if (!text) throw new Error("provider_empty");
+  return text;
+}
+
 // ── Routes ─────────────────────────────────────────────────────────────────
 
 app.post("/generate", async (req, res) => {
-  const prompt = String(req.body?.prompt || "").trim();
-  const system = String(req.body?.system || "").trim();
+  const prompt   = String(req.body?.prompt || "").trim();
+  const system   = String(req.body?.system || "").trim();
+  const provider = String(req.body?.provider || "").trim().toLowerCase();
+  const apiKey   = String(req.body?.apiKey  || "").trim();
+  const ollamaUrl = String(req.body?.ollamaUrl || "").trim();
+
   if (!prompt) return res.status(400).json({ error: "missing_prompt" });
 
   try {
-    const { text, backend } = await generateWithFallback(prompt, system);
-    res.json({ text, backend });
+    let result;
+    // Per-request provider override (set by textLlm.js from per-guild config)
+    if (provider && provider !== "none") {
+      result = await generateWithProvider(prompt, system, provider, apiKey, ollamaUrl);
+    } else if (provider === "none") {
+      // Explicit no-op: caller says this guild has no provider
+      return res.json({ text: "", backend: "none" });
+    } else {
+      result = await generateWithFallback(prompt, system);
+    }
+    res.json(result);
   } catch (err) {
     const errors = err.errors || [{ error: String(err?.message || err) }];
     console.error("[voice-llm] all backends failed:", errors);

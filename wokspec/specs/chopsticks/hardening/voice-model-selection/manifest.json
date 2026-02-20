@@ -1,0 +1,30 @@
+{
+  "id": "voice-model-selection-scoped",
+  "title": "Voice Model Selection — Free default + user-linked APIs",
+  "scope": "voice-model",
+  "default_provider": "none",
+  "allowed_providers": ["none","ollama-local","anthropic","openai"],
+  "storage": {
+    "location": "guild_settings.voice",
+    "encryption": "AGENT_TOKEN_KEY (AES-GCM)"
+  },
+  "commands": [
+    {"name":"/model set <provider>", "description":"Set provider but do not enable LLM until link succeeds"},
+    {"name":"/model link","description":"Secure link/token entry for provider (ephemeral modal or dashboard)"},
+    {"name":"/model get","description":"Get provider status"},
+    {"name":"/model unset","description":"Remove provider and token"}
+  ],
+  "acceptance_criteria": [
+    "Default provider 'none' returns empty string for LLM outputs",
+    "Tokens validated before persisting",
+    "Tokens stored encrypted with AGENT_TOKEN_KEY",
+    "Admins can configure provider and link token via /model"
+  ],
+  "tests": {
+    "unit": ["encryption helpers", "/model command flow"],
+    "integration": ["default-none returns empty", "link+validate+use provider"]
+  },
+  "estimated_effort_days": 2,
+  "owner": "platform/ops",
+  "notes": "WokSpec will not provide or pay for API keys. Admins must link their own provider tokens."
+}
