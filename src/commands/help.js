@@ -3,9 +3,12 @@ import {
   SlashCommandBuilder,
   MessageFlags,
   EmbedBuilder,
-  StringSelectMenuBuilder
+  StringSelectMenuBuilder,
+  PermissionFlagsBits
 } from "discord.js";
 import { loadGuildData } from "../utils/storage.js";
+import { searchCommands, getAutocompleteSuggestions } from "../utils/helpSearch.js";
+import { getCommand, getCommands } from "../utils/helpRegistry.js";
 
 const HELP_UI_PREFIX = "helpui";
 const MAIN_VALUE = "__main__";
@@ -102,7 +105,36 @@ const KNOWN_COMMAND_GROUPS = {
 
 export const data = new SlashCommandBuilder()
   .setName("help")
-  .setDescription("Show the Chopsticks help center");
+  .setDescription("Show the Chopsticks help center")
+  .addSubcommand(sub =>
+    sub
+      .setName("browse")
+      .setDescription("Browse commands by category (default view)")
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName("search")
+      .setDescription("Search for commands by name or keyword")
+      .addStringOption(opt =>
+        opt
+          .setName("query")
+          .setDescription("Search term (fuzzy matching supported)")
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName("command")
+      .setDescription("Get detailed help for a specific command")
+      .addStringOption(opt =>
+        opt
+          .setName("name")
+          .setDescription("Command name")
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+  );
 
 function parseHelpUiId(customId) {
   const parts = String(customId || "").split(":");
@@ -381,12 +413,93 @@ function buildPanelPayload(interaction, selected) {
 
 export async function execute(interaction) {
   interaction.__helpPrefix = await resolvePrefix(interaction);
+  
+  const subcommand = interaction.options.getSubcommand(false);
+  
+  // Handle search subcommand
+  if (subcommand === 'search') {
+    const query = interaction.options.getString('query', true);
+    const results = searchCommands(query, 10);
+    
+    if (results.length === 0) {
+      await interaction.reply({
+        content: `No commands found for "${query}". Try browsing categories with \`/help browse\``,
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+    
+    const embed = new EmbedBuilder()
+      .setTitle(`Search Results: "${query}"`)
+      .setColor(0x0284C7)
+      .setDescription(
+        results
+          .map((r, idx) => `${idx + 1}. **/${r.name}** — ${r.metadata.description}`)
+          .join('\n')
+      )
+      .setFooter({ text: `Found ${results.length} matching command(s)` });
+    
+    await interaction.reply({
+      embeds: [embed],
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+  
+  // Handle command detail subcommand
+  if (subcommand === 'command') {
+    const commandName = interaction.options.getString('name', true);
+    const metadata = getCommand(commandName);
+    
+    if (!metadata) {
+      await interaction.reply({
+        content: `Command "${commandName}" not found. Use \`/help search\` to find commands.`,
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+    
+    const embed = new EmbedBuilder()
+      .setTitle(`/${metadata.name}`)
+      .setColor(0x2563EB)
+      .setDescription(metadata.description)
+      .addFields(
+        { name: 'Category', value: metadata.category, inline: true },
+        { name: 'Context', value: metadata.context.join(', '), inline: true },
+        { name: 'Usage', value: `\`${metadata.usage}\`` },
+        { name: 'Examples', value: metadata.examples.map(ex => `\`${ex}\``).join('\n') }
+      );
+    
+    if (metadata.permissions && metadata.permissions.length > 0) {
+      embed.addFields({
+        name: 'Required Permissions',
+        value: metadata.permissions.join(', ')
+      });
+    }
+    
+    await interaction.reply({
+      embeds: [embed],
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+  
+  // Default: browse mode
   const payload = buildPanelPayload(interaction, MAIN_VALUE);
 
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
     ...payload
   });
+}
+
+// Autocomplete handler for search and command subcommands
+export async function autocomplete(interaction) {
+  const focusedOption = interaction.options.getFocused(true);
+  const query = focusedOption.value || '';
+  
+  const suggestions = getAutocompleteSuggestions(query, 25);
+  await interaction.respond(suggestions);
 }
 
 export async function handleSelect(interaction) {
