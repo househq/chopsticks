@@ -79,7 +79,7 @@ When user contributes token, show THIS:
 │                                                                  │
 │  STEP 2: Generating YOUR Encryption Key                        │
 │  ┌────────────────────────────────────────────────────────┐   │
-│  │ Input: Your Discord User ID (1122800062628634684)      │   │
+│  │ Input: Your Discord User ID (YOUR_DISCORD_USER_ID)     │   │
 │  │ Salt: 3f2a8b9c... (random 32 bytes)                    │   │
 │  │ Algorithm: PBKDF2-SHA256                                │   │
 │  │ Iterations: 100,000                                     │   │
@@ -101,7 +101,7 @@ When user contributes token, show THIS:
 │  │   "encryption_iv": "4b7e2c9a...",                      │   │
 │  │   "encryption_auth_tag": "9d3e8a1f...",                │   │
 │  │   "encryption_salt": "3f2a8b9c...",                    │   │
-│  │   "owner_user_id": "1122800062628634684"                │   │
+│  │   "owner_user_id": "YOUR_DISCORD_USER_ID"              │   │
 │  │ }                                                       │   │
 │  └────────────────────────────────────────────────────────┘   │
 │                                                                  │
@@ -295,7 +295,7 @@ Chopsticks shows THE ACTUAL encryption happening in real-time:
 
 Details:
 • Algorithm: AES-256-GCM
-• Key derived from: Your user ID (1122800062628634684)
+• Key derived from: Your user ID (YOUR_DISCORD_USER_ID)
 • Salt: 3f2a8b9c7d4e1f...
 • IV: 4b7e2c9a8d3b...
 • Auth Tag: 9d3e8a1f7c2b...

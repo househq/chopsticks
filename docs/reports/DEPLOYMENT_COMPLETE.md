@@ -17,8 +17,8 @@ Successfully hardened the music and agent system with comprehensive UX improveme
 
 **Example:**
 ```
-Official Chopsticks Pool (pool_goot27)
-🌐 Public | Owner: goot27 (Official)
+Official Chopsticks Pool
+🌐 Public | Owner: (Official)
 **10 agents** (✅ 8 active, ⚠️ 2 inactive)
 ```
 

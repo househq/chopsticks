@@ -8,10 +8,10 @@
 **Solution:**
 ```sql
 -- Set you as the pool owner
-UPDATE agent_pools SET owner_user_id = '1122800062628634684' WHERE pool_id = 'default';
+UPDATE agent_pools SET owner_user_id = 'YOUR_DISCORD_USER_ID' WHERE pool_id = 'default';
 
 -- Set you as the owner of all tokens
-UPDATE agent_bots SET owner_user_id = '1122800062628634684' WHERE owner_user_id IS NULL;
+UPDATE agent_bots SET owner_user_id = 'YOUR_DISCORD_USER_ID' WHERE owner_user_id IS NULL;
 ```
 
 **Result:** You can now remove/manage tokens in your pool!
@@ -55,7 +55,7 @@ You can now change your pool name and description anytime!
 Pool ID:     default
 Name:        goot27's Agent Pool
 Description: Voice AI agent pool hosted by goot27
-Owner:       goot27 (1122800062628634684)
+Owner:       goot27 (YOUR_DISCORD_USER_ID)
 Visibility:  public
 Max Agents:  49
 ```
@@ -145,4 +145,3 @@ Consider adding:
 - Token usage analytics
 - Pool branding (custom colors/logos)
 - Pool sharing/marketplace
-

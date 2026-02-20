@@ -23,7 +23,7 @@ Update these values in `.env`:
 ```env
 DISCORD_CLIENT_SECRET=your_client_secret_here
 ```
-Get from: https://discord.com/developers/applications/1466382874587431036/oauth2
+Get from: https://discord.com/developers/applications/YOUR_CLIENT_ID/oauth2
 
 ### 2. Redirect URI (when deploying to production)
 ```env

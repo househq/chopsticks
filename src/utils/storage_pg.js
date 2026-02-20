@@ -250,7 +250,7 @@ export async function ensureSchema() {
     const now = Date.now();
     await p.query(ensureDefaultPoolSql, [
       'pool_goot27',
-      '1122800062628634684', // goot27's Discord ID
+      process.env.BOT_OWNER_ID || '', // Bot owner Discord ID (set BOT_OWNER_ID in .env)
       'Official Chopsticks Pool',
       'public',
       now,

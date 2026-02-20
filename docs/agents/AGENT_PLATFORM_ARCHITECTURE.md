@@ -400,7 +400,7 @@ export default {
 ```javascript
 // User links their own API keys
 {
-  user_id: "1122800062628634684",
+  user_id: "YOUR_DISCORD_USER_ID",
   linked_tools: [
     {
       tool_id: "openai-gpt4",

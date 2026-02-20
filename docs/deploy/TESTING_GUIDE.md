@@ -9,7 +9,7 @@
   - ✅ for active agents
   - ⚠️ for inactive agents
 - Format: "**10 agents** (✅ 8 active, ⚠️ 2 inactive)"
-- "goot27 (Official)" for bot owner
+- The bot owner tag for your deployed pool
 
 ### 2. Music Error Messages
 **Scenarios to test:**

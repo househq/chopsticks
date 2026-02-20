@@ -1,66 +1,58 @@
-CHOPSTICKS COMMUNITY LICENSE (CCL) v1.0
+MIT License with Fair Use Attribution Clause
 
-Copyright (c) 2026 Wok Specialists
-All rights reserved.
+Copyright (c) 2026 goot27 and Wok Specialists
 
-NOTICE
-This software is published in a public repository to enable transparency,
-security review, and community collaboration. It is not "open source" under
-the OSI definition unless the repository owner explicitly re-licenses it.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction for personal and non-commercial purposes,
+including without limitation the rights to use, copy, modify, merge, publish,
+distribute, and sublicense copies of the Software, subject to the following
+conditions:
 
-1. DEFINITIONS
-"Software" means the Chopsticks repository source code and associated
-documentation, excluding Third-Party Components.
-"Non-Commercial" means not primarily intended for or directed toward
-commercial advantage or monetary compensation.
-"Hosted Service" means making the Software's functionality available to
-third parties over a network (including SaaS, "bot-as-a-service", or managed
-hosting) whether paid or free.
+1. ATTRIBUTION REQUIREMENT
+   The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
 
-2. PERMITTED USE (NON-COMMERCIAL)
-Subject to this License, you are granted a non-exclusive, non-transferable,
-revocable license to:
-  a) view and audit the Software;
-  b) run the Software for Non-Commercial purposes in your own Discord guilds;
-  c) modify the Software for Non-Commercial use.
+2. FAIR USE ATTRIBUTION THRESHOLD
+   If your use of the Software (or any derivative work) generates annual revenue
+   exceeding USD $500, OR the Software is made available to more than 500 end
+   users (measured as Discord guild members or unique interacting users,
+   whichever is greater), you MUST:
+     a) Clearly credit "Chopsticks by goot27 / Wok Specialists" in any public-
+        facing interface, website, documentation, or "About" section associated
+        with the deployment; and
+     b) Provide a link to the original repository
+        (https://github.com/wokspec/Chopsticks or its successor URL).
+   This attribution requirement applies regardless of whether the Software has
+   been modified.
 
-3. RESTRICTIONS
-You may NOT, without prior written permission from the copyright holder:
-  a) use the Software for commercial purposes;
-  b) offer a Hosted Service using the Software (including providing it to
-     other guilds as a "hosted bot" or selling access to features);
-  c) redistribute the Software or derivative works (source or binary) to any
-     third party, except as a patch/PR submitted to the upstream repository;
-  d) remove or alter copyright notices, license text, or attribution;
-  e) use the "Chopsticks" name, logos, or other trademarks except as allowed
-     by TRADEMARKS.md.
+3. COMMERCIAL RESTRICTION
+   You may NOT sell, license, or offer the Software (or any derivative work) as
+   a commercial product, hosted service, or "bot-as-a-service" to third parties
+   without prior written permission from the copyright holders. This includes,
+   but is not limited to, charging money for bot access, selling subscriptions
+   gated behind the Software's features, or operating a multi-tenant deployment
+   for profit.
 
 4. CONTRIBUTIONS
-By submitting a contribution (code, documentation, or assets) to the upstream
-repository, you grant the copyright holder a perpetual, worldwide, royalty-
-free license to use, modify, and re-license your contribution as part of the
-Software. You represent that you have the right to grant this license.
+   By submitting a contribution (code, documentation, or assets) to this
+   repository, you grant the copyright holders a perpetual, worldwide, royalty-
+   free license to use, modify, and re-license your contribution as part of the
+   Software. You represent that you have the right to grant this license.
 
 5. THIRD-PARTY COMPONENTS
-The Software may include dependencies with separate licenses ("Third-Party
-Components"). Those licenses apply to the Third-Party Components and govern
-your use of them.
+   The Software may include dependencies governed by separate licenses
+   ("Third-Party Components"). Those licenses apply to the Third-Party
+   Components and are unaffected by this License.
 
 6. DISCLAIMER
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
 
-7. LIMITATION OF LIABILITY
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL THE COPYRIGHT HOLDER
-BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-8. TERMINATION
-This License terminates automatically if you breach it. Upon termination you
-must cease use of the Software and delete all copies in your possession.
-
-9. COMMERCIAL LICENSING
-Commercial use, redistribution, or hosted offerings require a separate
-commercial license. Contact the repository owner.
-
+---
+For commercial licensing inquiries, contact the repository maintainers.
