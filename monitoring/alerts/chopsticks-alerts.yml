@@ -137,3 +137,90 @@ groups:
           description: "Fewer than 2 connections available in the PostgreSQL pool."
           runbook: "docs/OPS.md#alert-runbooks"
 
+  - name: chopsticks-new-features
+    rules:
+      - alert: ChopsticksAIRateLimitSpike
+        expr: |
+          sum(increase(chopsticks_rate_limit_hits_total{bucket="ai"}[5m])) > 50
+        for: 0m
+        labels:
+          severity: warning
+          service: chopsticks
+          feature: ai
+        annotations:
+          summary: "High volume of AI rate-limit rejections (>50 in 5m)"
+          description: "{{ $value }} AI rate-limit hits in 5m — may be runaway loop or abuse."
+          runbook: "runbooks/chopsticks/incident_runbook.md#p2-rate-limit-alerts-firing"
+
+      - alert: ChopsticksVoiceLLMHighFailureRate
+        expr: |
+          (
+            sum(rate(chopsticks_voice_llm_calls_total{status="error"}[5m]))
+            /
+            sum(rate(chopsticks_voice_llm_calls_total[5m]))
+          ) > 0.10
+        for: 2m
+        labels:
+          severity: critical
+          service: chopsticks
+          feature: voice_llm
+        annotations:
+          summary: "Voice LLM failure rate exceeds 10%"
+          description: "{{ $value | humanizePercentage }} of voice LLM calls failing — users experience degraded voice AI."
+          runbook: "runbooks/chopsticks/incident_runbook.md#p2-voicelavalink-down"
+
+      - alert: ChopsticksCommandErrorSpike
+        expr: |
+          (
+            sum by (command) (rate(chopsticks_command_errors_total[10m]))
+            /
+            sum by (command) (rate(chopsticks_command_invocations_total[10m]))
+          ) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          service: chopsticks
+          feature: commands
+        annotations:
+          summary: "Command /{{ $labels.command }} error rate exceeds 5%"
+          description: "/{{ $labels.command }} error rate {{ $value | humanizePercentage }} over 10m."
+          runbook: "runbooks/chopsticks/incident_runbook.md#p2-commands-returning-errors"
+
+      - alert: ChopsticksRedisConnectionLoss
+        expr: chopsticks_redis_health_check_ok == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: chopsticks
+          feature: redis
+        annotations:
+          summary: "Redis health check failing >30s"
+          description: "Rate limiting, caching, and queue snapshots degraded or unavailable."
+          runbook: "runbooks/chopsticks/incident_runbook.md#p2-redis-unavailable"
+
+      - alert: ChopsticksDLQGrowth
+        expr: |
+          increase(chopsticks_dlq_messages_total[10m]) > 5
+        for: 0m
+        labels:
+          severity: warning
+          service: chopsticks
+          feature: queues
+        annotations:
+          summary: "DLQ receiving >5 messages in 10m"
+          description: "Dead-letter queue growing — {{ $value }} messages in 10m. Check worker logs."
+          runbook: "runbooks/chopsticks/incident_runbook.md#p2-rate-limit-alerts-firing"
+
+      - alert: ChopsticksHighMemoryUsage
+        expr: |
+          process_resident_memory_bytes{job="chopsticks-bot-app"} > 512 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: warning
+          service: chopsticks
+          feature: performance
+        annotations:
+          summary: "Bot process memory exceeds 512 MB"
+          description: "Bot RSS {{ $value | humanize }}B — possible memory leak or large queue buildup."
+          runbook: "docs/OPS.md#alert-runbooks"
+
