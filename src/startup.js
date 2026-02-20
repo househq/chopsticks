@@ -8,8 +8,19 @@ import "dotenv/config";
 import { logger } from "./utils/logger.js";
 
 // ===================== CONFIGURATION VALIDATION =====================
+const KNOWN_DEFAULTS = new Set([
+  "youshallnotpass", // Lavalink default
+  "changeme", "secret", "password", "admin", "test", "example", "default",
+]);
+
+function isWeakValue(val) {
+  if (!val) return false;
+  return KNOWN_DEFAULTS.has(String(val).toLowerCase()) || String(val).length < 12;
+}
+
 function validateConfig() {
   const errors = [];
+  const warnings = [];
 
   // Storage driver
   if (process.env.STORAGE_DRIVER !== 'postgres') {
@@ -32,6 +43,28 @@ function validateConfig() {
   } else if (process.env.AGENT_TOKEN_KEY.length !== 64) {
     errors.push(`AGENT_TOKEN_KEY must be exactly 64 hex characters, got ${process.env.AGENT_TOKEN_KEY.length}`);
   }
+
+  // Dashboard session secret — must be 32+ chars
+  if (process.env.DASHBOARD_SESSION_SECRET) {
+    if (process.env.DASHBOARD_SESSION_SECRET.length < 32) {
+      errors.push("DASHBOARD_SESSION_SECRET must be at least 32 characters");
+    }
+    if (isWeakValue(process.env.DASHBOARD_SESSION_SECRET)) {
+      errors.push("DASHBOARD_SESSION_SECRET appears to be a known default/weak value — rotate immediately");
+    }
+  }
+
+  // Lavalink password — warn if default
+  if (process.env.LAVALINK_PASSWORD && isWeakValue(process.env.LAVALINK_PASSWORD)) {
+    warnings.push("LAVALINK_PASSWORD appears to be a known default ('youshallnotpass') — rotate in production");
+  }
+
+  // Redis password — warn if missing in prod
+  if (!process.env.REDIS_PASSWORD) {
+    warnings.push("REDIS_PASSWORD is not set — Redis is running without auth (acceptable only in isolated networks)");
+  }
+
+  warnings.forEach(w => logger.warn(`  ⚠️  ${w}`));
 
   if (errors.length > 0) {
     logger.error("Configuration validation failed:");

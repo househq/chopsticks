@@ -55,6 +55,7 @@ import {
 } from "./utils/healthServer.js";
 import { flushCommandStats, flushCommandStatsDaily } from "./utils/audit.js";
 import { checkRateLimit } from "./utils/ratelimit.js";
+import { getRateLimitForCommand } from "./utils/rateLimitConfig.js";
 import { canRunCommand, canRunPrefixCommand } from "./utils/permissions.js";
 import { getPrefixCommands } from "./prefix/registry.js";
 import { parsePrefixArgs, resolveAliasedCommand, suggestCommandNames } from "./prefix/hardening.js";
@@ -583,8 +584,6 @@ client.once(Events.ClientReady, async () => {
 /* ===================== PREFIX COMMANDS ===================== */
 
 const prefixCommands = await getPrefixCommands();
-const SLASH_RATE_LIMIT_PER_USER = Math.max(1, Math.trunc(Number(process.env.RATE_LIMIT_PER_USER || 12)));
-const SLASH_RATE_LIMIT_WINDOW_SEC = Math.max(1, Math.trunc(Number(process.env.RATE_LIMIT_WINDOW_SEC || 10)));
 const MUTATION_COMMANDS = new Set([
   "daily",
   "work",
@@ -866,17 +865,21 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 
   try {
+    const { limit: rlLimit, windowSec: rlWindow } = getRateLimitForCommand(
+      commandName,
+      command.meta?.category
+    );
     const rl = await checkRateLimit(
       `slash:${interaction.user.id}:${commandName}`,
-      SLASH_RATE_LIMIT_PER_USER,
-      SLASH_RATE_LIMIT_WINDOW_SEC
+      rlLimit,
+      rlWindow
     );
     if (!rl.ok) {
       trackRateLimit("command");
       await replyInteraction(interaction, {
         content: `Rate limited. Try again in about ${rl.resetIn}s.`
       });
-      commandLog.warn({ resetInSec: rl.resetIn }, "Slash command rate limited");
+      commandLog.warn({ resetInSec: rl.resetIn, category: command.meta?.category }, "Slash command rate limited");
       return;
     }
   } catch (error) {

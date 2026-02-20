@@ -1,0 +1,50 @@
+# .gitleaks.toml
+# Gitleaks configuration for Chopsticks.
+# Run: gitleaks detect --config .gitleaks.toml --source .
+# Or via pre-commit: https://pre-commit.com
+
+title = "Chopsticks Gitleaks Config"
+
+[extend]
+useDefault = true   # Inherit all default gitleaks rules
+
+# ── Allow-list (false positive exceptions) ──────────────────────────────────
+[[rules.allowlist.paths]]
+description = "Ignore test fixtures and example env files"
+paths = [
+  "test/fixtures/",
+  ".env.example",
+  "docs/",
+  "wokspec/",
+]
+
+[[rules.allowlist.regexes]]
+description = "Ignore placeholder values"
+regexes = [
+  "sk-YOUR[A-Z_]+HERE",
+  "your[-_]api[-_]key",
+  "INSERT[-_]TOKEN[-_]HERE",
+  "<redacted>",
+  "example\\.com",
+  "youshallnotpass",  # Known Lavalink example value — caught separately by check-env.js
+]
+
+# ── Custom rules ─────────────────────────────────────────────────────────────
+
+[[rules]]
+description = "Discord Bot Token"
+id = "discord-bot-token"
+regex = '''(?i)discord[_-]?token\s*=\s*[A-Za-z0-9._-]{50,}'''
+tags = ["discord", "token"]
+
+[[rules]]
+description = "Lavalink password in source"
+id = "lavalink-password"
+regex = '''(?i)lavalink[_-]?password\s*=\s*[^\s${"]{8,}'''
+tags = ["lavalink", "auth"]
+
+[[rules]]
+description = "Agent token key"
+id = "agent-token-key"
+regex = '''(?i)agent[_-]?token[_-]?key\s*=\s*[0-9a-fA-F]{64}'''
+tags = ["encryption-key"]
