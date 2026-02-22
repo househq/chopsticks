@@ -1448,9 +1448,10 @@ export async function execute(interaction) {
       await interaction.editReply({ embeds: [embed] });
       const deploymentFulfilled = plan.needInvites === 0 || plan.invites.length >= plan.needInvites;
       trackAgentDeployment(deploymentFulfilled);
-      // Track pool stat
+      // Track pool stat + evaluate badges
       if (deploymentFulfilled && selectedPoolId) {
         storageLayer.incrementPoolStat(selectedPoolId, 'total_deployments').catch(() => {});
+        storageLayer.evaluatePoolBadges(selectedPoolId).catch(() => {});
       }
     } catch (error) {
       console.error(`[agents:deploy] Error: ${error.message}`);

@@ -1297,3 +1297,245 @@ export async function ensureEconomySchema() {
   }
   logger.info('Economy schema ensured');
 }
+
+// ── Specializations ───────────────────────────────────────────────────────
+export const SPECIALTIES = ['music', 'voice_assistant', 'utility', 'relay', 'custom'];
+
+export async function setAgentSpecialty(agentId, specialty) {
+  if (!SPECIALTIES.includes(specialty)) throw new Error(`Invalid specialty: ${specialty}`);
+  const p = getPool();
+  await p.query("UPDATE agent_bots SET specialty = $1 WHERE agent_id = $2", [specialty, agentId]);
+}
+
+export async function setPoolSpecialty(poolId, specialty, actorUserId = '') {
+  if (!SPECIALTIES.includes(specialty)) throw new Error(`Invalid specialty: ${specialty}`);
+  const p = getPool();
+  await p.query(
+    "UPDATE agent_pools SET specialty = $1 WHERE pool_id = $2",
+    [specialty, poolId]
+  );
+  // Also persist into meta for display consistency
+  await p.query(
+    "UPDATE agent_pools SET meta = jsonb_set(COALESCE(meta,'{}'), '{specialty}', $1::jsonb) WHERE pool_id = $2",
+    [JSON.stringify(specialty), poolId]
+  );
+  await logPoolEvent(poolId, actorUserId, 'specialty_set', poolId, { specialty });
+}
+
+// ── Guild multi-pool config ───────────────────────────────────────────────
+export async function getGuildPoolConfig(guildId) {
+  const p = getPool();
+  const res = await p.query("SELECT * FROM guild_pool_config WHERE guild_id = $1", [guildId]);
+  return res.rows[0] || null;
+}
+
+export async function setGuildPoolConfig(guildId, { primaryPoolId, secondaryPoolIds = [], preferredSpecialty = 'music' }) {
+  const p = getPool();
+  const ids = Array.isArray(secondaryPoolIds) ? secondaryPoolIds.slice(0, 2) : [];
+  await p.query(
+    `INSERT INTO guild_pool_config (guild_id, primary_pool_id, secondary_pool_ids, preferred_specialty, updated_at)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (guild_id) DO UPDATE SET
+       primary_pool_id     = EXCLUDED.primary_pool_id,
+       secondary_pool_ids  = EXCLUDED.secondary_pool_ids,
+       preferred_specialty = EXCLUDED.preferred_specialty,
+       updated_at          = EXCLUDED.updated_at`,
+    [guildId, primaryPoolId || null, JSON.stringify(ids), preferredSpecialty, Date.now()]
+  );
+}
+
+export async function addGuildSecondaryPool(guildId, poolId) {
+  const config = await getGuildPoolConfig(guildId);
+  const current = Array.isArray(config?.secondary_pool_ids) ? config.secondary_pool_ids : [];
+  if (current.includes(poolId)) return; // already added
+  if (current.length >= 2) throw new Error('Maximum 2 secondary pools allowed per guild.');
+  const updated = [...current, poolId];
+  // Auto-seed primary from legacy selected pool if not yet set
+  let primaryId = config?.primary_pool_id;
+  if (!primaryId) {
+    primaryId = await getGuildSelectedPool(guildId).catch(() => null);
+  }
+  await setGuildPoolConfig(guildId, {
+    primaryPoolId: primaryId,
+    secondaryPoolIds: updated,
+    preferredSpecialty: config?.preferred_specialty || 'music',
+  });
+}
+
+export async function removeGuildSecondaryPool(guildId, poolId) {
+  const config = await getGuildPoolConfig(guildId);
+  const current = Array.isArray(config?.secondary_pool_ids) ? config.secondary_pool_ids : [];
+  await setGuildPoolConfig(guildId, {
+    primaryPoolId: config?.primary_pool_id,
+    secondaryPoolIds: current.filter(id => id !== poolId),
+    preferredSpecialty: config?.preferred_specialty || 'music',
+  });
+}
+
+// ── Pool alliances ────────────────────────────────────────────────────────
+export async function proposeAlliance(poolAId, poolBId, initiatedBy) {
+  const p = getPool();
+  // Canonical ordering: smaller pool_id first
+  const [a, b] = [poolAId, poolBId].sort();
+  const now = Date.now();
+  await p.query(
+    `INSERT INTO pool_alliances (pool_a_id, pool_b_id, initiated_by, status, created_at, updated_at)
+     VALUES ($1, $2, $3, 'pending', $4, $4)
+     ON CONFLICT (pool_a_id, pool_b_id) DO UPDATE SET
+       initiated_by = EXCLUDED.initiated_by,
+       status       = 'pending',
+       updated_at   = EXCLUDED.updated_at`,
+    [a, b, initiatedBy, now]
+  );
+  await logPoolEvent(poolAId, initiatedBy, 'alliance_proposed', poolBId, {});
+}
+
+export async function acceptAlliance(poolAId, poolBId, actorUserId) {
+  const p = getPool();
+  const [a, b] = [poolAId, poolBId].sort();
+  const now = Date.now();
+  await p.query(
+    "UPDATE pool_alliances SET status = 'active', updated_at = $1 WHERE pool_a_id = $2 AND pool_b_id = $3",
+    [now, a, b]
+  );
+  await logPoolEvent(poolBId, actorUserId, 'alliance_accepted', poolAId, {});
+}
+
+export async function dissolveAlliance(poolAId, poolBId, actorUserId) {
+  const p = getPool();
+  const [a, b] = [poolAId, poolBId].sort();
+  const now = Date.now();
+  await p.query(
+    "UPDATE pool_alliances SET status = 'dissolved', updated_at = $1 WHERE pool_a_id = $2 AND pool_b_id = $3",
+    [now, a, b]
+  );
+  await logPoolEvent(poolAId, actorUserId, 'alliance_dissolved', poolBId, {});
+}
+
+export async function fetchPoolAlliances(poolId, status = 'active') {
+  const p = getPool();
+  const res = await p.query(
+    `SELECT pa.*, 
+            CASE WHEN pa.pool_a_id = $1 THEN pa.pool_b_id ELSE pa.pool_a_id END AS partner_pool_id
+     FROM pool_alliances pa
+     WHERE (pa.pool_a_id = $1 OR pa.pool_b_id = $1)
+       AND ($2 IS NULL OR pa.status = $2)
+     ORDER BY pa.updated_at DESC`,
+    [poolId, status || null]
+  );
+  return res.rows;
+}
+
+// ── Badge system ──────────────────────────────────────────────────────────
+export const BADGE_DEFS = [
+  { id: 'founding_pool',    emoji: '🏛️',  label: 'Founding Pool',     desc: 'Among the first pools created' },
+  { id: 'first_10',        emoji: '🤝',  label: 'Growing Team',       desc: 'Reached 10 active agents' },
+  { id: 'songs_100',       emoji: '🎵',  label: 'Tune Smith',         desc: '100 songs played' },
+  { id: 'songs_1000',      emoji: '🎶',  label: 'Stage Veteran',      desc: '1,000 songs played' },
+  { id: 'songs_10000',     emoji: '🎸',  label: 'Concert Hall',       desc: '10,000 songs played' },
+  { id: 'deploys_5',       emoji: '🚀',  label: 'Launcher',           desc: '5 successful deployments' },
+  { id: 'deploys_50',      emoji: '🛸',  label: 'Fleet Commander',    desc: '50 deployments' },
+  { id: 'guilds_3',        emoji: '🌍',  label: 'Multi-Server',       desc: 'Active in 3+ guilds' },
+  { id: 'rising_pool',     emoji: '📈',  label: 'Rising Pool',        desc: 'Top 10 on leaderboard' },
+  { id: 'allied',          emoji: '🤜🤛', label: 'Allied',             desc: 'Has an active pool alliance' },
+  { id: 'full_capacity',   emoji: '💪',  label: 'Full Roster',        desc: 'Reached pool capacity of 49' },
+];
+
+/**
+ * Evaluate and award any newly earned badges to a pool.
+ * Safe to call after any stat update — no-ops if no new badges.
+ */
+export async function evaluatePoolBadges(poolId) {
+  const p = getPool();
+  try {
+    const [statsRes, agentRes, allianceRes, poolRes] = await Promise.all([
+      p.query("SELECT * FROM pool_stats WHERE pool_id = $1", [poolId]),
+      p.query("SELECT COUNT(*) AS cnt FROM agent_bots WHERE pool_id = $1 AND status = 'active'", [poolId]),
+      p.query("SELECT COUNT(*) AS cnt FROM pool_alliances WHERE (pool_a_id = $1 OR pool_b_id = $1) AND status = 'active'", [poolId]),
+      p.query("SELECT created_at, max_agents FROM agent_pools WHERE pool_id = $1", [poolId]),
+    ]);
+    const stats   = statsRes.rows[0] || {};
+    const activeAgents = Number(agentRes.rows[0]?.cnt || 0);
+    const hasAlliance  = Number(allianceRes.rows[0]?.cnt || 0) > 0;
+    const maxAgents    = Number(poolRes.rows[0]?.max_agents || 49);
+    const songs        = Number(stats.songs_played || 0);
+    const deploys      = Number(stats.total_deployments || 0);
+    const guilds       = Number(stats.active_guild_count || 0);
+    const score        = Number(stats.composite_score || 0);
+
+    // Recalculate composite_score
+    const newScore = Math.floor(songs * 1 + deploys * 10 + guilds * 50 + activeAgents * 5);
+    if (newScore !== Number(stats.composite_score || 0)) {
+      await p.query(
+        "UPDATE pool_stats SET composite_score = $1, updated_at = $2 WHERE pool_id = $3",
+        [newScore, Date.now(), poolId]
+      ).catch(() => {});
+    }
+
+    const currentBadges = Array.isArray(stats.badges_json) ? stats.badges_json : [];
+    const earned = new Set(currentBadges);
+    const checks = [
+      ['first_10',      activeAgents >= 10],
+      ['songs_100',     songs >= 100],
+      ['songs_1000',    songs >= 1000],
+      ['songs_10000',   songs >= 10000],
+      ['deploys_5',     deploys >= 5],
+      ['deploys_50',    deploys >= 50],
+      ['guilds_3',      guilds >= 3],
+      ['allied',        hasAlliance],
+      ['full_capacity', activeAgents >= maxAgents],
+    ];
+    let changed = false;
+    for (const [id, condition] of checks) {
+      if (condition && !earned.has(id)) { earned.add(id); changed = true; }
+    }
+    if (changed) {
+      await p.query(
+        `INSERT INTO pool_stats (pool_id, badges_json, updated_at, window_start)
+         VALUES ($1, $2, $3, $3)
+         ON CONFLICT (pool_id) DO UPDATE SET badges_json = $2, updated_at = $3`,
+        [poolId, JSON.stringify([...earned]), Date.now()]
+      );
+    }
+  } catch (err) {
+    logger.warn('[evaluatePoolBadges] error', { poolId, err: err.message });
+  }
+}
+
+// ── Cross-pool deployment helpers ─────────────────────────────────────────
+/**
+ * Fetch all pool IDs configured for a guild (primary + secondaries).
+ */
+export async function getGuildAllPoolIds(guildId) {
+  const config = await getGuildPoolConfig(guildId);
+  if (!config) {
+    // Fall back to legacy selected pool
+    const legacy = await getGuildSelectedPool(guildId);
+    return legacy ? [legacy] : [];
+  }
+  const ids = [];
+  if (config.primary_pool_id) ids.push(config.primary_pool_id);
+  const sec = Array.isArray(config.secondary_pool_ids) ? config.secondary_pool_ids : [];
+  for (const id of sec) { if (id && !ids.includes(id)) ids.push(id); }
+  return ids;
+}
+
+/**
+ * Get pools sorted by specialty match score for a given preferred specialty.
+ * Returns pools with an added `match_score` field.
+ */
+export async function rankPoolsBySpecialty(poolIds, preferredSpecialty) {
+  if (!poolIds.length) return [];
+  const p = getPool();
+  const res = await p.query(
+    `SELECT p.*, ps.composite_score, ps.songs_played, ps.total_deployments
+     FROM agent_pools p
+     LEFT JOIN pool_stats ps ON p.pool_id = ps.pool_id
+     WHERE p.pool_id = ANY($1)`,
+    [poolIds]
+  );
+  return res.rows.map(pool => ({
+    ...pool,
+    match_score: pool.specialty === preferredSpecialty ? 100 : 50,
+  })).sort((a, b) => b.match_score - a.match_score || (b.composite_score || 0) - (a.composite_score || 0));
+}

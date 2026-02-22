@@ -50,8 +50,12 @@ services:
       start_period: 10s
       # Voice services are optional and can be layered via docker-compose.voice.yml
     restart: unless-stopped
+    init: true
+    mem_limit: 512m
+    mem_reservation: 128m
+    # .:/app removed — uses the built image; run `make rebuild` after code changes
     volumes:
-      - .:/app # Mount the entire project for easier development and configuration access
+      - ./data:/app/data
 
   agent-runner:
     build:
@@ -99,5 +103,11 @@ services:
       - lavalink
       # Voice services are optional and can be layered via docker-compose.voice.yml
     restart: unless-stopped
-    volumes:
-      - .:/app # Mount the entire project for easier development and configuration access
+    init: true
+    mem_limit: 768m
+    mem_reservation: 128m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # .:/app removed — uses the built image; run `make rebuild` after code changes

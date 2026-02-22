@@ -1,0 +1,429 @@
+# Chopsticks — Laptop / Self-Hosted Stack
+#
+# Single canonical compose file for running everything on one machine.
+# Based on the production config but tuned for a laptop (lower idle memory,
+# init + read_only + tmpfs hardening on Node.js services, woksite cross-project
+# network made optional so the stack starts whether or not woksite is running).
+#
+# Usage:
+#   COMPOSE_FILE=docker-compose.laptop.yml docker compose \
+#     --profile dashboard --profile monitoring up -d
+#
+# Or just:  make up  (chopsticksctl defaults to this file)
+#
+# Profiles:
+#   (none)       — bot, agents, postgres, redis, lavalink
+#   dashboard    — + dashboard, caddy
+#   monitoring   — + prometheus, grafana
+#   ops          — + dozzle (live logs UI), adminer (DB UI), redisinsight
+
+services:
+
+  # ── Core ──────────────────────────────────────────────────────────────────
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-bot"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /root/.npm
+      - /root/.cache
+    env_file: .env
+    environment:
+      - STORAGE_DRIVER=postgres
+      - NODE_ENV=production
+      - FUN_PROVIDER=${FUN_PROVIDER:-auto}
+      - FUNHUB_URL=${FUNHUB_URL:-http://funhub:8790}
+      - FUNHUB_INTERNAL_API_KEY=${FUNHUB_INTERNAL_API_KEY:-}
+    volumes:
+      - ./data:/app/data
+    networks:
+      - chopsticks
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      lavalink:
+        condition: service_healthy
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: '1.0'
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  agents:
+    build:
+      context: .
+      dockerfile: Dockerfile.agentrunner
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-agents"
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /root/.npm
+      - /root/.cache
+    env_file: .env
+    environment:
+      - STORAGE_DRIVER=postgres
+      - NODE_ENV=production
+      - AGENT_RUNNER_POLL_INTERVAL_MS=10000
+      - MAX_AGENTS_PER_RUNNER=10
+      - AGENT_CONTROL_URL=${AGENT_CONTROL_URL:-ws://bot:8787}
+      - LAVALINK_HOST=${LAVALINK_HOST:-lavalink}
+      - LAVALINK_PORT=${LAVALINK_PORT:-2333}
+      - LAVALINK_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
+    networks:
+      - chopsticks
+    depends_on:
+      postgres:
+        condition: service_healthy
+      lavalink:
+        condition: service_healthy
+      bot:
+        condition: service_started
+    mem_limit: 768m
+    mem_reservation: 128m
+    cpus: '1.5'
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-postgres"
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chopsticks}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-chopsticks}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - chopsticks
+    mem_limit: 512m
+    mem_reservation: 64m
+    cpus: '0.5'
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c effective_cache_size=512MB
+      -c maintenance_work_mem=32MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=8MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=2MB
+      -c min_wal_size=512MB
+      -c max_wal_size=2GB
+      -c max_connections=50
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chopsticks}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-redis"
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 96mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - chopsticks
+    mem_limit: 256m
+    mem_reservation: 32m
+    cpus: '0.25'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-lavalink"
+    restart: unless-stopped
+    environment:
+      # Laptop-tuned: starts at 128 MB, can grow to 768 MB under load.
+      # Production uses -Xms512M; no need for that on a laptop at idle.
+      - _JAVA_OPTIONS=-Xmx768M -Xms128M
+      - SERVER_PORT=2333
+      - LAVALINK_SERVER_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
+    volumes:
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
+      - ./lavalink/plugins:/opt/Lavalink/plugins:ro
+    networks:
+      - chopsticks
+    mem_limit: 1g
+    mem_reservation: 256m
+    cpus: '1.5'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -H 'Authorization: ${LAVALINK_PASSWORD:-youshallnotpass}' http://localhost:2333/version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Dashboard profile ─────────────────────────────────────────────────────
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-dashboard"
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - STORAGE_DRIVER=postgres
+      - REDIS_URL=redis://redis:6379
+    command: ["npm", "run", "dashboard"]
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3002/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    ports:
+      - "127.0.0.1:8788:3002"
+    networks:
+      - chopsticks
+    depends_on:
+      - postgres
+      - redis
+    mem_limit: 384m
+    mem_reservation: 96m
+    cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    profiles: ["dashboard"]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-caddy"
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - chopsticks
+      - woksite_wok_network
+    depends_on:
+      - dashboard
+    mem_limit: 128m
+    mem_reservation: 16m
+    cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    profiles: ["dashboard"]
+
+  # ── Monitoring profile ────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-prometheus"
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+    networks:
+      - chopsticks
+      - woksite_wok_network
+    ports:
+      - "127.0.0.1:9092:9090"
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: '0.25'
+    profiles: ["monitoring"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-grafana"
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3001}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks:
+      - chopsticks
+    depends_on:
+      - prometheus
+    mem_limit: 256m
+    mem_reservation: 96m
+    cpus: '0.25'
+    profiles: ["monitoring"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ── Ops profile (on-demand tooling) ──────────────────────────────────────
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-dozzle"
+    restart: unless-stopped
+    environment:
+      - DOZZLE_NO_ANALYTICS=true
+      - DOZZLE_LEVEL=info
+    ports:
+      - "127.0.0.1:9999:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - chopsticks
+    mem_limit: 128m
+    mem_reservation: 32m
+    cpus: '0.20'
+    profiles: ["ops"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  adminer:
+    image: adminer:4
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-adminer"
+    restart: unless-stopped
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    ports:
+      - "127.0.0.1:8081:8080"
+    networks:
+      - chopsticks
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 128m
+    mem_reservation: 32m
+    cpus: '0.20'
+    profiles: ["ops"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-redisinsight"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5540:5540"
+    networks:
+      - chopsticks
+    depends_on:
+      redis:
+        condition: service_healthy
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: '0.30'
+    profiles: ["ops"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  chopsticks:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+  # Shared network with woksite and other local projects.
+  # chopsticksctl creates this network before starting if it doesn't exist,
+  # so the stack brings up cleanly whether or not woksite is running.
+  woksite_wok_network:
+    external: true
+    name: woksite_wok_network

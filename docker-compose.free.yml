@@ -1,0 +1,206 @@
+# Oracle Cloud Free Tier — All-in-One Compose
+#
+# Target: Oracle A1 Ampere (ARM64) — Always Free
+#   - Shape: VM.Standard.A1.Flex, 4 OCPU + 24 GB RAM (free forever)
+#   - OS: Ubuntu 22.04 or Oracle Linux 8
+#
+# Usage (local services):
+#   docker compose -f docker-compose.free.yml up -d
+#
+# Usage (external Neon + Upstash, skip local postgres/redis):
+#   docker compose -f docker-compose.free.yml --profile external-db up -d
+#   Then set DATABASE_URL / POSTGRES_URL to your Neon connection string
+#   and REDIS_URL to your Upstash Redis URL in .env
+#
+# Memory budget (24 GB A1):
+#   bot        512 MB
+#   agents     1.5 GB
+#   lavalink   1.5 GB
+#   postgres   512 MB   (skipped in external-db mode)
+#   redis      256 MB   (skipped in external-db mode)
+#   OS + misc  ~1 GB
+#   ---------------------
+#   Total      ~5.2 GB  (leaves 18+ GB headroom for agents scaling up)
+
+services:
+
+  # ── Main Bot ────────────────────────────────────────────────────────────────
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-bot"
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - STORAGE_DRIVER=postgres
+      - NODE_ENV=production
+      - FUN_PROVIDER=${FUN_PROVIDER:-auto}
+    volumes:
+      - ./data:/app/data
+    networks:
+      - chopsticks
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      lavalink:
+        condition: service_healthy
+    mem_limit: 512m
+    mem_reservation: 256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Agent Runner ─────────────────────────────────────────────────────────────
+  agents:
+    build:
+      context: .
+      dockerfile: Dockerfile.agentrunner
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-agents"
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - STORAGE_DRIVER=postgres
+      - NODE_ENV=production
+      - AGENT_RUNNER_POLL_INTERVAL_MS=10000
+      - MAX_AGENTS_PER_RUNNER=10
+      - AGENT_CONTROL_URL=${AGENT_CONTROL_URL:-ws://bot:8787}
+      - LAVALINK_HOST=${LAVALINK_HOST:-lavalink}
+      - LAVALINK_PORT=${LAVALINK_PORT:-2333}
+      - LAVALINK_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
+    networks:
+      - chopsticks
+    depends_on:
+      postgres:
+        condition: service_healthy
+      lavalink:
+        condition: service_healthy
+      bot:
+        condition: service_started
+    mem_limit: 1536m
+    mem_reservation: 512m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Lavalink Music Server ─────────────────────────────────────────────────────
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-lavalink"
+    restart: unless-stopped
+    environment:
+      # 1 GB heap — fits comfortably inside A1's 24 GB
+      - _JAVA_OPTIONS=-Xmx1G -Xms256M
+      - SERVER_PORT=2333
+      - LAVALINK_SERVER_PASSWORD=${LAVALINK_PASSWORD:-youshallnotpass}
+    volumes:
+      - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
+      - ./lavalink/plugins:/opt/Lavalink/plugins:ro
+    networks:
+      - chopsticks
+    mem_limit: 1536m
+    mem_reservation: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -H 'Authorization: ${LAVALINK_PASSWORD:-youshallnotpass}' http://localhost:2333/version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  # To use Neon instead: remove this service and set DATABASE_URL + POSTGRES_URL
+  # in .env to your Neon connection string.
+  postgres:
+    image: postgres:16-alpine
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-postgres"
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chopsticks}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-chopsticks}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - chopsticks
+    mem_limit: 512m
+    mem_reservation: 128m
+    # Tuned for 512 MB limit
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c effective_cache_size=256MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=50
+      -c wal_buffers=8MB
+      -c checkpoint_completion_target=0.9
+      -c work_mem=2MB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chopsticks}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  # To use Upstash instead: remove this service and set REDIS_URL in .env
+  # to your Upstash Redis URL.
+  redis:
+    image: redis:7-alpine
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-redis"
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - chopsticks
+    mem_limit: 256m
+    mem_reservation: 64m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  chopsticks:
+    driver: bridge

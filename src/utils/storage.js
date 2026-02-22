@@ -671,7 +671,76 @@ export async function removePoolMember(poolId, userId, actorUserId) {
   return pg.removePoolMember(poolId, userId, actorUserId);
 }
 
-export { maskToken } from './storage_pg.js';
+export { maskToken, SPECIALTIES, BADGE_DEFS } from './storage_pg.js';
+
+// Specializations
+export async function setAgentSpecialty(agentId, specialty) {
+  const pg = await getPg();
+  return pg.setAgentSpecialty(agentId, specialty);
+}
+
+export async function setPoolSpecialty(poolId, specialty, actorUserId) {
+  const pg = await getPg();
+  return pg.setPoolSpecialty(poolId, specialty, actorUserId);
+}
+
+// Guild multi-pool config
+export async function getGuildPoolConfig(guildId) {
+  const pg = await getPg();
+  return pg.getGuildPoolConfig(guildId);
+}
+
+export async function setGuildPoolConfig(guildId, opts) {
+  const pg = await getPg();
+  return pg.setGuildPoolConfig(guildId, opts);
+}
+
+export async function addGuildSecondaryPool(guildId, poolId) {
+  const pg = await getPg();
+  return pg.addGuildSecondaryPool(guildId, poolId);
+}
+
+export async function removeGuildSecondaryPool(guildId, poolId) {
+  const pg = await getPg();
+  return pg.removeGuildSecondaryPool(guildId, poolId);
+}
+
+export async function getGuildAllPoolIds(guildId) {
+  const pg = await getPg();
+  return pg.getGuildAllPoolIds(guildId);
+}
+
+export async function rankPoolsBySpecialty(poolIds, preferredSpecialty) {
+  const pg = await getPg();
+  return pg.rankPoolsBySpecialty(poolIds, preferredSpecialty);
+}
+
+// Pool alliances
+export async function proposeAlliance(poolAId, poolBId, initiatedBy) {
+  const pg = await getPg();
+  return pg.proposeAlliance(poolAId, poolBId, initiatedBy);
+}
+
+export async function acceptAlliance(poolAId, poolBId, actorUserId) {
+  const pg = await getPg();
+  return pg.acceptAlliance(poolAId, poolBId, actorUserId);
+}
+
+export async function dissolveAlliance(poolAId, poolBId, actorUserId) {
+  const pg = await getPg();
+  return pg.dissolveAlliance(poolAId, poolBId, actorUserId);
+}
+
+export async function fetchPoolAlliances(poolId, status) {
+  const pg = await getPg();
+  return pg.fetchPoolAlliances(poolId, status);
+}
+
+// Badges
+export async function evaluatePoolBadges(poolId) {
+  const pg = await getPg();
+  return pg.evaluatePoolBadges(poolId);
+}
 
 export async function createPet(userId, type, name) {
   const pg = await getPg();

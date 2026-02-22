@@ -23,7 +23,7 @@ import {
   formatMusicError
 } from "../music/service.js";
 import { getMusicConfig, setDefaultMusicMode, updateMusicSettings } from "../music/config.js";
-import { loadGuildData, saveGuildData, getGuildSelectedPool, incrementPoolStat } from "../utils/storage.js";
+import { loadGuildData, saveGuildData, getGuildSelectedPool, incrementPoolStat, evaluatePoolBadges } from "../utils/storage.js";
 import { auditLog } from "../utils/audit.js";
 import { handleInteractionError, handleSafeError, ErrorCategory } from "../utils/errorHandler.js";
 import { getCache, setCache } from "../utils/redis.js";
@@ -1633,10 +1633,13 @@ async function playAudioDropToVc(interaction, dropKey, uploaderId, voiceChannelI
     await sendAudioDropEphemeral(interaction, {
       embeds: [buildTrackEmbed(action, playedTrack)]
     }, { preferFollowUp });
-    // Fire-and-forget pool songs_played stat
+    // Fire-and-forget pool songs_played stat + badge evaluation
     if (guildId) {
       getGuildSelectedPool(guildId).then(poolId => {
-        if (poolId) incrementPoolStat(poolId, 'songs_played').catch(() => {});
+        if (poolId) {
+          incrementPoolStat(poolId, 'songs_played').catch(() => {});
+          evaluatePoolBadges(poolId).catch(() => {});
+        }
       }).catch(() => {});
     }
   } catch (err) {

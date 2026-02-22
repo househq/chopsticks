@@ -5,7 +5,7 @@ set -euo pipefail
 # Designed for local dev, servers, and systemd. Safe defaults; no secrets printed.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.production.yml}"
+COMPOSE_FILE="${COMPOSE_FILE:-$ROOT_DIR/docker-compose.laptop.yml}"
 COMPOSE_PROFILES="${COMPOSE_PROFILES:-dashboard,monitoring,fun}"
 
 cd "$ROOT_DIR"
@@ -84,6 +84,11 @@ case "$cmd" in
 
     log "preflight validation"
     ./scripts/validate-deployment.sh
+
+    # Ensure the shared cross-project network exists; woksite may or may not be running.
+    docker network inspect woksite_wok_network >/dev/null 2>&1 \
+      || docker network create woksite_wok_network >/dev/null \
+      && log "created woksite_wok_network (shared external network)"
 
     if [ "${CHOPSTICKS_AUTO_BUILD:-false}" = "true" ]; then
       log "building images (CHOPSTICKS_AUTO_BUILD=true)"

@@ -1,19 +1,27 @@
 # Chopsticks Platform Makefile
 # Enforces maturity model progression
 
-.PHONY: help start stop restart logs health status clean test-level-0 test-level-1 test-protocol verify-clean-boot
+.PHONY: help start stop restart logs logs-agents logs-lavalink logs-all health status clean rebuild rebuild-all test-level-0 test-level-1 test-protocol verify-clean-boot
 
 # Default target
 help:
-	@echo "🥢 Chopsticks Platform - Maturity Model Enforced"
+	@echo "🥢 Chopsticks Platform - Laptop Hardened Stack"
 	@echo ""
 	@echo "Common Commands:"
 	@echo "  make start              - Start all services (one-command bring-up)"
 	@echo "  make stop               - Stop all services"
 	@echo "  make restart            - Restart all services"
 	@echo "  make logs               - Follow bot logs"
+	@echo "  make logs-agents        - Follow agent-runner logs"
+	@echo "  make logs-lavalink      - Follow lavalink logs"
+	@echo "  make logs-all           - Follow all service logs"
 	@echo "  make health             - Check system health"
 	@echo "  make status             - Show container status"
+	@echo ""
+	@echo "Building:"
+	@echo "  make rebuild            - Rebuild bot + agents images and restart"
+	@echo "  make rebuild-all        - Rebuild all images and restart"
+	@echo "  make deploy-commands    - Deploy slash commands"
 	@echo ""
 	@echo "Testing & Verification:"
 	@echo "  make test-level-0       - Run Level 0 maturity checks"
@@ -22,11 +30,7 @@ help:
 	@echo "  make verify-clean-boot  - Verify clean boot from scratch"
 	@echo "  make clean              - Clean all containers and volumes"
 	@echo ""
-	@echo "Development:"
-	@echo "  make rebuild            - Rebuild bot container"
-	@echo "  make deploy-commands    - Deploy slash commands"
-	@echo ""
-	@echo "Current Maturity Level: 1 (see docs/status/MATURITY.md)"
+	@echo "Compose file: docker-compose.laptop.yml (override with COMPOSE_FILE=...)"
 
 # Start the platform
 start:
@@ -43,6 +47,15 @@ restart: stop start
 logs:
 	@./scripts/ops/chopsticksctl.sh logs bot
 
+logs-agents:
+	@./scripts/ops/chopsticksctl.sh logs agents
+
+logs-lavalink:
+	@./scripts/ops/chopsticksctl.sh logs lavalink
+
+logs-all:
+	@./scripts/ops/chopsticksctl.sh logs
+
 # Check health
 health:
 	@curl -s http://localhost:8080/healthz | jq . || curl -s http://localhost:8080/health | jq . || echo "Health endpoint not responding"
@@ -57,7 +70,7 @@ clean:
 	@read -p "Continue? [y/N] " -n 1 -r; \
 	echo ""; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker compose -f docker-compose.production.yml down -v; \
+		docker compose -f docker-compose.laptop.yml down -v; \
 		echo "✅ Cleaned"; \
 	fi
 
@@ -79,11 +92,17 @@ test-protocol:
 verify-clean-boot:
 	@./scripts/verify-clean-boot.sh
 
-# Rebuild bot container
+# Rebuild bot + agents images and restart
 rebuild:
-	@docker compose -f docker-compose.production.yml build bot
-	@docker compose -f docker-compose.production.yml up -d bot
-	@echo "✅ Bot rebuilt and restarted"
+	@docker compose -f docker-compose.laptop.yml build bot agents
+	@docker compose -f docker-compose.laptop.yml up -d bot agents
+	@echo "✅ Bot and agents rebuilt and restarted"
+
+# Rebuild all images and restart
+rebuild-all:
+	@docker compose -f docker-compose.laptop.yml build
+	@docker compose -f docker-compose.laptop.yml up -d
+	@echo "✅ All images rebuilt and restarted"
 
 # Deploy slash commands
 deploy-commands:
