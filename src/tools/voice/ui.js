@@ -1391,13 +1391,26 @@ export async function handleVoiceUIModal(interaction) {
     }
 
     const wrapped = Object.create(interaction);
+    // Provide a complete options stub so musicExecute() doesn't throw on any
+    // options accessor (getSubcommandGroup is called on line 1 of execute()).
     wrapped.options = {
-      getSubcommand: () => "play",
-      getString: (name) => (name === "query" ? query : null)
+      getSubcommand:      ()     => "play",
+      getSubcommandGroup: ()     => null,
+      getString:          (name) => name === "query" ? query : null,
+      getBoolean:         ()     => null,
+      getInteger:         ()     => null,
+      getNumber:          ()     => null,
+      getUser:            ()     => null,
+      getChannel:         ()     => null,
+      getMember:          ()     => null,
+      getRole:            ()     => null,
     };
-    wrapped.deferReply = (opts = {}) => interaction.deferReply({ ...opts, flags: MessageFlags.Ephemeral });
-    wrapped.reply = (payload) => interaction.reply({ ...(payload || {}), ...maybeEphemeralFlags(interaction) });
-    wrapped.followUp = (payload) => interaction.followUp({ ...(payload || {}), ...maybeEphemeralFlags(interaction) });
+    // Force all replies to be ephemeral — modal submissions must not produce
+    // public messages in the channel.
+    wrapped.deferReply  = (opts = {}) => interaction.deferReply({ ...opts, flags: MessageFlags.Ephemeral });
+    wrapped.reply       = (payload)   => interaction.reply({ ...(payload || {}), ...maybeEphemeralFlags(interaction) });
+    wrapped.editReply   = (payload)   => interaction.editReply(payload || {});
+    wrapped.followUp    = (payload)   => interaction.followUp({ ...(payload || {}), ...maybeEphemeralFlags(interaction) });
     await musicExecute(wrapped);
     return true;
   }
