@@ -3,7 +3,7 @@ import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { REST, Routes } from "discord.js";
+import { REST, Routes, PermissionFlagsBits } from "discord.js";
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -32,6 +32,15 @@ const files = fs
 
 const payload = [];
 
+/** Resolve a permission entry to a BigInt flag. Accepts BigInt or string key. */
+function resolvePermFlag(perm) {
+  if (typeof perm === "bigint") return perm;
+  if (typeof perm === "number") return BigInt(perm);
+  if (typeof perm === "string" && perm in PermissionFlagsBits) return PermissionFlagsBits[perm];
+  console.warn(`[deploy] unknown permission: ${perm} — skipping`);
+  return 0n;
+}
+
 for (const file of files) {
   const fullPath = path.join(commandsDir, file);
 
@@ -50,13 +59,11 @@ for (const file of files) {
   if (!cmd?.data?.toJSON) continue;
 
   try {
-    // Apply permissions from meta to command builder
     if (cmd.meta?.userPerms && Array.isArray(cmd.meta.userPerms) && cmd.meta.userPerms.length > 0) {
-      // Combine all required permissions with bitwise OR
-      const combinedPerms = cmd.meta.userPerms.reduce((acc, perm) => acc | perm, 0n);
+      const combinedPerms = cmd.meta.userPerms.reduce((acc, perm) => acc | resolvePermFlag(perm), 0n);
       cmd.data.setDefaultMemberPermissions(combinedPerms);
     }
-    
+
     payload.push(cmd.data.toJSON());
   } catch (err) {
     console.error(`[deploy] command builder failed: ${file}`);

@@ -30,6 +30,11 @@ import {
   maybeHandlePlaylistIngestMessage,
   handleModal as handleMusicModal
 } from "./commands/music.js";
+import {
+  handleButton as handleAudiobookButton,
+  handleSelect as handleAudiobookSelect,
+  maybeHandleAudiobookMessage,
+} from "./commands/audiobook.js";
 import { handleButton as handleAssistantButton } from "./commands/assistant.js";
 import { handleButton as handleCommandsButton, handleSelect as handleCommandsSelect } from "./commands/commands.js";
 import { handleButton as handlePoolsButton, handleSelect as handlePoolsSelect, handlePoolGlobalButton } from "./commands/pools.js";
@@ -432,6 +437,17 @@ client.once(Events.ClientReady, async () => {
     return;
   }
 
+  // Initialize primary bot Lavalink for music-without-agents (primary mode)
+  try {
+    const { startLavalink } = await import("./lavalink/client.js");
+    await startLavalink(client);
+    global.primaryLavalinkReady = true;
+    console.log("🎵 Primary Lavalink initialized — music available without agents");
+  } catch (err) {
+    console.warn("⚠️  Primary Lavalink init failed (music requires agents):", err?.message ?? err);
+    global.primaryLavalinkReady = false;
+  }
+
   // Ensure database schema is up-to-date
   try {
     await ensureSchema();
@@ -468,6 +484,14 @@ client.once(Events.ClientReady, async () => {
     }
   }, flushMs);
 
+  // Auto-start dashboard server (zero-config: guild admins just run /console)
+  try {
+    const { startDashboard } = await import("./dashboard/server.js");
+    startDashboard();
+  } catch (err) {
+    console.warn("⚠️  Dashboard server failed to start:", err?.message ?? err);
+  }
+
   const shutdown = async () => {
     clearInterval(flushTimer);
 
@@ -500,6 +524,24 @@ client.once(Events.ClientReady, async () => {
 
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
+
+  /* ===================== PLAYLIST DROP THREAD CLEANUP ===================== */
+  // When a playlist drop thread is deleted externally, clean up the channelBinding
+  client.on(Events.ThreadDelete, async thread => {
+    try {
+      const guildId = thread.guildId;
+      if (!guildId) return;
+      const { loadGuildData, saveGuildData } = await import("./utils/storage.js");
+      const data = await loadGuildData(guildId);
+      const bindings = data?.music?.playlists?.channelBindings;
+      if (!bindings || !(thread.id in bindings)) return;
+      const playlistId = bindings[thread.id];
+      delete bindings[thread.id];
+      const pl = data?.music?.playlists?.playlists?.[playlistId];
+      if (pl && pl.channelId === thread.id) pl.channelId = null;
+      await saveGuildData(guildId, data).catch(() => {});
+    } catch {}
+  });
 
   /* ===================== TRACK BOT REMOVALS ===================== */
   // When any bot (including agents) leaves a guild, update agent tracking
@@ -643,6 +685,29 @@ client.on(Events.MessageCreate, async message => {
       user: message.author,
       message
     }).catch(() => {});
+
+    // Music trivia answer check — fire-and-forget
+    if (message.content && message.content.length < 100) {
+      void (async () => {
+        try {
+          const { checkTriviaAnswer, consumeTriviaSession, TRIVIA_XP_REWARD } = await import("./music/trivia.js");
+          if (checkTriviaAnswer(message.guildId, message.content)) {
+            const session = consumeTriviaSession(message.guildId);
+            if (session) {
+              await message.react("🎉").catch(() => {});
+              await message.reply({
+                content: `🎉 **Correct!** The answer was **${session.answer}** — +${TRIVIA_XP_REWARD} XP!`
+              }).catch(() => {});
+              // Award XP via existing game XP system
+              try {
+                const { addGameXp } = await import("./game/profile.js");
+                await addGameXp(message.author.id, TRIVIA_XP_REWARD, { reason: "music_trivia" });
+              } catch {}
+            }
+          }
+        } catch {}
+      })();
+    }
   }
 
   let prefix = "!";
@@ -661,6 +726,7 @@ client.on(Events.MessageCreate, async message => {
   if (message.guildId && guildData) {
     void maybeHandleAudioDropMessage(message, guildData).catch(() => {});
     void maybeHandlePlaylistIngestMessage(message, guildData).catch(() => {});
+    void maybeHandleAudiobookMessage(message).catch(() => {});
   }
 
   if (!message.content?.startsWith(prefix)) return;
@@ -806,6 +872,7 @@ client.on(Events.InteractionCreate, async interaction => {
     try {
       if (await handleAgentsSelect(interaction)) return;
       if (await handlePoolsSelect(interaction)) return;
+      if (await handleAudiobookSelect(interaction)) return;
       if (await handleTicketsSelect(interaction)) return;
       if (await handleSetupSelect(interaction)) return;
       if (await handleTriviaSelect(interaction)) return;
@@ -831,6 +898,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (await handlePoolGlobalButton(interaction)) return;
       if (await handleAgentsButton(interaction)) return;
       if (await handlePoolsButton(interaction)) return;
+      if (await handleAudiobookButton(interaction)) return;
       if (await handleTicketsButton(interaction)) return;
       if (await handleSetupButton(interaction)) return;
       if (await handleTriviaButton(interaction)) return;

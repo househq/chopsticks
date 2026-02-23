@@ -204,11 +204,31 @@ data.addSubcommandGroup(g =>
       s.setName("load").setDescription("Load a saved playlist into the queue")
         .addStringOption(o => o.setName("name").setDescription("Playlist name").setRequired(true))
     )
+    .addSubcommand(s =>
+      s.setName("save").setDescription("Save current queue as a named playlist")
+        .addStringOption(o => o.setName("name").setDescription("Playlist name").setRequired(true).setMaxLength(50))
+    )
 );
 
-data.addSubcommand(s =>
-  s.setName("save").setDescription("Save current queue as a named playlist")
-    .addStringOption(o => o.setName("name").setDescription("Playlist name").setRequired(true).setMaxLength(50))
+data.addSubcommandGroup(g =>
+  g
+    .setName("social")
+    .setDescription("Social music features — dedications, history, trivia, requests")
+    .addSubcommand(s =>
+      s.setName("dedicate").setDescription("Queue a song with a shout-out to another member")
+        .addStringOption(o => o.setName("query").setDescription("Song search or URL").setRequired(true))
+        .addUserOption(o => o.setName("to").setDescription("Who to dedicate this song to").setRequired(true))
+        .addStringOption(o => o.setName("message").setDescription("Optional personal message").setMaxLength(100))
+    )
+    .addSubcommand(s => s.setName("history").setDescription("Show the last 10 songs played in this server"))
+    .addSubcommand(s =>
+      s.setName("request").setDescription("Request a song — your name appears in the now-playing message")
+        .addStringOption(o => o.setName("query").setDescription("Song search or URL").setRequired(true))
+        .addStringOption(o => o.setName("message").setDescription("Optional request message shown in queue").setMaxLength(80))
+    )
+    .addSubcommand(s =>
+      s.setName("trivia").setDescription("Force a music trivia question about the current song (DJ/admin only)")
+    )
 );
 data.addSubcommand(s =>
   s.setName("eq").setDescription("Set equalizer preset")
@@ -223,6 +243,52 @@ data.addSubcommand(s =>
     )
 );
 data.addSubcommand(s => s.setName("lyrics").setDescription("Show lyrics for the current track"));
+
+data.addSubcommand(s =>
+  s.setName("dj").setDescription("Configure or toggle the AI DJ for this server")
+    .addStringOption(o =>
+      o.setName("action").setDescription("What to do").setRequired(true)
+        .addChoices(
+          { name: "on — enable AI DJ", value: "on" },
+          { name: "off — disable AI DJ", value: "off" },
+          { name: "persona — set DJ personality", value: "persona" },
+          { name: "test — generate a test announcement", value: "test" }
+        )
+    )
+    .addStringOption(o =>
+      o.setName("style").setDescription("Personality style (for persona action)")
+        .addChoices(
+          { name: "hype — over-the-top hypeman", value: "hype" },
+          { name: "smooth — late-night radio host", value: "smooth" },
+          { name: "chaotic — unhinged gremlin", value: "chaotic" },
+          { name: "chill — lo-fi cafe vibes", value: "chill" },
+          { name: "roast — gently roasts your choices", value: "roast" }
+        )
+    )
+    .addStringOption(o =>
+      o.setName("name").setDescription("Custom DJ name (optional, for persona action)").setMaxLength(32)
+    )
+);
+
+data.addSubcommand(s =>
+  s.setName("vibe").setDescription("Show or set the server vibe that shapes music suggestions")
+    .addStringOption(o =>
+      o.setName("mood").setDescription("Set mood override (auto-expires after 1 hour)")
+        .addChoices(
+          { name: "energetic — upbeat and fast", value: "energetic" },
+          { name: "hype — hip-hop banger mode", value: "hype" },
+          { name: "chill — lo-fi and relaxed", value: "chill" },
+          { name: "focus — ambient and instrumental", value: "focus" },
+          { name: "melancholy — sad indie vibes", value: "melancholy" },
+          { name: "auto — detect from chat", value: "auto" }
+        )
+    )
+);
+
+data.addSubcommand(s =>
+  s.setName("autoplay").setDescription("Toggle smart autoplay — AI picks the next song when queue is empty")
+    .addBooleanOption(o => o.setName("enabled").setDescription("Enable or disable autoplay").setRequired(true))
+);
 
 function requireVoice(interaction) {
   const member = interaction.member;
@@ -271,7 +337,7 @@ function safeDeferEphemeral(interaction) {
 
 // makeEmbed removed - using imported version
 
-function buildTrackEmbed(action, track) {
+function buildTrackEmbed(action, track, { footer } = {}) {
   const title = action === "playing" ? "Now Playing" : "Queued";
   const fields = [];
   if (track?.author) fields.push({ name: "Artist", value: track.author, inline: true });
@@ -288,7 +354,9 @@ function buildTrackEmbed(action, track) {
     track?.title ?? "Unknown title",
     fields,
     track?.uri ?? null,
-    track?.thumbnail ?? null
+    track?.thumbnail ?? null,
+    undefined,
+    footer ?? null
   );
 }
 
@@ -661,6 +729,10 @@ async function tryUpdatePlaylistPanelMessage(guild, guildData, playlistId) {
     if (!pl?.panel?.channelId || !pl?.panel?.messageId) return;
     const ch = guild.channels.cache.get(pl.panel.channelId);
     if (!ch?.isTextBased?.()) return;
+    // If the panel channel is an archived thread, temporarily unarchive to edit the panel
+    if (ch.isThread?.() && ch.archived) {
+      await ch.setArchived(false).catch(() => {});
+    }
     const msg = await ch.messages.fetch(pl.panel.messageId).catch(() => null);
     if (!msg) return;
     await msg.edit({
@@ -1030,29 +1102,39 @@ async function tryCreateDropThread(interaction, name) {
   if (!interaction.guild || !parent) return null;
   if (parent.type !== ChannelType.GuildText && parent.type !== ChannelType.GuildAnnouncement) return null;
 
-  try {
-    const thread = await parent.threads.create({
-      name: String(name || "playlist-drop").slice(0, 60),
-      type: ChannelType.PrivateThread,
-      invitable: false,
-      reason: "Chopsticks playlist drop thread"
-    });
-    await thread.members.add(interaction.user.id).catch(() => {});
-    return thread;
-  } catch (err) {
-    console.warn("[music:playlists] Private thread creation failed, trying public fallback:", err?.message ?? err);
+  // Check bot permissions in this channel before attempting
+  const botMember = interaction.guild.members.me;
+  const botPerms = parent.permissionsFor(botMember);
+  const hasPrivate = botPerms?.has?.(PermissionFlagsBits.CreatePrivateThreads) && botPerms?.has?.(PermissionFlagsBits.SendMessagesInThreads);
+  const hasPublic = botPerms?.has?.(PermissionFlagsBits.CreatePublicThreads) && botPerms?.has?.(PermissionFlagsBits.SendMessagesInThreads);
+
+  if (hasPrivate) {
+    try {
+      const thread = await parent.threads.create({
+        name: String(name || "playlist-drop").slice(0, 60),
+        type: ChannelType.PrivateThread,
+        invitable: false,
+        reason: "Chopsticks playlist drop thread"
+      });
+      await thread.members.add(interaction.user.id).catch(() => {});
+      return thread;
+    } catch (err) {
+      console.warn("[music:playlists] Private thread creation failed, trying public fallback:", err?.message ?? err);
+    }
   }
 
-  try {
-    const thread = await parent.threads.create({
-      name: String(name || "playlist-drop").slice(0, 60),
-      type: ChannelType.PublicThread,
-      reason: "Chopsticks playlist drop thread (fallback)"
-    });
-    await thread.members.add(interaction.user.id).catch(() => {});
-    return thread;
-  } catch (err) {
-    console.warn("[music:playlists] Public thread fallback also failed:", err?.message ?? err);
+  if (hasPublic) {
+    try {
+      const thread = await parent.threads.create({
+        name: String(name || "playlist-drop").slice(0, 60),
+        type: ChannelType.PublicThread,
+        reason: "Chopsticks playlist drop thread (fallback: no private thread perms)"
+      });
+      await thread.members.add(interaction.user.id).catch(() => {});
+      return thread;
+    } catch (err) {
+      console.warn("[music:playlists] Public thread fallback also failed:", err?.message ?? err);
+    }
   }
 
   return null;
@@ -1208,7 +1290,17 @@ async function ingestPlaylistMessage(message, guildData) {
     }
   }
 
-  if (!newItems.length) return;
+  if (!newItems.length) {
+    // Something was dropped but nothing parseable — show ❓ hint (rate-limited to avoid spam)
+    const hintKey = `musicpl:hint:${message.guildId}:${message.author.id}`;
+    const rl = await checkRateLimit(hintKey, 1, 300).catch(() => ({ ok: true }));
+    if (rl.ok) {
+      await message.reply({
+        content: `❓ Nothing recognisable was added. Drop **audio files**, paste a **YouTube/SoundCloud link**, or type \`q: search terms\` to add a search query.`
+      }).catch(() => {});
+    }
+    return;
+  }
 
   // Dedupe by URL (within playlist), keep newest first.
   const seen = new Set(pl.items.map(it => String(it?.url ?? "")));
@@ -1220,7 +1312,11 @@ async function ingestPlaylistMessage(message, guildData) {
     seen.add(url);
     toAdd.push(it);
   }
-  if (!toAdd.length) return;
+  if (!toAdd.length) {
+    // Everything was a duplicate — signal with a reaction so user knows
+    await message.react("🔁").catch(() => {});
+    return;
+  }
 
   pl.items = [...toAdd, ...pl.items];
   pl.items = pl.items.slice(0, cfg.maxItemsPerPlaylist);
@@ -1230,6 +1326,26 @@ async function ingestPlaylistMessage(message, guildData) {
     await saveGuildData(message.guildId, guildData).catch(() => {});
     // If a pinned panel exists, update it.
     void tryUpdatePlaylistPanelMessage(message.guild, guildData, playlistId).catch(() => {});
+
+    // ✅ Feedback reaction + optional tip message
+    await message.react("✅").catch(() => {});
+
+    // Attachment URL expiry warning (Discord CDN URLs expire in ~24h)
+    const hasAttachment = toAdd.some(it => it.type === "attachment");
+    if (hasAttachment) {
+      const warningKey = `musicpl:att_warn:${message.guildId}:${message.author.id}`;
+      const rl = await checkRateLimit(warningKey, 1, 3600).catch(() => ({ ok: true }));
+      if (rl.ok) {
+        await message.reply({
+          content: `✅ Added **${toAdd.length}** track${toAdd.length !== 1 ? "s" : ""} to **${pl.name ?? "your playlist"}**.\n⚠️ **Note:** Audio files are stored by Discord CDN URL, which expires in ~24 hours. Use the **Browse** button and queue your tracks soon, or re-upload later if the URL expires.`
+        }).catch(() => {});
+      }
+    } else if (toAdd.length === 1 && toAdd[0].type === "query") {
+      // Confirm query capture
+      await message.reply({
+        content: `✅ Search query **"${toAdd[0].title}"** added to **${pl.name ?? "your playlist"}**.\nUse **Browse** to queue it.`
+      }).catch(() => {});
+    }
   }
 }
 
@@ -1641,6 +1757,17 @@ async function playAudioDropToVc(interaction, dropKey, uploaderId, voiceChannelI
           evaluatePoolBadges(poolId).catch(() => {});
         }
       }).catch(() => {});
+
+      // Fire-and-forget play history logging
+      if (playedTrack?.title) {
+        import("../utils/storage_pg.js").then(({ getPool }) => {
+          getPool().query(
+            `INSERT INTO music_play_history (guild_id, user_id, track_title, track_author, track_uri)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [guildId, interaction.user.id, playedTrack.title, playedTrack.author ?? null, playedTrack.uri ?? null]
+          ).catch(() => {});
+        }).catch(() => {});
+      }
     }
   } catch (err) {
     const msg = formatMusicError(err);
@@ -1783,6 +1910,45 @@ export async function execute(interaction) {
       return;
     }
 
+    if (sub === "save") {
+      const plVcIdSave = await resolveMemberVoiceId(interaction);
+      if (!plVcIdSave) {
+        await interaction.reply({ flags: MessageFlags.Ephemeral, embeds: [makeEmbed("Music Playlists", "❌ Join a voice channel first.")] });
+        return;
+      }
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const plSaveName = interaction.options.getString("name", true).trim();
+      const plSaveConfig = await getMusicConfig(guildId);
+      const plSaveEnsure = await ensureSessionAgent(guildId, plVcIdSave, { textChannelId: interaction.channelId, ownerUserId: userId });
+      if (!plSaveEnsure.ok) {
+        await interaction.editReply({ embeds: [makeEmbed("Music Playlists", formatMusicError(plSaveEnsure.reason))] });
+        return;
+      }
+      let plSaveResult;
+      try {
+        plSaveResult = await sendAgentCommand(plSaveEnsure.agent, "queue", {
+          guildId, voiceChannelId: plVcIdSave, textChannelId: interaction.channelId,
+          ownerUserId: userId, actorUserId: userId, controlMode: plSaveConfig.controlMode
+        });
+      } catch (err) {
+        await interaction.editReply({ embeds: [makeEmbed("Music Playlists", formatMusicError(err))] });
+        return;
+      }
+      const plSaveCurrent = plSaveResult?.current ?? null;
+      const plSaveTracks = Array.isArray(plSaveResult?.tracks) ? plSaveResult.tracks : [];
+      const plSaveAll = plSaveCurrent ? [plSaveCurrent, ...plSaveTracks] : plSaveTracks;
+      if (!plSaveAll.length) {
+        await interaction.editReply({ embeds: [makeEmbed("Music Playlists", "❌ Nothing in queue to save.")] });
+        return;
+      }
+      const plSaveData = await loadGuildData(guildId);
+      plSaveData.savedPlaylists ??= {};
+      plSaveData.savedPlaylists[plSaveName] = plSaveAll.map(t => ({ title: t.title, uri: t.uri, requester: t.requester }));
+      await saveGuildData(guildId, plSaveData);
+      await interaction.editReply({ embeds: [makeEmbed("Music Playlists", `✅ Saved playlist '${plSaveName}' with ${plSaveAll.length} tracks.`)] });
+      return;
+    }
+
     await interaction.reply({ flags: MessageFlags.Ephemeral, embeds: [makeEmbed("Music Playlists", "Unknown action.", [], null, null, 0xFF0000)] });
     return;
   }
@@ -1876,6 +2042,137 @@ export async function execute(interaction) {
       flags: MessageFlags.Ephemeral,
       embeds: [makeEmbed("Audio Drops", "Unknown action.", [], null, null, 0xFF0000)]
     });
+    return;
+  }
+
+  // ── social group ─────────────────────────────────────────────────────────
+  if (group === "social") {
+    if (sub === "history") {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      try {
+        const { getPool } = await import("../utils/storage_pg.js");
+        const pg = getPool();
+        const res = await pg.query(
+          `SELECT track_title, track_author, user_id, dedicated_to, played_at
+           FROM music_play_history
+           WHERE guild_id = $1
+           ORDER BY played_at DESC
+           LIMIT 10`,
+          [guildId]
+        );
+        if (!res.rows.length) {
+          await interaction.editReply({ embeds: [makeEmbed("Recent Songs", "No songs have been played yet.")] });
+          return;
+        }
+        const fields = res.rows.map((r, i) => ({
+          name: `${i + 1}. ${r.track_title}`,
+          value: `by ${r.track_author ?? "Unknown"} · queued by <@${r.user_id}>${r.dedicated_to ? ` · 💌 for <@${r.dedicated_to}>` : ""} · <t:${Math.floor(new Date(r.played_at).getTime() / 1000)}:R>`,
+          inline: false
+        }));
+        await interaction.editReply({ embeds: [makeEmbed("🎵 Recent Songs", `Last ${res.rows.length} tracks played in this server`, fields, null, null, QUEUE_COLOR)] });
+      } catch (err) {
+        await interaction.editReply({ embeds: [makeEmbed("Recent Songs", `❌ ${err?.message ?? "Failed to load history."}`)] });
+      }
+      return;
+    }
+
+    if (sub === "trivia") {
+      const perms = interaction.memberPermissions;
+      if (!perms?.has?.(PermissionFlagsBits.ManageGuild)) {
+        await interaction.reply({ flags: MessageFlags.Ephemeral, embeds: [makeEmbed("Music Trivia", "Manage Server permission required.")] });
+        return;
+      }
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const vcId = await resolveMemberVoiceId(interaction);
+      const ensureRes = vcId ? await ensureSessionAgent(guildId, vcId, { textChannelId: interaction.channelId, ownerUserId: userId }) : { ok: false };
+      if (!ensureRes.ok) {
+        await interaction.editReply({ embeds: [makeEmbed("Music Trivia", "No active music session. Start playing something first.")] });
+        return;
+      }
+      try {
+        let currentTrack = null;
+        try {
+          const statusRes = await sendAgentCommand(ensureRes.agent, "status", { guildId, voiceChannelId: vcId });
+          currentTrack = statusRes?.current ?? null;
+        } catch {}
+        if (!currentTrack?.title) {
+          await interaction.editReply({ embeds: [makeEmbed("Music Trivia", "Nothing is currently playing.")] });
+          return;
+        }
+        const { startTriviaSession } = await import("../music/trivia.js");
+        const session = await startTriviaSession(guildId, interaction.channelId, currentTrack);
+        if (!session) {
+          await interaction.editReply({ embeds: [makeEmbed("Music Trivia", "❌ Could not generate a trivia question right now.")] });
+          return;
+        }
+        const channel = interaction.channel;
+        if (channel?.isTextBased?.()) {
+          await channel.send({ content: `🎵 **Music Trivia!** First to answer correctly gets **+75 XP** ⏱️ 30 seconds\n\n❓ ${session.question}` }).catch(() => {});
+        }
+        await interaction.editReply({ embeds: [makeEmbed("Music Trivia", "✅ Trivia question posted!")] });
+      } catch (err) {
+        await interaction.editReply({ embeds: [makeEmbed("Music Trivia", `❌ ${err?.message ?? "Failed to start trivia."}`)] });
+      }
+      return;
+    }
+
+    if (sub === "dedicate" || sub === "request") {
+      const vcId = await resolveMemberVoiceId(interaction);
+      if (!vcId) {
+        await interaction.reply({ flags: MessageFlags.Ephemeral, embeds: [makeEmbed("Music", "❌ Join a voice channel first.")] });
+        return;
+      }
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const query = interaction.options.getString("query", true).trim();
+      const dedicateTo = sub === "dedicate" ? interaction.options.getUser("to") : null;
+      const requestMsg = interaction.options.getString("message") ?? null;
+      const config = await getMusicConfig(guildId);
+      const ensureRes = await ensureSessionAgent(guildId, vcId, { textChannelId: interaction.channelId, ownerUserId: userId });
+      if (!ensureRes.ok) {
+        await interaction.editReply({ embeds: [makeEmbed("Music", formatMusicError(ensureRes.reason))] });
+        return;
+      }
+      let playRes;
+      try {
+        playRes = await sendAgentCommand(ensureRes.agent, "play", {
+          guildId, voiceChannelId: vcId, textChannelId: interaction.channelId,
+          ownerUserId: userId, actorUserId: userId,
+          controlMode: config.controlMode,
+          searchProviders: config.searchProviders,
+          fallbackProviders: config.fallbackProviders,
+          defaultMode: config.defaultMode,
+          defaultVolume: config.defaultVolume,
+          query,
+          requester: buildRequester(interaction.user)
+        });
+      } catch (err) {
+        if (String(err?.message ?? err) === "no-session") releaseSession(guildId, vcId);
+        await interaction.editReply({ embeds: [makeEmbed("Music", formatMusicError(err))] });
+        return;
+      }
+      const socialTrack = playRes?.track ?? playRes?.tracks?.[0] ?? null;
+      let desc = socialTrack ? `✅ **${socialTrack.title ?? "Track"}** queued` : "✅ Track queued";
+      if (sub === "dedicate" && dedicateTo) {
+        desc += `\n💌 Dedicated to <@${dedicateTo.id}>`;
+        // Log to history with dedication
+        try {
+          const { getPool } = await import("../utils/storage_pg.js");
+          const pg = getPool();
+          await pg.query(
+            `INSERT INTO music_play_history (guild_id, user_id, track_title, track_author, track_uri, dedicated_to)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [guildId, userId, socialTrack?.title ?? query, socialTrack?.author ?? null, socialTrack?.uri ?? null, dedicateTo.id]
+          );
+        } catch {}
+      } else if (requestMsg) {
+        desc += `\n💬 "${requestMsg}"`;
+      }
+      if (ensureRes.isPrimaryMode) desc += `\n\n*🎵 Primary mode (1 VC) · /agents deploy for multi-VC*`;
+      await interaction.editReply({ embeds: [makeEmbed("Music", desc)] });
+      return;
+    }
+
+    await interaction.reply({ flags: MessageFlags.Ephemeral, embeds: [makeEmbed("Music", "Unknown social action.", [], null, null, 0xFF0000)] });
     return;
   }
 
@@ -2045,8 +2342,9 @@ export async function execute(interaction) {
         }
 
         const action = String(result?.action ?? "queued");
+        const primaryFooter = alloc.isPrimaryMode ? "🎵 Primary mode (1 VC) · /agents deploy for multi-VC" : null;
         await interaction.editReply({
-          embeds: [buildTrackEmbed(action, track)]
+          embeds: [buildTrackEmbed(action, track, { footer: primaryFooter })]
         });
         return;
       }
@@ -2165,6 +2463,132 @@ export async function execute(interaction) {
         return;
       }
       await interaction.editReply({ embeds: [makeEmbed("Music", `✅ Equalizer set to ${eqPreset}.`)] });
+      return;
+    }
+
+    // ── dj ────────────────────────────────────────────────────────────────────
+    if (sub === "dj") {
+      const ack = await safeDeferEphemeral(interaction);
+      if (!ack.ok) return;
+
+      const action = interaction.options.getString("action") ?? "on";
+
+      try {
+        const { setGuildDJSettings, isDJEnabled, DJ_PERSONAS, DEFAULT_PERSONA, generateTestAnnouncement } = await import("../music/dj.js");
+
+        if (action === "test") {
+          const text = await generateTestAnnouncement(guildId);
+          if (text) {
+            await interaction.editReply({ embeds: [makeEmbed("AI DJ Test", `🎙️ ${text}`, [], null, null, QUEUE_COLOR)] });
+          } else {
+            await interaction.editReply({ embeds: [makeEmbed("AI DJ", "❌ Test failed — check that `GROQ_API_KEY` is set in your environment.", [], null, null, 0xFF0000)] });
+          }
+          return;
+        }
+
+        if (action === "on") {
+          const currentEnabled = await isDJEnabled(guildId);
+          if (currentEnabled) {
+            await interaction.editReply({ embeds: [makeEmbed("AI DJ", "✅ AI DJ is already enabled. Use `/music dj test` to hear it.")] });
+            return;
+          }
+          await setGuildDJSettings(guildId, { enabled: true });
+          await interaction.editReply({ embeds: [makeEmbed("AI DJ", "✅ AI DJ enabled!\nI'll make personality-driven announcements between songs.\n\nUse `/music dj persona` to customize the DJ style.", [], null, null, QUEUE_COLOR)] });
+          return;
+        }
+
+        if (action === "off") {
+          await setGuildDJSettings(guildId, { enabled: false });
+          await interaction.editReply({ embeds: [makeEmbed("AI DJ", "✅ AI DJ disabled.")] });
+          return;
+        }
+
+        if (action === "persona") {
+          const style = interaction.options.getString("style") ?? DEFAULT_PERSONA;
+          const customName = interaction.options.getString("name") ?? null;
+
+          if (!DJ_PERSONAS[style]) {
+            await interaction.editReply({ embeds: [makeEmbed("AI DJ", `❌ Unknown style. Choose: ${Object.keys(DJ_PERSONAS).join(", ")}`, [], null, null, 0xFF0000)] });
+            return;
+          }
+
+          await setGuildDJSettings(guildId, { enabled: true, persona: style, customPersonaName: customName });
+
+          const p = DJ_PERSONAS[style];
+          const displayName = customName ?? p.name;
+          await interaction.editReply({
+            embeds: [makeEmbed(
+              `AI DJ — ${displayName}`,
+              `${p.description}\n\n*"${p.example}"*`,
+              [{ name: "Style", value: style, inline: true }, { name: "Name", value: displayName, inline: true }],
+              null, null, QUEUE_COLOR
+            )]
+          });
+          return;
+        }
+      } catch (err) {
+        await interaction.editReply({ embeds: [makeEmbed("AI DJ", `❌ ${err?.message ?? "Failed"}`, [], null, null, 0xFF0000)] });
+      }
+      return;
+    }
+
+    // ── vibe ──────────────────────────────────────────────────────────────────
+    if (sub === "vibe") {
+      const ack = await safeDeferEphemeral(interaction);
+      if (!ack.ok) return;
+
+      const mood = interaction.options.getString("mood") ?? null;
+      try {
+        const { setVibeOverride, clearVibeOverride, getVibeInfo, getChannelVibe } = await import("../music/vibe.js");
+
+        if (mood && mood !== "auto") {
+          setVibeOverride(guildId, mood);
+          const VIBE_EMOJIS = { energetic: "⚡", hype: "🔥", chill: "😌", focus: "🎯", melancholy: "💔", neutral: "🎵" };
+          await interaction.editReply({
+            embeds: [makeEmbed("Vibe Set", `${VIBE_EMOJIS[mood] ?? "🎵"} Server vibe set to **${mood}**\nAuto-expires in 1 hour.`, [], null, null, QUEUE_COLOR)]
+          });
+        } else if (mood === "auto") {
+          clearVibeOverride(guildId);
+          await interaction.editReply({ embeds: [makeEmbed("Vibe", "✅ Vibe detection set to **auto** — I'll read the room from chat.", [], null, null, QUEUE_COLOR)] });
+        } else {
+          // Show current vibe
+          const info = getVibeInfo(guildId);
+          const currentVibe = info.vibe;
+          const VIBE_EMOJIS = { energetic: "⚡", hype: "🔥", chill: "😌", focus: "🎯", melancholy: "💔", neutral: "🎵" };
+          const fields = [
+            { name: "Current Vibe", value: `${VIBE_EMOJIS[currentVibe] ?? "🎵"} ${currentVibe}`, inline: true },
+            { name: "Source", value: info.source, inline: true }
+          ];
+          if (info.detectedAt) fields.push({ name: "Detected", value: `<t:${Math.floor(new Date(info.detectedAt).getTime()/1000)}:R>`, inline: true });
+          await interaction.editReply({ embeds: [makeEmbed("Server Vibe", "The current detected mood shapes AI music suggestions.", fields, null, null, QUEUE_COLOR)] });
+        }
+      } catch (err) {
+        await interaction.editReply({ embeds: [makeEmbed("Vibe", `❌ ${err?.message ?? "Failed"}`, [], null, null, 0xFF0000)] });
+      }
+      return;
+    }
+
+    // ── autoplay ──────────────────────────────────────────────────────────────
+    if (sub === "autoplay") {
+      const ack = await safeDeferEphemeral(interaction);
+      if (!ack.ok) return;
+
+      const enabled = interaction.options.getBoolean("enabled") ?? false;
+      try {
+        const { setAutoplay } = await import("../music/smartQueue.js");
+        setAutoplay(guildId, enabled);
+        await interaction.editReply({
+          embeds: [makeEmbed(
+            "Autoplay",
+            enabled
+              ? "✅ **Autoplay enabled** — when the queue empties, I'll pick a similar song using Last.fm.\n\n💡 Make sure `LASTFM_API_KEY` is set for best results."
+              : "✅ **Autoplay disabled** — music stops when the queue is empty.",
+            [], null, null, QUEUE_COLOR
+          )]
+        });
+      } catch (err) {
+        await interaction.editReply({ embeds: [makeEmbed("Autoplay", `❌ ${err?.message ?? "Failed"}`, [], null, null, 0xFF0000)] });
+      }
       return;
     }
 
@@ -2540,6 +2964,7 @@ export async function handleButton(interaction) {
         if (thread?.isThread?.()) {
           await thread.members.add(userId).catch(() => {});
           if (thread.archived) await thread.setArchived(false).catch(() => {});
+          const itemCount = Array.isArray(existingPl.items) ? existingPl.items.length : 0;
           const components = [new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId("mplhub:browse").setLabel("Browse Playlists").setStyle(ButtonStyle.Primary)
           )];
@@ -2547,7 +2972,10 @@ export async function handleButton(interaction) {
             embeds: [makeEmbed(
               "Playlist Drop Reopened",
               `Your drop thread is open: <#${thread.id}>\nDrop audio files or links there to add tracks.`,
-              [{ name: "Tip", value: "Press **Done / Close** in the thread when you're done editing.", inline: false }],
+              [
+                { name: "Tracks Saved", value: String(itemCount), inline: true },
+                { name: "Tip", value: "Press **Done / Close** in the thread when you're done editing.", inline: false }
+              ],
               null, null, QUEUE_COLOR
             )],
             components
@@ -2643,7 +3071,7 @@ export async function handleButton(interaction) {
           "Playlist Drop Created",
           res.threadId
             ? `Your drop thread is ready: <#${res.threadId}>\nDrop audio files or links there to build your playlist.`
-            : "Playlist created. Ask an admin to enable threads or bind a drop channel via `/music playlist panel`.",
+            : "✅ Playlist created! However, a drop thread couldn't be created automatically.\n\nThis usually means the bot is missing **Create Private Threads** permission in this channel, or you're not in a text channel.\n\nAsk an admin to:\n1. Give the bot `Create Private Threads` permission, or\n2. Bind a drop channel via `/music playlist panel`.",
           [
             { name: "Tip", value: "Type `q: keywords` in the drop thread to add a search query.\nPress **Done / Close** in the thread when you're done editing.", inline: false }
           ],
@@ -2660,7 +3088,10 @@ export async function handleButton(interaction) {
     const action = parts[1]; // confirm|cancel
     const uiKey = parts[2];
     const ownerId = parts[3];
-    if (ownerId && interaction.user.id !== ownerId) return true;
+    if (ownerId && interaction.user.id !== ownerId) {
+      await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist", "This panel belongs to another user.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
     await interaction.deferUpdate().catch(() => {});
     if (action === "cancel") {
       await interaction.editReply({ embeds: [makeEmbed("Bulk Remove", "Cancelled.", [], null, null, QUEUE_COLOR)], components: [] }).catch(() => {});
@@ -2710,7 +3141,10 @@ export async function handleButton(interaction) {
     const uiKey = parts[1];
     const ownerId = parts[2];
     const action = parts[3] || "";
-    if (ownerId && interaction.user.id !== ownerId) return true;
+    if (ownerId && interaction.user.id !== ownerId) {
+      await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist", "This panel belongs to another user.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
     await interaction.deferUpdate().catch(() => {});
     if (action === "cancel") {
       await interaction.editReply({ embeds: [makeEmbed("Dedupe", "Cancelled.", [], null, null, QUEUE_COLOR)], components: [] }).catch(() => {});
@@ -2764,7 +3198,10 @@ export async function handleButton(interaction) {
     const uiKey = parts[1];
     const ownerId = parts[2];
     const action = parts[3] || "";
-    if (ownerId && interaction.user.id !== ownerId) return true;
+    if (ownerId && interaction.user.id !== ownerId) {
+      await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist", "This panel belongs to another user.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
     const ui = await getPlaylistUiCache(uiKey);
     if (!ui || String(ui.userId) !== interaction.user.id) {
       await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist", "This playlist session expired. Re-open playlists.", [], null, null, 0xFF0000)] }).catch(() => {});
@@ -3094,16 +3531,29 @@ export async function handleButton(interaction) {
         await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist", "Slow down — try again in a moment.", [], null, null, 0xFF0000)] }).catch(() => {});
         return true;
       }
-      // Only the playlist owner, collaborators, or an admin can close the drop thread.
-      if (!canManagePlaylist(interaction, pl)) {
-        await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist", "You don't have permission to close this drop thread.", [], null, null, 0xFF0000)] }).catch(() => {});
+      // Everyone can close (remove themselves); only owner/admin can archive for all.
+      const thread = interaction.channel;
+      const isAdmin = Boolean(interaction.memberPermissions?.has?.(PermissionFlagsBits.ManageGuild));
+      const isOwner = String(pl?.createdBy || "") === interaction.user.id;
+      const collabs = new Set(Array.isArray(pl?.collaborators) ? pl.collaborators.map(String) : []);
+      const isCollab = collabs.has(interaction.user.id);
+      const canClose = isAdmin || isOwner || isCollab;
+
+      if (!canClose) {
+        // Any non-collab can still remove themselves from the thread
+        if (thread?.isThread?.()) {
+          await thread.members.remove(interaction.user.id).catch(() => {});
+        }
+        await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist Drop", "You've been removed from this thread.", [], null, null, QUEUE_COLOR)] }).catch(() => {});
         return true;
       }
-      const thread = interaction.channel;
+
       if (thread?.isThread?.()) {
         await thread.members.remove(interaction.user.id).catch(() => {});
-        // Archive after a short delay so the member removal completes first.
-        setTimeout(() => { thread.setArchived(true).catch(() => {}); }, 1500);
+        // Only archive (hide for everyone) if owner/admin. Collaborators just remove themselves.
+        if ((isOwner || isAdmin) && !thread.archived) {
+          try { await thread.setArchived(true); } catch {}
+        }
       }
       await interaction.reply({
         ephemeral: true,
@@ -3422,7 +3872,10 @@ export async function handleButton(interaction) {
     const parts = id.split(":");
     const ownerId = parts[2];
     const action = parts[3] || "";
-    if (ownerId && interaction.user.id !== ownerId) return true;
+    if (ownerId && interaction.user.id !== ownerId) {
+      await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist", "This panel belongs to another user.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
 
     const perms = interaction.memberPermissions;
     if (!perms?.has?.(PermissionFlagsBits.ManageGuild)) {
@@ -3647,11 +4100,17 @@ export async function handleButton(interaction) {
     const ownerId = parts[2];
     const action = parts[3] || "";
     const playlistId = parts[4] || "";
-    if (ownerId && interaction.user.id !== ownerId) return true;
+    if (ownerId && interaction.user.id !== ownerId) {
+      await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist", "This panel belongs to another user.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
     const guildId = interaction.guildId;
     if (!guildId) return true;
     const perms = interaction.memberPermissions;
-    if (!perms?.has?.(PermissionFlagsBits.ManageGuild)) return true;
+    if (!perms?.has?.(PermissionFlagsBits.ManageGuild)) {
+      await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist", "Manage Server permission required.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
 
     if (action === "cancel") {
       await interaction.deferUpdate().catch(() => {});
@@ -3698,7 +4157,10 @@ export async function handleButton(interaction) {
     const ownerId = parts[2];
     const op = parts[3] || "";
     const playlistId = parts[4] || "";
-    if (ownerId && interaction.user.id !== ownerId) return true;
+    if (ownerId && interaction.user.id !== ownerId) {
+      await interaction.reply({ ephemeral: true, embeds: [makeEmbed("Playlist", "This panel belongs to another user.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
     const guildId = interaction.guildId;
     if (!guildId) return true;
     const data = await loadGuildData(guildId);
@@ -4243,7 +4705,10 @@ export async function handleSelect(interaction) {
     const parts = id.split(":");
     const kind = parts[1]; // panel_pl | bind_channel
     const ownerId = parts[2];
-    if (ownerId && interaction.user.id !== ownerId) return true;
+    if (ownerId && interaction.user.id !== ownerId) {
+      await interaction.followUp({ ephemeral: true, embeds: [makeEmbed("Playlist", "This panel belongs to another user.", [], null, null, 0xFF0000)] }).catch(() => {});
+      return true;
+    }
     const guildId = interaction.guildId;
     if (!guildId) return true;
 

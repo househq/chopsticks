@@ -982,6 +982,61 @@ async function handleLivePanelButton(interaction, parsed) {
     return true;
   }
 
+  if (action === "game") {
+    const wrapped = Object.create(interaction);
+    wrapped.options = {
+      getSubcommand: () => "panel",
+      getString: (name) => (name === "delivery" ? "ephemeral" : null)
+    };
+    await gameExecute(wrapped);
+    return true;
+  }
+
+  if (action === "audiobook") {
+    // Show audiobook status / quick controls from VC dashboard
+    const { getPlayer, PlayerState } = await import("../../audiobook/player.js");
+    const { getSession } = await import("../../audiobook/session.js");
+    const { getBook } = await import("../../audiobook/session.js");
+    const { buildNowReadingEmbed, buildControlRow } = await import("../audiobook-dashboard.js").catch(() => null) ?? {};
+
+    const player  = getPlayer(interaction.guildId);
+    const db      = await (await import("../../utils/storage_pg.js")).getPool();
+    const session = await getSession(db, interaction.user.id, interaction.guildId).catch(() => null);
+    const book    = session?.book_id ? await getBook(db, session.book_id).catch(() => null) : null;
+    const progress = player?.getProgress() ?? null;
+
+    const stateEmoji = { playing: '▶️', paused: '⏸', loading: '⏳', done: '✅', idle: '💤' };
+    const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Colors } = await import("discord.js");
+
+    const embed = new EmbedBuilder().setColor(Colors.DarkGold);
+    if (progress) {
+      const se = stateEmoji[progress.state] ?? '❓';
+      embed
+        .setTitle(`${se} ${progress.bookTitle}`)
+        .setDescription(`**${progress.chapterTitle}**\nChapter ${progress.chapterIndex + 1} of ${progress.totalChapters}`)
+        .addFields({ name: 'Progress', value: `\`${progress.bar}\``, inline: false });
+    } else if (book) {
+      embed
+        .setTitle(`📚 ${book.title}`)
+        .setDescription(`*Not currently playing*\nUse **▶️ Play** or \`/audiobook play\` to start.`);
+    } else {
+      embed
+        .setTitle('📖 Audiobook')
+        .setDescription('No book loaded.\nUse `/audiobook start` to open a drop thread and upload a book.');
+    }
+
+    const guildId = interaction.guildId;
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`audiobook:pause:${guildId}`).setEmoji('⏸').setStyle(ButtonStyle.Secondary).setLabel('Pause').setDisabled(!progress || progress.state !== 'playing'),
+      new ButtonBuilder().setCustomId(`audiobook:resume:${guildId}`).setEmoji('▶️').setStyle(ButtonStyle.Secondary).setLabel('Resume').setDisabled(!progress || progress.state !== 'paused'),
+      new ButtonBuilder().setCustomId(`audiobook:skip:${guildId}`).setEmoji('⏭').setStyle(ButtonStyle.Secondary).setLabel('Skip').setDisabled(!progress),
+      new ButtonBuilder().setCustomId(`audiobook:stop:${guildId}`).setEmoji('🏁').setStyle(ButtonStyle.Danger).setLabel('Stop').setDisabled(!progress),
+    );
+
+    await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    return true;
+  }
+
   if (action === "claim") {
     // Hardening: claim via buttons is disabled to avoid ownership takeovers via stale panels.
     await interaction.reply({
@@ -1391,13 +1446,26 @@ export async function handleVoiceUIModal(interaction) {
     }
 
     const wrapped = Object.create(interaction);
+    // Provide a complete options stub so musicExecute() doesn't throw on any
+    // options accessor (getSubcommandGroup is called on line 1 of execute()).
     wrapped.options = {
-      getSubcommand: () => "play",
-      getString: (name) => (name === "query" ? query : null)
+      getSubcommand:      ()     => "play",
+      getSubcommandGroup: ()     => null,
+      getString:          (name) => name === "query" ? query : null,
+      getBoolean:         ()     => null,
+      getInteger:         ()     => null,
+      getNumber:          ()     => null,
+      getUser:            ()     => null,
+      getChannel:         ()     => null,
+      getMember:          ()     => null,
+      getRole:            ()     => null,
     };
-    wrapped.deferReply = (opts = {}) => interaction.deferReply({ ...opts, flags: MessageFlags.Ephemeral });
-    wrapped.reply = (payload) => interaction.reply({ ...(payload || {}), ...maybeEphemeralFlags(interaction) });
-    wrapped.followUp = (payload) => interaction.followUp({ ...(payload || {}), ...maybeEphemeralFlags(interaction) });
+    // Force all replies to be ephemeral — modal submissions must not produce
+    // public messages in the channel.
+    wrapped.deferReply  = (opts = {}) => interaction.deferReply({ ...opts, flags: MessageFlags.Ephemeral });
+    wrapped.reply       = (payload)   => interaction.reply({ ...(payload || {}), ...maybeEphemeralFlags(interaction) });
+    wrapped.editReply   = (payload)   => interaction.editReply(payload || {});
+    wrapped.followUp    = (payload)   => interaction.followUp({ ...(payload || {}), ...maybeEphemeralFlags(interaction) });
     await musicExecute(wrapped);
     return true;
   }

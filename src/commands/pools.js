@@ -60,21 +60,40 @@ export const data = new SlashCommandBuilder()
     .addSubcommand((sub) =>
       sub
         .setName('create')
-        .setDescription('Create a new agent pool')
+        .setDescription('Create your agent pool (one pool per user)')
         .addStringOption((opt) =>
           opt
             .setName('name')
             .setDescription('Pool display name')
             .setRequired(true)
+            .setMaxLength(50)
         )
         .addStringOption((opt) =>
           opt
             .setName('visibility')
-            .setDescription('Pool visibility')
+            .setDescription('Public pools appear in /pools discover for admins to deploy')
             .setRequired(true)
             .addChoices(
-              { name: 'Public', value: 'public' },
-              { name: 'Private', value: 'private' }
+              { name: 'Public — visible in discover list for server admins', value: 'public' },
+              { name: 'Private — only you can see/manage it', value: 'private' }
+            )
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName('description')
+            .setDescription('What do your agents do? Admins read this to decide whether to deploy your pool (max 300 chars)')
+            .setMaxLength(300)
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName('specialty')
+            .setDescription('Primary focus tag shown in the discover list')
+            .addChoices(
+              { name: '🎵 Music', value: 'music' },
+              { name: '🤖 Voice Assistant', value: 'voice_assistant' },
+              { name: '🔧 Utility', value: 'utility' },
+              { name: '📡 Relay', value: 'relay' },
+              { name: '✨ Custom', value: 'custom' },
             )
         )
     )
@@ -191,9 +210,10 @@ export const data = new SlashCommandBuilder()
     .addSubcommand((sub) =>
       sub
         .setName('profile')
-        .setDescription('Set your pool appearance (name, description, color, emoji, specialty tag)')
+        .setDescription('Set your pool appearance — description and tags are what admins see when browsing /pools discover')
         .addStringOption(o => o.setName('pool').setDescription('Pool ID').setRequired(true).setAutocomplete(true))
-        .addStringOption(o => o.setName('description').setDescription('Short description (max 200 chars)'))
+        .addStringOption(o => o.setName('description').setDescription('What do your agents do? Admins read this to decide whether to deploy your pool (max 300 chars)').setMaxLength(300))
+        .addStringOption(o => o.setName('tags').setDescription('Comma-separated tags (max 5, e.g. "lofi music, jazz, 24-7 radio") — shown in discover list').setMaxLength(120))
         .addStringOption(o => o.setName('color').setDescription('Hex color e.g. #5865F2'))
         .addStringOption(o => o.setName('emoji').setDescription('Pool emoji e.g. 🎵'))
         .addStringOption(o => o.setName('specialty').setDescription('Focus tag e.g. music, assistant, moderation'))
@@ -409,11 +429,43 @@ function buildCapacityBar(current, max, width = 10) {
 
 function validatePoolMeta(meta) {
   const errors = [];
-  if (meta.description && meta.description.length > 500) errors.push('Description must be ≤ 500 characters.');
+  if (meta.description && meta.description.length > 300) errors.push('Description must be ≤ 300 characters.');
   if (meta.color && !/^#[0-9a-fA-F]{6}$/.test(meta.color)) errors.push('Color must be a hex code like #FF5500.');
   if (meta.banner_url && !/^https?:\/\/.{4,}/.test(meta.banner_url)) errors.push('Banner URL must be a valid http/https URL.');
   if (meta.emoji && [...meta.emoji].length > 2) errors.push('Emoji must be a single emoji character.');
+  if (meta.tags) {
+    const tags = String(meta.tags).split(',').map(t => t.trim()).filter(Boolean);
+    if (tags.length > 5) errors.push('You can set a maximum of 5 tags.');
+    if (tags.some(t => t.length > 20)) errors.push('Each tag must be 20 characters or fewer.');
+  }
   return errors;
+}
+
+/**
+ * Scores how complete a pool's public profile is (0–100).
+ * Returns { score, missing: string[], complete: boolean }
+ */
+function getProfileCompleteness(pool) {
+  const meta = pool?.meta || {};
+  const checks = [
+    { label: 'description', points: 35, ok: Boolean(meta.description?.trim()) },
+    { label: 'specialty',   points: 25, ok: Boolean(meta.specialty?.trim()) },
+    { label: 'emoji',       points: 15, ok: Boolean(meta.emoji?.trim()) },
+    { label: 'tags',        points: 15, ok: Boolean(meta.tags?.trim()) },
+    { label: 'public visibility', points: 10, ok: pool?.visibility === 'public' },
+  ];
+  const score = checks.reduce((s, c) => s + (c.ok ? c.points : 0), 0);
+  const missing = checks.filter(c => !c.ok).map(c => c.label);
+  return { score, missing, complete: score === 100 };
+}
+
+/** Render a compact completeness indicator string, e.g. "▓▓▓░░ 60%" */
+function renderCompleteness(pool) {
+  const { score, missing } = getProfileCompleteness(pool);
+  const filled = Math.round(score / 20);
+  const bar = '▓'.repeat(filled) + '░'.repeat(5 - filled);
+  const label = score === 100 ? '✅ Complete' : `${bar} ${score}%`;
+  return { label, score, missing };
 }
 
 function buildPoolEmbed(title, description = '', color = Colors.INFO) {
@@ -1102,22 +1154,31 @@ async function handleCreate(interaction) {
   // Generate pool ID
   const poolId = `pool_${userId}`;
 
-  // Check if user already has a pool
+  // Check if user already has a pool — 1 pool per user, enforced by pool_${userId} ID scheme
   const existing = await storageLayer.fetchPool(poolId);
   if (existing) {
+    const { label: completenessLabel, score } = renderCompleteness(existing);
     return interaction.editReply({
       embeds: [
-        buildPoolEmbed(
-          'Pool Already Exists',
-          `You already have **${existing.name}** (\`${poolId}\`).`,
-          Colors.WARNING
-        )
+        new EmbedBuilder()
+          .setTitle('You Already Have a Pool')
+          .setColor(Colors.WARNING)
+          .setDescription(
+            `You can only own **one pool**. Your pool is **${existing.name}** (\`${poolId}\`).\n\n` +
+            `**Profile Completeness:** ${completenessLabel}\n` +
+            (score < 100
+              ? `\nAdmins browse \`/pools discover\` to decide which pools to deploy. A complete profile makes your pool stand out.\nUse \`/pools profile\` to fill in the missing fields.`
+              : `\n✅ Your public profile is complete — admins can find your pool easily.`)
+          )
+          .setTimestamp()
       ],
       components: buildOpenSetupButtonRow(userId, existing.pool_id, 10)
     });
   }
 
   try {
+    const initDescription = interaction.options.getString('description');
+    const initSpecialty = interaction.options.getString('specialty');
     const created = await storageLayer.createPool(poolId, userId, poolName, visibility);
 
     if (!created) {
@@ -1126,16 +1187,46 @@ async function handleCreate(interaction) {
       });
     }
 
+    // Apply optional description and specialty immediately if provided
+    if (initDescription || initSpecialty) {
+      const initMeta = {
+        ...(initDescription ? { description: initDescription.slice(0, 300) } : {}),
+        ...(initSpecialty ? { specialty: initSpecialty } : {}),
+      };
+      await storageLayer.updatePool(poolId, { meta: initMeta }, userId).catch(() => {});
+    }
+
+    // Fetch the freshly created pool for completeness score
+    const freshPool = await storageLayer.fetchPool(poolId).catch(() => null) || {
+      pool_id: poolId, name: poolName, visibility, owner_user_id: userId,
+      meta: { description: initDescription || null, specialty: initSpecialty || null }
+    };
+    const { label: completenessLabel, score, missing } = renderCompleteness(freshPool);
+
+    // Build completeness checklist
+    const checklistItems = [
+      { label: 'description', done: Boolean(initDescription), hint: 'Tell admins what your agents do — this is the most important field' },
+      { label: 'specialty',   done: Boolean(initSpecialty),   hint: 'Set via `/pools profile specialty:...`' },
+      { label: 'emoji',       done: false,                    hint: 'Set via `/pools profile emoji:🎵`' },
+      { label: 'tags',        done: false,                    hint: 'Set via `/pools profile tags:"music, lofi, chill"`' },
+      { label: 'public visibility', done: visibility === 'public', hint: 'Private pools are hidden from /pools discover' },
+    ];
+    const checklist = checklistItems.map(c => `${c.done ? '✅' : '⬜'} **${c.label}**${!c.done ? ` — ${c.hint}` : ''}`).join('\n');
+
     const embed = new EmbedBuilder()
-      .setTitle('Pool Created')
+      .setTitle('🎉 Pool Created!')
       .setColor(Colors.SUCCESS)
-      .setDescription(`Your pool **${poolName}** has been created.`)
       .addFields(
-        { name: 'Pool ID', value: `\`${poolId}\``, inline: true },
-        { name: 'Visibility', value: visibility === 'public' ? 'Public' : 'Private', inline: true },
-        { name: 'Owner', value: `<@${userId}>`, inline: true }
+        { name: 'Pool ID',    value: `\`${poolId}\``,                                     inline: true },
+        { name: 'Visibility', value: visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
+        { name: 'Profile',    value: completenessLabel,                                    inline: true },
+        {
+          name: '📋 Public Profile Checklist',
+          value: checklist + `\n\n**Why this matters:** Server admins browse \`/pools discover\` to choose which pools to deploy in their server. Your description and tags are how they know what your agents do.`,
+          inline: false
+        }
       )
-      .setFooter({ text: 'Use /agents add_token to add agents to your pool' })
+      .setFooter({ text: 'Use /pools profile to complete your public profile · /agents add_token to add agents' })
       .setTimestamp();
 
     await interaction.editReply({
@@ -1182,25 +1273,45 @@ async function handleView(interaction) {
   const agents = await storageLayer.fetchPoolAgents(poolId);
   const agentCount = agents ? agents.length : 0;
   const activeAgents = agents ? agents.filter(a => a.status === 'active') : [];
+  const meta = pool.meta || {};
+  const tags = meta.tags ? meta.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+  const { label: completenessLabel, score, missing } = renderCompleteness(pool);
 
   const embed = new EmbedBuilder()
-    .setTitle(`${pool.name}`)
+    .setTitle(`${meta.emoji || (pool.visibility === 'public' ? '🌐' : '🔒')} ${pool.name}`)
     .setColor(pool.visibility === 'public' ? Colors.INFO : Colors.WARNING)
-    .setDescription(`Pool ID: \`${pool.pool_id}\``)
+    .setDescription(
+      [
+        meta.description || '⚠️ *No description — use `/pools profile` to add one*',
+        meta.specialty ? `**Specialty:** \`${meta.specialty}\`` : null,
+        tags.length > 0 ? `**Tags:** ${tags.map(t => `\`${t}\``).join(' ')}` : null,
+      ].filter(Boolean).join('\n')
+    )
     .addFields(
-      { name: 'Owner', value: `<@${pool.owner_user_id}>`, inline: true },
-      { name: 'Visibility', value: pool.visibility === 'public' ? 'Public' : 'Private', inline: true },
-      { name: 'Total Agents', value: `${agentCount}`, inline: true },
-      { name: 'Active Agents', value: `${activeAgents.length}`, inline: true },
-      { name: 'Created', value: `<t:${Math.floor(pool.created_at / 1000)}:R>`, inline: true }
+      { name: 'Owner',       value: `<@${pool.owner_user_id}>`,                    inline: true },
+      { name: 'Visibility',  value: pool.visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
+      { name: 'Profile',     value: completenessLabel,                             inline: true },
+      { name: 'Total Agents', value: `${agentCount}`,                              inline: true },
+      { name: 'Active Agents', value: `${activeAgents.length}`,                   inline: true },
+      { name: 'Created',     value: `<t:${Math.floor(pool.created_at / 1000)}:R>`, inline: true }
     )
     .setTimestamp();
+
+  // Show owner reminder if profile is incomplete
+  const isOwner = pool.owner_user_id === userId;
+  if (isOwner && score < 100) {
+    embed.addFields({
+      name: '⚠️ Complete Your Public Profile',
+      value: `Your profile is **${score}%** complete. Missing: **${missing.join(', ')}**\n\nServer admins browse \`/pools discover\` to choose which pools to deploy in their server — your **description** and **tags** are how they know what your agents do.\n\nRun \`/pools profile\` to fill in the missing fields.`,
+      inline: false
+    });
+  }
 
   // Show agent list if owner or public
   if (pool.visibility === 'public' || await canManagePool(poolId, userId)) {
     if (agentCount > 0) {
       const agentList = agents
-        .slice(0, 10) // Max 10 agents
+        .slice(0, 10)
         .map((a) => {
           const statusText = a.status === 'active' ? 'active' : 'inactive';
           return `• ${a.tag} (\`${a.agent_id}\`) - ${statusText}`;
@@ -1214,7 +1325,7 @@ async function handleView(interaction) {
     } else {
       embed.addFields({
         name: 'Agents',
-        value: '*No agents registered*',
+        value: '*No agents registered — use `/agents add_token` to add your first agent*',
       });
     }
   }
@@ -1283,22 +1394,42 @@ async function handleSelectPool(interaction) {
     ? poolAgents.filter(a => a.status === 'active').length
     : 0;
 
+  const meta = pool.meta || {};
+  const tags = meta.tags ? meta.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+  const { score: profileScore, missing: profileMissing } = getProfileCompleteness(pool);
+
   const embed = new EmbedBuilder()
-    .setTitle('Pool Selected')
+    .setTitle(`${meta.emoji || '🌐'} Pool Selected — ${pool.name}`)
     .setColor(activeAgents > 0 ? Colors.SUCCESS : Colors.WARNING)
-    .setDescription(`This guild will now use pool **${pool.name}** for agent deployments.`)
-    .addFields(
-      { name: 'Pool', value: `\`${poolId}\``, inline: true },
-      { name: 'Visibility', value: pool.visibility === 'public' ? 'Public' : 'Private', inline: true },
-      { name: 'Owner', value: `<@${pool.owner_user_id}>`, inline: true },
-      { name: 'Pool Agents', value: `${totalAgents} total / ${activeAgents} active`, inline: true }
+    .setDescription(
+      [
+        `This server will now use **${pool.name}** for agent deployments.`,
+        meta.description ? `\n> ${meta.description}` : null,
+        tags.length > 0 ? `🏷️ ${tags.map(t => `\`${t}\``).join(' ')}` : null,
+      ].filter(Boolean).join('\n')
     )
-    .setFooter({
-      text: activeAgents > 0
-        ? 'Use /agents deploy to deploy agents from this pool'
-        : 'This pool currently has no active agents; consider /pools public or /agents add_token'
-    })
+    .addFields(
+      { name: 'Pool ID',    value: `\`${poolId}\``,                              inline: true },
+      { name: 'Visibility', value: pool.visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
+      { name: 'Owner',      value: `<@${pool.owner_user_id}>`,                   inline: true },
+      { name: 'Specialty',  value: meta.specialty ? `\`${meta.specialty}\`` : '*not set*',    inline: true },
+      { name: 'Agents',     value: `${totalAgents} total / ${activeAgents} active`,           inline: true },
+    )
     .setTimestamp();
+
+  if (profileScore < 60) {
+    embed.addFields({
+      name: '⚠️ Incomplete Pool Profile',
+      value: `This pool's public profile is **${profileScore}%** complete (missing: ${profileMissing.join(', ')}). The pool owner can run \`/pools profile\` to fill in missing details so you know exactly what you're deploying.`,
+      inline: false
+    });
+  }
+
+  embed.setFooter({
+    text: activeAgents > 0
+      ? 'Use /agents deploy to deploy agents from this pool'
+      : 'This pool has no active agents yet. Ask the pool owner to add agents with /agents add_token.'
+  });
 
   await interaction.editReply({ embeds: [embed] });
 }
@@ -2272,27 +2403,30 @@ function buildPoolCard(pool, agents = [], stats = null, opts = {}) {
   const meta    = pool.meta || {};
   const emoji   = meta.emoji   || (pool.visibility === 'public' ? '🌐' : '🔒');
   const spec    = meta.specialty ? `\`${meta.specialty}\`` : null;
+  const tags    = meta.tags ? meta.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
   const maxAgt  = pool.max_agents || 49;
   const recDep  = pool.recommended_deploy || 10;
   const active  = agents.filter(a => a.status === 'active').length;
   const total   = agents.length;
   const capBar  = buildCapacityBar(total, maxAgt);
 
-  const desc = [
-    meta.description || '',
-    spec ? `**Specialty:** ${spec}` : '',
-  ].filter(Boolean).join('\n') || `Pool \`${pool.pool_id}\``;
+  const descParts = [];
+  if (meta.description) descParts.push(meta.description);
+  if (spec)             descParts.push(`**Specialty:** ${spec}`);
+  if (tags.length > 0)  descParts.push(`**Tags:** ${tags.map(t => `\`${t}\``).join(' ')}`);
+  const desc = descParts.join('\n') || `⚠️ *No description set — use \`/pools profile\` to tell admins what your agents do.*`;
 
   const embed = new EmbedBuilder()
     .setTitle(`${emoji} ${pool.name}`)
     .setDescription(desc.slice(0, 4096))
     .setColor(resolvePoolColor(pool))
     .addFields(
-      { name: 'Owner',      value: `<@${pool.owner_user_id}>`,                   inline: true },
-      { name: 'Visibility', value: pool.visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
-      { name: 'Capacity',   value: `\`${capBar}\``,                              inline: false },
-      { name: 'Active',     value: `**${active}** active  ·  **${total}** total`, inline: true },
-      { name: 'Rec. Deploy', value: `**${recDep}** agents`,                      inline: true },
+      { name: 'Owner',       value: `<@${pool.owner_user_id}>`,                    inline: true },
+      { name: 'Visibility',  value: pool.visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
+      { name: 'Profile',     value: renderCompleteness(pool).label,               inline: true },
+      { name: 'Capacity',    value: `\`${capBar}\``,                               inline: false },
+      { name: 'Active',      value: `**${active}** active  ·  **${total}** total`, inline: true },
+      { name: 'Rec. Deploy', value: `**${recDep}** agents`,                        inline: true },
     );
 
   if (stats) {
@@ -2408,6 +2542,7 @@ async function handleProfile(interaction) {
   const emoji       = interaction.options.getString('emoji');
   const specialty   = interaction.options.getString('specialty');
   const bannerUrl   = interaction.options.getString('banner_url');
+  const tagsRaw     = interaction.options.getString('tags');
 
   // Validate color
   if (color && !/^#?[0-9a-fA-F]{6}$/.test(color)) {
@@ -2424,14 +2559,22 @@ async function handleProfile(interaction) {
     }
   }
 
+  // Normalise tags: comma-separated, trimmed, lowercase, max 5
+  let normalisedTags = null;
+  if (tagsRaw !== null) {
+    const tagList = tagsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean).slice(0, 5);
+    normalisedTags = tagList.join(', ');
+  }
+
   const currentMeta = pool.meta || {};
   const updatedMeta = {
     ...currentMeta,
-    ...(description !== null ? { description: description.slice(0, 200) } : {}),
+    ...(description !== null ? { description: description.slice(0, 300) } : {}),
     ...(color      !== null ? { color: color.startsWith('#') ? color : '#' + color } : {}),
     ...(emoji      !== null ? { emoji: emoji.slice(0, 4) } : {}),
     ...(specialty  !== null ? { specialty: specialty.slice(0, 30).toLowerCase() } : {}),
     ...(bannerUrl  !== null ? { banner_url: bannerUrl } : {}),
+    ...(normalisedTags !== null ? { tags: normalisedTags } : {}),
   };
 
   const profileErrors = validatePoolMeta(updatedMeta);
@@ -2444,8 +2587,17 @@ async function handleProfile(interaction) {
   const updatedPool = await storageLayer.fetchPool(poolId);
   const displayPool = updatedPool || pool;
   const agents = await storageLayer.fetchPoolAgents(poolId).catch(() => []);
+  const { label: completenessLabel, score, missing } = renderCompleteness(displayPool);
   const card = buildPoolCard(displayPool, agents);
   card.setTitle(`✅ Profile Updated — ${displayPool.name}`);
+  // Show completeness on profile update
+  card.addFields({
+    name: '📋 Profile Completeness',
+    value: completenessLabel + (missing.length > 0
+      ? `\nStill missing: **${missing.join(', ')}**\nAdmins see your description and tags in \`/pools discover\` to decide what to deploy.`
+      : '\n✅ Your public profile is fully complete — admins can find and deploy your pool easily.'),
+    inline: false
+  });
 
   await interaction.editReply({ embeds: [card] });
 }
@@ -2547,11 +2699,6 @@ async function handleDiscover(interaction) {
   const specialty = interaction.options.getString('specialty')?.toLowerCase().trim();
   const featuredOnly = interaction.options.getBoolean('featured') ?? false;
 
-  // Check if onboarding is needed first
-  if (!interaction.guildId) {
-    // DM context — just show pools without wizard
-  }
-
   const allPools = await storageLayer.listPools().catch(() => []);
   let pools = allPools.filter(p => p.visibility === 'public');
 
@@ -2569,24 +2716,39 @@ async function handleDiscover(interaction) {
     Promise.all(pools.map(p => storageLayer.fetchPoolAgents(p.pool_id).catch(() => []))),
   ]);
 
-  // Sort: featured first, then by composite_score
-  const ranked = pools.map((p, i) => ({ pool: p, stats: allStats[i], agents: allAgents[i] }));
+  // Sort: featured first, then by composite score, then by completeness
+  const ranked = pools.map((p, i) => ({
+    pool: p, stats: allStats[i], agents: allAgents[i],
+    completeness: getProfileCompleteness(p)
+  }));
   ranked.sort((a, b) => {
     if (a.pool.is_featured !== b.pool.is_featured) return a.pool.is_featured ? -1 : 1;
-    return (b.stats?.composite_score ?? 0) - (a.stats?.composite_score ?? 0);
+    const scoreDiff = (b.stats?.composite_score ?? 0) - (a.stats?.composite_score ?? 0);
+    if (scoreDiff !== 0) return scoreDiff;
+    return b.completeness.score - a.completeness.score; // more complete profiles rank higher
   });
 
+  const isAdmin = interaction.guildId
+    ? Boolean(interaction.memberPermissions?.has?.(PermissionFlagsBits.ManageGuild))
+    : false;
+
   const embed = new EmbedBuilder()
-    .setTitle(featuredOnly ? '⭐ Featured Pools' : '🔍 Discover Pools')
+    .setTitle(featuredOnly ? '⭐ Featured Agent Pools' : '🔍 Discover Agent Pools')
     .setColor(Colors.INFO)
     .setTimestamp()
-    .setFooter({ text: `${pools.length} pool${pools.length !== 1 ? 's' : ''} found${specialty ? ` · specialty: ${specialty}` : ''}` });
+    .setFooter({
+      text: isAdmin
+        ? `${pools.length} pool${pools.length !== 1 ? 's' : ''} · Use /pools select pool:<id> to deploy one · /pools view pool:<id> for full details`
+        : `${pools.length} pool${pools.length !== 1 ? 's' : ''} found${specialty ? ` · specialty: ${specialty}` : ''} · Ask your server admin to deploy a pool`
+    });
 
-  let desc = '';
-  for (const { pool, stats, agents } of ranked.slice(0, 8)) {
+  let desc = isAdmin
+    ? '**You are viewing this as a server admin.** Use `/pools select pool:<id>` to attach a pool to this server. Agents from that pool can then be deployed with `/agents deploy`.\n\n'
+    : '';
+
+  for (const { pool, stats, agents, completeness } of ranked.slice(0, 6)) {
     const meta    = pool.meta || {};
     const emoji   = meta.emoji || '🌐';
-    const spec    = meta.specialty ? ` \`${meta.specialty}\`` : '';
     const feat    = pool.is_featured ? ' ⭐' : '';
     const active  = (agents || []).filter(a => a.status === 'active').length;
     const total   = (agents || []).length;
@@ -2594,24 +2756,51 @@ async function handleDiscover(interaction) {
     const maxAgt  = pool.max_agents || 49;
     const bar     = buildCapacityBar(total, maxAgt, 8);
 
-    desc += `${emoji}${feat} **${pool.name}**${spec}\n`;
-    desc += `   ${meta.description ? meta.description.slice(0, 80) + '…' : `\`${pool.pool_id}\``}\n`;
-    desc += `   \`${bar}\`  ·  ${active} active  ·  🏆 ${score} pts\n`;
-    desc += `   \`/pools select pool:${pool.pool_id}\`\n\n`;
+    // Specialty + tags line
+    const specParts = [];
+    if (meta.specialty) specParts.push(`\`${meta.specialty}\``);
+    if (meta.tags) {
+      const tagList = meta.tags.split(',').map(t => t.trim()).filter(Boolean).slice(0, 3);
+      specParts.push(...tagList.map(t => `\`${t}\``));
+    }
+    const specLine = specParts.length > 0 ? `   🏷️ ${specParts.join(' ')}` : '';
+
+    // Description — show full, truncate at 150 chars
+    const descText = meta.description
+      ? (meta.description.length > 150 ? meta.description.slice(0, 147) + '…' : meta.description)
+      : '⚠️ *No description provided*';
+
+    desc += `${emoji}${feat} **${pool.name}**  ·  🏆 ${score} pts\n`;
+    desc += `   ${descText}\n`;
+    if (specLine) desc += `${specLine}\n`;
+    desc += `   \`${bar}\`  ${active}/${total} active  ·  👤 <@${pool.owner_user_id}>\n`;
+    desc += `   \`/pools select pool:${pool.pool_id}\`  ·  \`/pools view pool:${pool.pool_id}\`\n\n`;
   }
+
+  if (ranked.length > 6) desc += `*...and ${ranked.length - 6} more. Use \`/pools discover specialty:<tag>\` to filter.*`;
 
   embed.setDescription(desc.slice(0, 4096));
 
-  // Contribution buttons for top 3
+  // Action buttons for top 3
   const topPools = ranked.slice(0, 3);
   const components = [];
-  if (topPools.length > 0) {
+  if (topPools.length > 0 && isAdmin) {
     const row = new ActionRowBuilder().addComponents(
       ...topPools.map(({ pool }) =>
         new ButtonBuilder()
-          .setCustomId(`pool_contribute:${pool.pool_id}`)
-          .setLabel(`Contribute to ${pool.name.slice(0, 20)}`)
+          .setCustomId(`pool_select_ui:${pool.pool_id}:${interaction.user.id}`)
+          .setLabel(`Deploy ${pool.name.slice(0, 18)}`)
           .setStyle(ButtonStyle.Primary)
+      )
+    );
+    components.push(row);
+  } else if (topPools.length > 0) {
+    const row = new ActionRowBuilder().addComponents(
+      ...topPools.slice(0, 2).map(({ pool }) =>
+        new ButtonBuilder()
+          .setCustomId(`pool_contribute:${pool.pool_id}`)
+          .setLabel(`Contribute to ${pool.name.slice(0, 18)}`)
+          .setStyle(ButtonStyle.Secondary)
       )
     );
     components.push(row);

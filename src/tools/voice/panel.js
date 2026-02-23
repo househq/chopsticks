@@ -214,6 +214,12 @@ export function buildVoiceRoomDashboardComponents(
         .setCustomId(makePrivId("game"))
         .setLabel("Game")
         .setStyle(ButtonStyle.Secondary)
+        .setDisabled(disabled),
+      new ButtonBuilder()
+        .setCustomId(makePrivId("audiobook"))
+        .setLabel("Audiobook")
+        .setEmoji("📖")
+        .setStyle(ButtonStyle.Secondary)
         .setDisabled(disabled)
     )
   ];
