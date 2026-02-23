@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from "discord.js";
 import { loadGuildData, saveGuildData } from "../utils/storage.js";
 import { Colors } from "../utils/discordOutput.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   guildOnly: true,
@@ -59,7 +60,7 @@ export async function execute(interaction) {
   if (!guildData.tags) guildData.tags = {};
 
   if (sub === "get") {
-    const rawName = interaction.options.getString("name", true);
+    const rawName = sanitizeString(interaction.options.getString("name", true));
     const name = validateTagName(rawName);
     if (!name) {
       await interaction.reply({ content: "❌ Invalid tag name. Tag names must be 1-32 characters, lowercase alphanumeric and hyphens only.", flags: 64 });
@@ -75,8 +76,8 @@ export async function execute(interaction) {
   }
 
   if (sub === "set") {
-    const rawName = interaction.options.getString("name", true);
-    const content = interaction.options.getString("content", true);
+    const rawName = sanitizeString(interaction.options.getString("name", true));
+    const content = sanitizeString(interaction.options.getString("content", true));
     const name = validateTagName(rawName);
     if (!name) {
       await interaction.reply({ content: "❌ Invalid tag name. Tag names must be 1-32 characters, lowercase alphanumeric and hyphens only.", flags: 64 });
@@ -93,7 +94,7 @@ export async function execute(interaction) {
   }
 
   if (sub === "delete") {
-    const rawName = interaction.options.getString("name", true);
+    const rawName = sanitizeString(interaction.options.getString("name", true));
     const name = validateTagName(rawName);
     if (!name) {
       await interaction.reply({ content: "❌ Invalid tag name. Tag names must be 1-32 characters, lowercase alphanumeric and hyphens only.", flags: 64 });

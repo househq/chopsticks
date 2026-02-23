@@ -27,6 +27,27 @@ export const logger = pino({
     env: process.env.NODE_ENV || "development",
     service: "chopsticks-bot",
   },
+},
+// U3: In-memory error buffer — used by /api/monitor/errors dashboard endpoint
+{
+  write(msg) {
+    process.stdout.write(msg);
+    try {
+      const parsed = JSON.parse(msg);
+      if (parsed.level === "ERROR" || parsed.level === "WARN") {
+        if (!global._recentErrors) global._recentErrors = [];
+        global._recentErrors.push({
+          ts: parsed.time || Date.now(),
+          level: parsed.level,
+          msg: parsed.msg,
+          module: parsed.module,
+          err: parsed.err?.message ?? null,
+        });
+        // Cap at 500 entries
+        if (global._recentErrors.length > 500) global._recentErrors.shift();
+      }
+    } catch { /* never fail on log parse */ }
+  }
 });
 
 // Specific loggers for different subsystems

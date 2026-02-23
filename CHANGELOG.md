@@ -8,7 +8,111 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 ## [Unreleased]
 
+---
+
+## [2.0.0] — feat/prefix-first
+
+### Summary
+Major architectural milestone: Prefix-First architecture, 50+ new prefix commands, agent pool hardening, SVG card system, event bus, and operator monitoring dashboard.
+
+### Added — Phase A/B: Prefix-First Architecture
+- **26 slash commands removed** (coinflip, roll, 8ball, choose, fun, fact, dadjoke, joke, color, urban, wiki, github, anime, book, avatar, serverinfo, invite, steam, apod, balance, daily, work, inventory, xp, ping, userinfo) — freed slots for future feature expansion
+- **Slash command count: 74/100** (26 freed from 100 cap)
+- All 26 removed commands re-implemented as prefix commands with enhanced functionality
+
+### Added — Phase B: Prefix Command Expansion (P3–P9)
+- **P3 Fun Pack:** `!meme`, `!wyr`, `!tod [truth|dare] [spicy]`, `!ship @u1 @u2`, `!quote`, `!riddle`, `!trivia`
+- **P4 Text Toys:** `!mock`, `!reverse`, `!clap`, `!emojify`, `!rate`, `!rps`, `!slots`, `!pp`, `!ascii`
+- **P5 Help Revamp:** 3-mode `!help` — root overview, category detail, command detail — with emoji categories
+- **P6 Animal & Reaction Pack:** `!cat !dog !fox !duck !shibe !bird`, `!hug !pat !slap !kiss !cuddle !wave !poke !bite`
+- **P7 Entertainment Pack:** `!pokemon`, `!rickmorty`, `!show`, `!cocktail`, `!meal`, `!kanye`, `!chuck`, `!bored`
+- **P8 Knowledge Pack:** `!define`, `!advice`, `!number`, `!country`, `!iss`, `!spacex`, `!bible`, `!qr`, `!shorten`
+- **P9 Utility Power Pack:** `!calc`, `!timestamp`, `!encode`/`!decode` (base64), `!hash` (SHA-256)
+
+### Added — Phase C: Agent Pool Hardening (A1–A4)
+- **A2 Heartbeat:** 15s WS ping/pong frames to all agents; `pong` handler updates `lastSeen` + EMA RTT
+- **A3 Health Scoring:** 0–100 composite health score per agent (RTT, error rate, idle bonus); health-weighted routing in `listIdleAgentsInGuild`
+- **Error window:** Rolling 60s error tracking per agent for health score degradation
+
+### Added — Phase D: All Tests Green
+- Fixed 6 pre-existing test failures (`memberPermissions` mock, stale `ban.js`/`kick.js` references)
+- **856 passing, 0 failing** ✅
+
+### Added — Phase E: Game & Economy Expansion
+- **`!fish` / `!mine` / `!hunt`** — 3 new prefix mini-games with weighted loot tables, 45/60/90s cooldowns
+- **`!open` / `!unbox`** — 3-stage animated crate opening (sealed → cracking → reveal) with tier-colored embeds
+- **`!prestige`** — prestige system at Level 50+, resets XP/level, awards 5000×prestige credits, 10 tiered titles
+- **G3: Shop/Inventory overhaul** — paginated `!shop` with item descriptions/rarities, `!inventory` grouped by category
+
+### Added — Phase F: SVG Card System
+- `buildProfileCardSvg` — 900×280px profile card (level badge, XP bar, credits, prestige)
+- `buildWelcomeCardSvg` — 900×260px welcome card (member count, server name, accent stripe)
+- `buildLevelUpCardSvg` — 900×240px level-up card (level transition, XP gained, crate granted)
+- `buildBattleCardSvg` — 900×320px battle result card (winner/loser, wager, rounds)
+- `svgToPngBuffer()` — zero-temp-file SVG→PNG via ImageMagick spawn; graceful null on failure
+- `guildMemberAdd.js` now attaches `welcome.png` card to welcome messages (optional, never breaks welcome)
+
+### Added — Phase G: Unification
+- `src/utils/eventBus.js` — typed in-process `GameEventBus` with 10 events (FISH_CAUGHT, ORE_MINED, PRESTIGE_ACHIEVED, MEMBER_JOINED, etc.)
+- `src/utils/colors.js` — canonical 12-color palette for visual consistency across all embeds
+- `src/dashboard/server.js` — `GET /api/monitor/overview` (agent health, economy snapshot, guild overview, process health) + `GET /api/monitor/errors` (in-memory error feed)
+- `src/utils/modernLogger.js` — in-memory error buffer (`global._recentErrors`, capped at 500) fed by U3 dashboard
+
+---
+
+## [1.5.1] — feat/harden-and-polish (Cycles 16–18)
+
 ### Added
+- **Cycle 16 — 50 unit tests** for fun commands (`test/unit/fun-commands-cycle1012.test.js`): roasts.json (50+ entries, no dups), /roast (options, vibes), wyr.json (50+ pairs), /wouldyourather, /compliment (options, styles), /ship deterministic score (4 sub-tests: same=same, commutative, 0–100 range, low collision), /battle (guildOnly, wager min/max), riddles.json (75+ entries, q/a fields), /riddle (reveal boolean), /imagine (prompt maxLength, 6 styles). Total: 935 passing.
+- **`/8ball` upgrade (Cycle 17):** Expanded from 10 to 20 canonical answers (10 positive/5 neutral/5 negative), colour-coded embeds (green/yellow/red), proper `sanitizeString`, no longer guild-only.
+- **`/truthordare` (Cycle 17):** 50 prompts (15 mild truths, 10 spicy truths, 15 mild dares, 10 spicy dares). Type choice (truth/dare/random) + intensity choice (mild/spicy).
+- **`/quote` (Cycle 17):** 4 categories (inspirational/funny/programming/random). Live ZenQuotes API for inspirational with 10-entry local fallback per category.
+- **`/meme` (Cycle 17):** Live meme-api.com fetch with NSFW filter, 5 subreddit choices + random, per-channel 30s rate limit, 5-entry fallback bank.
+- **`docs/COMMANDS.md` (Cycle 18):** Complete command reference — all slash commands (grouped by category), all 64 prefix commands (grouped by category), rate limit table, operator-only command list.
+
+### Changed
+- Global slash commands: ~104 → ~107 (3 below Discord's 110 hard limit)
+
+---
+
+## [1.5.0] — feat/harden-and-polish
+
+### Added — Phase 1: Hardening (Cycles 1–4)
+- **`withTimeout` sweep (Cycle 1):** Wrapped all 43 deferred slash commands in `withTimeout()` — prevents "Unknown Interaction" zombie hangs under load. Only music.js, agents.js, pools.js, tickets.js skipped (complex conditional defer flow).
+- **Input validation sweep (Cycle 2):** `sanitizeString()` applied to all 18 slash command files taking free-text string options (mod reasons, AI prompts, search queries, poll questions, tag content, reminders). Prefix dispatch sanitizes all args before execute().
+- **Prefix registry refactor (Cycle 3):** Broke monolithic 771-line `registry.js` into 6 category modules: `fun.js`, `info.js`, `meta.js`, `mod.js`, `server.js`, `utility.js`. Registry is now a 29-line thin loader. Added `src/prefix/helpers.js` (shared `reply`, `dm`, `parseIntSafe`).
+- **Prefix rate limits + error hardening (Cycle 4):** `rateLimit` metadata on all 37 prefix commands. Per-command Redis cooldown check (`pfx:cd:userId:command`) in dispatch loop.
+
+### Added — Phase 2: Testing (Cycles 5–7)
+- **49 unit tests** for new/modified slash commands (`test/unit/new-commands-phase2.test.js`): `/mod` subcommands, `/lockdown`, `/roast`, `/imagine`, `/fact`, `/wiki`, `/dadjoke`, `/joke`, `/book`, `/urban`, `/apod`, `/github`, `/color`, `/anime`, `/steam`.
+- **38 unit tests** for economy transactions (`test/unit/economy-transactions.test.js`): `formatCooldown`, casino (validateBet, isValidCoinSide, calcSlotsPayout), trade, heist, auction, credit floor guard.
+- **47 unit tests** for prefix command system (`test/unit/prefix-commands-phase2.test.js`): module structure, rateLimit presence, mod permissions, parseIntSafe edge cases.
+
+### Added — Phase 3: Prefix Library Expansion (Cycles 8–9)
+- **14 new prefix commands** in `src/prefix/commands/media.js`: `!fact`, `!dadjoke`, `!joke`, `!wiki`, `!github`, `!anime`, `!book`, `!urban`, `!apod`, `!steam`, `!color`, `!roast`, `!imagine`, `!weather`.
+- **13 new prefix commands** in `src/prefix/commands/economy.js` with aliases: `!balance` (bal, credits), `!daily`, `!work`, `!shop`, `!inventory` (inv), `!leaderboard` (lb, top), `!profile` (p), `!xp`, `!quests`, `!compliment`, `!trivia`, `!riddle`, `!craft`. Total prefix commands: 64.
+
+### Added — Phase 4: Fun Expansion (Cycles 10–12)
+- **Roast hardening (Cycle 10):** `src/fun/roasts.json` — 50-entry fallback roast bank. No-repeat window (last 20 picks per user). Same-target anti-spam guard (3 hits on same target in 5 min → suggest different target).
+- **Imagine hardening (Cycle 10):** Guild opt-in check (`guildData.imagegen`, default enabled). 5/hr per-guild rate limit via `checkRateLimit`. Progress message shown immediately after defer. Improved error messages: `model_loading`, `api_key_invalid`, `safety_filter`, `http_N`.
+- **`/compliment @user` (Cycle 11):** AI-powered compliment (genuine/dramatic/nerdy/rap styles) with 10-entry fallback array and 30s rate limit.
+- **`/wouldyourather` (Cycle 11):** Random question from `src/fun/wyr.json` (50 questions). Bot auto-reacts with 🅰️/🅱️ for voting.
+- **`/ship @user1 @user2` (Cycle 11):** Deterministic hash-based compatibility score (0–100), 7-tier flavor text, heart bar visualization. Same pair always gets same score.
+- **`/battle @user` (Cycle 11):** PvP combat with optional credit wager, XP rewards for both sides, level-based win probability (±30% max), quest event recording, 5min cooldown.
+- **OTDB trivia confirmed integrated (Cycle 12):** `src/game/trivia/opentdb.js` — 14 categories (History, Geography, Sports, Mythology, etc.), automatic local-bank fallback.
+- **`/riddle` (Cycle 12):** 80-riddle local bank in `src/fun/riddles.json`. Spoiler-text answer reveal. `reveal:true` option to show immediately. Zero API calls.
+
+### Added — Phase 5: Production (Cycles 13–15)
+- **`.env.example`:** Added `HUGGINGFACE_API_KEY`, `GITHUB_TOKEN`, `STEAM_API_KEY` with descriptions and setup links.
+- **Session cookie maxAge:** 24-hour explicit session lifetime on dashboard cookie (was unbounded browser-session).
+- **`closeRedis()` export:** `src/utils/redis.js` now exports `closeRedis()` for clean shutdown.
+- **Graceful shutdown (Cycle 14):** Shutdown handler now closes Redis (`closeRedis`) and PostgreSQL pool (`closeStoragePg`) after Discord client.destroy() — steps 6 & 7.
+
+### Changed
+- Global slash command count: ~98 → ~104 (well within Discord's 110-command limit)
+- Total prefix commands: 37 → 64
+
+
 - `/pools help` — 3-page inline guide covering workflows, security promises, and full command reference
 - `/statschannel set/clear/list` — auto-updating voice channel stats (members, online, bots, channels, roles, boosts); refreshes every 10 min
 - `/profilecard` — canvas-rendered profile image card (avatar ring, level bar, XP, economy, rarity breakdown, achievement emoji badges)

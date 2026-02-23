@@ -22,6 +22,7 @@ import {
   clearGuildAiPersona,
 } from "../utils/aiConfig.js";
 import { validateProviderKey } from "../utils/voiceValidation.js";
+import { sanitizeString } from "../utils/validation.js";
 import { getRedisClient } from "../utils/redis.js";
 
 export const meta = {
@@ -245,7 +246,7 @@ const MAX_CTX_MESSAGES = 10;
 
 async function handleChat(interaction) {
   const isPublic  = interaction.options.getBoolean("public") ?? false;
-  const message   = interaction.options.getString("message", true);
+  const message   = sanitizeString(interaction.options.getString("message", true));
   const guildId   = interaction.guildId;
   const userId    = interaction.user.id;
   const channelId = interaction.channelId;
@@ -355,7 +356,7 @@ async function callAiLlm({ prompt, system = "", provider, apiKey, ollamaUrl }) {
 // ── /ai image ─────────────────────────────────────────────────────────────────
 
 async function handleImage(interaction) {
-  const prompt  = interaction.options.getString("prompt", true);
+  const prompt  = sanitizeString(interaction.options.getString("prompt", true));
   const guildId = interaction.guildId;
   const userId  = interaction.user.id;
 
@@ -495,7 +496,7 @@ async function handleSummarize(interaction) {
 // ── /ai translate ─────────────────────────────────────────────────────────────
 
 async function handleTranslate(interaction) {
-  const text     = interaction.options.getString("text", true);
+  const text     = sanitizeString(interaction.options.getString("text", true));
   const language = interaction.options.getString("language", true);
   const guildId  = interaction.guildId;
   const userId   = interaction.user.id;
@@ -624,7 +625,7 @@ async function handlePersonaSet(interaction) {
     return interaction.reply({ content: "❌ You need the **Manage Server** permission.", ephemeral: true });
   }
 
-  const description = interaction.options.getString("description", true);
+  const description = sanitizeString(interaction.options.getString("description", true));
   const v = validatePersonaDesc(description);
   if (!v.ok) {
     return interaction.reply({ content: `❌ ${v.error}`, ephemeral: true });

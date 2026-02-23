@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, MessageFlags } from "discord.js";
 import { schedule } from "../utils/scheduler.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   category: "tools",
@@ -18,7 +19,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const minutes = interaction.options.getInteger("minutes", true);
-  const text = interaction.options.getString("text", true);
+  const text = sanitizeString(interaction.options.getString("text", true));
   const when = Date.now() + minutes * 60 * 1000;
   schedule(`remind:${interaction.user.id}:${when}`, minutes * 60 * 1000, async () => {
     try {

@@ -6,6 +6,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 
 export const meta = {
   guildOnly: true,
+  deployGlobal: false,
   category: "ai",
   description: "Internal handler — use /ai token link to link your API key.",
 };

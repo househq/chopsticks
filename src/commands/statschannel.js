@@ -11,6 +11,7 @@ export const meta = {
   category: "utility",
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageGuild],
+  deployGlobal: false
 };
 
 const STAT_TYPES = {

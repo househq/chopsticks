@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from "mocha";
 import { strict as assert } from "assert";
-import { data as massbanData, execute as massbanExecute } from "../../src/commands/massban.js";
+import { data as modData, execute as modExecute } from "../../src/commands/mod.js";
 import { data as noteData, execute as noteExecute } from "../../src/commands/note.js";
 import { data as historyData, execute as historyExecute } from "../../src/commands/history.js";
 import { data as suggestData, execute as suggestExecute } from "../../src/commands/suggest.js";
@@ -52,6 +52,10 @@ function makeInteraction({ guildId = "guild1", userId = "1234567890123456789", s
         has: (perm) => memberPerms !== null ? memberPerms : true
       }
     },
+    // Discord.js exposes memberPermissions directly on the interaction
+    memberPermissions: {
+      has: (perm) => memberPerms !== null ? memberPerms : true
+    },
     channelId: "channel1",
     options: {
       getSubcommand: () => subcommand,
@@ -70,10 +74,12 @@ function makeInteraction({ guildId = "guild1", userId = "1234567890123456789", s
 // ── Massban: parseUserIds ─────────────────────────────────────────────────────
 
 describe("massban command", function () {
-  it("is named 'massban' and has required 'users' option", function () {
-    const json = massbanData.toJSON();
-    assert.equal(json.name, "massban");
-    const usersOpt = (json.options || []).find(o => o.name === "users");
+  it("mod command has 'massban' subcommand with required 'users' option", function () {
+    const json = modData.toJSON();
+    assert.equal(json.name, "mod");
+    const massSub = (json.options || []).find(o => o.name === "massban");
+    assert.ok(massSub, "missing massban subcommand");
+    const usersOpt = (massSub.options || []).find(o => o.name === "users");
     assert.ok(usersOpt, "missing users option");
     assert.equal(usersOpt.required, true);
   });
@@ -81,18 +87,20 @@ describe("massban command", function () {
   it("rejects >20 IDs", async function () {
     const ids = Array.from({ length: 21 }, (_, i) => String(100000000000000000n + BigInt(i)));
     const interaction = makeInteraction({
-      options: { users: ids.join(",") }
+      options: { users: ids.join(",") },
+      subcommand: "massban"
     });
-    await massbanExecute(interaction);
+    await modExecute(interaction);
     const reply = interaction._replyStore.calls[0];
     assert.ok(reply.content?.includes("Too Many Users") || reply.embeds?.[0]?.data?.title?.includes("Too Many"), "should reject >20 IDs");
   });
 
   it("rejects non-snowflake input", async function () {
     const interaction = makeInteraction({
-      options: { users: "notanid,alsowrong,123" }
+      options: { users: "notanid,alsowrong,123" },
+      subcommand: "massban"
     });
-    await massbanExecute(interaction);
+    await modExecute(interaction);
     const reply = interaction._replyStore.calls[0];
     assert.ok(reply.content?.includes("Invalid") || reply.embeds?.[0]?.data?.title?.includes("Invalid"), "should reject non-snowflakes");
   });
@@ -105,11 +113,11 @@ describe("massban command", function () {
       options: {
         users: `${id1},${id2}`,
         reason: "test reason"
-      }
+      },
+      subcommand: "massban"
     });
     interaction.guild.members.ban = async (id) => { banned.push(id); };
-    await massbanExecute(interaction);
-    // Both should have been attempted
+    await modExecute(interaction);
     assert.ok(banned.includes(id1) || banned.includes(id2), "should attempt to ban valid snowflake IDs");
   });
 
@@ -117,11 +125,12 @@ describe("massban command", function () {
     const selfId = "111111111111111111";
     const interaction = makeInteraction({
       userId: selfId,
-      options: { users: selfId }
+      options: { users: selfId },
+      subcommand: "massban"
     });
     let banned = [];
     interaction.guild.members.ban = async (id) => { banned.push(id); };
-    await massbanExecute(interaction);
+    await modExecute(interaction);
     assert.equal(banned.length, 0, "should not ban the invoker");
   });
 });

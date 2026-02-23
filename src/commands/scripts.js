@@ -20,7 +20,8 @@ import {
 export const meta = {
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageGuild],
-  category: "admin"
+  category: "admin",
+  deployGlobal: false
 };
 
 function buildContext(interaction, targetUser = null) {

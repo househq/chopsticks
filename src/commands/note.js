@@ -5,6 +5,7 @@ import { Colors } from "../utils/discordOutput.js";
 
 export const meta = {
   guildOnly: true,
+  deployGlobal: false,
   userPerms: [PermissionFlagsBits.ModerateMembers],
   category: "mod"
 };

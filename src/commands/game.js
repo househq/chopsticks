@@ -20,7 +20,7 @@ import { performGather, addToCollection } from "../economy/collections.js";
 import { hasItem, addItem } from "../economy/inventory.js";
 import { listShopItems, findShopItem } from "../economy/shop.js";
 import { getMultiplier, getBuff } from "../game/buffs.js";
-import { JOBS, WORK_COOLDOWN } from "./work.js";
+import { JOBS, WORK_COOLDOWN } from "../economy/jobs.js";
 import { DIFFICULTIES, BATTLE_COOLDOWN } from "./fight.js";
 import { listRecipes, craftRecipe } from "../game/crafting.js";
 import { botLogger } from "../utils/modernLogger.js";

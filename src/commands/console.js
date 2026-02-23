@@ -43,7 +43,7 @@ function getJwtSecret() {
   throw new Error("DISCORD_TOKEN is not set — cannot derive console secret.");
 }
 
-export const meta = { category: "utility" };
+export const meta = { category: "utility", deployGlobal: false };
 
 export const data = new SlashCommandBuilder()
   .setName("console")

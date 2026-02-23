@@ -202,7 +202,8 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: cookieSecure
+      secure: cookieSecure,
+      maxAge: 24 * 60 * 60 * 1000, // 24-hour session lifetime
     }
   })
 );
@@ -1950,6 +1951,105 @@ app.get("/api/agents", requireAuth, rateLimitDashboard, requireAdmin, async (req
   const data = agentManagerStatus();
   res.json(data);
 });
+
+// ── U3: Operator Monitoring Panel endpoints ───────────────────────────────
+
+/**
+ * GET /api/monitor/overview
+ * Returns: agent health, command stats (Prometheus counters), economy snapshot,
+ * recent errors, guild overview. Used by the operator dashboard panel.
+ */
+app.get("/api/monitor/overview", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
+  try {
+    const agentData = agentManagerStatus();
+    const agents = agentData.agents || [];
+
+    // Agent pool health
+    const agentHealth = {
+      total: agents.length,
+      ready: agents.filter(a => a.ready).length,
+      busy: agents.filter(a => a.busyKey).length,
+      stale: agents.filter(a => !a.ready && !a.busyKey).length,
+      avgHealthScore: agents.length
+        ? Math.round(agents.reduce((s, a) => s + (a.healthScore ?? 100), 0) / agents.length)
+        : 100,
+      avgRttMs: agents.length
+        ? Math.round(agents.reduce((s, a) => s + (a.rttMs ?? 0), 0) / agents.length)
+        : 0,
+      topAgents: agents
+        .sort((a, b) => (b.healthScore ?? 100) - (a.healthScore ?? 100))
+        .slice(0, 5)
+        .map(a => ({ id: a.agentId, health: a.healthScore ?? 100, rtt: a.rttMs ?? 0, ready: a.ready })),
+    };
+
+    // Economy overview (best-effort, no crash if DB unavailable)
+    let economyOverview = null;
+    try {
+      const { getPool } = await import("../utils/storage_pg.js");
+      const pool = getPool();
+      const [walletRow, profileRow, transRow] = await Promise.all([
+        pool.query("SELECT COUNT(*) AS users, SUM(balance) AS total_credits, SUM(bank) AS total_bank FROM user_wallets").catch(() => null),
+        pool.query("SELECT AVG(level) AS avg_level, MAX(level) AS max_level, COUNT(*) AS total_profiles FROM user_game_profiles").catch(() => null),
+        pool.query("SELECT COUNT(*) AS tx_24h FROM transactions WHERE created_at > NOW() - INTERVAL '24 hours'").catch(() => null),
+      ]);
+      economyOverview = {
+        totalUsers: walletRow?.rows[0]?.users ?? 0,
+        totalCredits: Number(walletRow?.rows[0]?.total_credits ?? 0),
+        totalBank: Number(walletRow?.rows[0]?.total_bank ?? 0),
+        avgLevel: Number(profileRow?.rows[0]?.avg_level ?? 0).toFixed(1),
+        maxLevel: Number(profileRow?.rows[0]?.max_level ?? 0),
+        totalProfiles: Number(profileRow?.rows[0]?.total_profiles ?? 0),
+        transactions24h: Number(transRow?.rows[0]?.tx_24h ?? 0),
+      };
+    } catch { /* DB unavailable */ }
+
+    // Guild overview
+    let guildOverview = null;
+    try {
+      const client = global.discordClient;
+      if (client?.guilds?.cache) {
+        const guilds = [...client.guilds.cache.values()];
+        guildOverview = {
+          totalGuilds: guilds.length,
+          totalMembers: guilds.reduce((s, g) => s + (g.memberCount || 0), 0),
+          largestGuild: guilds.sort((a, b) => b.memberCount - a.memberCount)[0]?.name ?? null,
+        };
+      }
+    } catch { /* Discord client unavailable */ }
+
+    // Process health
+    const mem = process.memoryUsage();
+    const processHealth = {
+      uptimeSec: Math.floor(process.uptime()),
+      rssBytes: mem.rss,
+      heapUsedBytes: mem.heapUsed,
+      heapTotalBytes: mem.heapTotal,
+      heapPct: Math.round((mem.heapUsed / mem.heapTotal) * 100),
+      nodeVersion: process.version,
+    };
+
+    res.json({ ok: true, agentHealth, economyOverview, guildOverview, processHealth, ts: Date.now() });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+/**
+ * GET /api/monitor/errors
+ * Returns the most recent error log entries (from modernLogger's in-memory buffer if available).
+ */
+app.get("/api/monitor/errors", requireAuth, rateLimitDashboard, requireAdmin, (req, res) => {
+  try {
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    // Use in-memory error buffer from modernLogger if it exposes one
+    const recentErrors = global._recentErrors || [];
+    res.json({ ok: true, errors: recentErrors.slice(-limit).reverse(), count: recentErrors.length });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+// ── End U3 ────────────────────────────────────────────────────────────────
 
 app.get("/api/me", requireAuth, rateLimitDashboard, async (req, res) => {
   const userId = req.session.userId;
