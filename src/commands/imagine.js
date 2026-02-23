@@ -3,6 +3,7 @@
 
 import { SlashCommandBuilder, AttachmentBuilder, EmbedBuilder, Colors } from 'discord.js';
 import { withTimeout } from '../utils/interactionTimeout.js';
+import { sanitizeString } from '../utils/validation.js';
 
 export const meta = {
   name: 'imagine',
@@ -55,7 +56,7 @@ const STYLE_SUFFIXES = {
 const BANNED = /\b(nude|naked|nsfw|porn|sexual|sex|gore|violent|blood|weapon|terrorist|bomb)\b/i;
 
 export async function execute(interaction) {
-  const prompt = interaction.options.getString('prompt');
+  const prompt = sanitizeString(interaction.options.getString('prompt'));
   const style = interaction.options.getString('style') || 'default';
 
   // Safety filter

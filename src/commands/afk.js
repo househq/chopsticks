@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { cacheGet, cacheSet, getRedis } from "../utils/cache.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   category: "utility",
@@ -28,7 +29,7 @@ async function clearAfk(key) {
 export async function execute(interaction) {
   const guildId = interaction.guildId;
   const userId = interaction.user.id;
-  const reason = interaction.options.getString("reason");
+  const reason = sanitizeString(interaction.options.getString("reason"));
   const key = `afk:${guildId}:${userId}`;
 
   const existing = await cacheGet(key).catch(() => null);

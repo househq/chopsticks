@@ -9,6 +9,7 @@ import itemsData from "../economy/items.json" with { type: "json" };
 import { addItem } from "../economy/inventory.js";
 import { botLogger } from "../utils/modernLogger.js";
 import { withTimeout } from "../utils/interactionTimeout.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   category: "economy",
@@ -36,7 +37,7 @@ export default {
     await interaction.deferReply();
 
     await withTimeout(interaction, async () => {
-      const itemQuery = interaction.options.getString("item").toLowerCase();
+      const itemQuery = sanitizeString(interaction.options.getString("item")).toLowerCase();
       const quantity = interaction.options.getInteger("quantity") || 1;
 
       try {

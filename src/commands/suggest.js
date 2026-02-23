@@ -2,6 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { loadGuildData } from "../utils/storage.js";
 import { Colors } from "../utils/discordOutput.js";
 import { cacheIncr } from "../utils/cache.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   guildOnly: true,
@@ -17,7 +18,7 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction) {
-  const text = interaction.options.getString("text", true);
+  const text = sanitizeString(interaction.options.getString("text", true));
   const guildData = await loadGuildData(interaction.guildId);
 
   if (!guildData.suggestionChannelId) {

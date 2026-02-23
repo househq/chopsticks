@@ -2,6 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { httpRequest } from "../utils/httpFetch.js";
 import { botLogger } from "../utils/modernLogger.js";
 import { withTimeout } from "../utils/interactionTimeout.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = { category: "util", guildOnly: false };
 
@@ -15,7 +16,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction) {
   await interaction.deferReply();
   await withTimeout(interaction, async () => {
-    const query = interaction.options.getString("query", true).trim();
+    const query = sanitizeString(interaction.options.getString("query", true)).trim();
 
     try {
       const searchUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=1&fields=key,title,author_name,first_publish_year,number_of_pages_median,cover_i,subject,language`;

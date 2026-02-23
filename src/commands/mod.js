@@ -4,6 +4,7 @@ import { notifyUserByDm, reasonOrDefault, replyModError, replyModSuccess, buildM
 import { dispatchModerationLog } from "../utils/modLogs.js";
 import { addWarning, listWarnings, clearWarnings } from "../utils/moderation.js";
 import { replyError, Colors } from "../utils/discordOutput.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   guildOnly: true,
@@ -147,7 +148,7 @@ export async function execute(interaction) {
   // ── ban ──────────────────────────────────────────────────────────────────────
   if (sub === "ban") {
     const user = interaction.options.getUser("user", true);
-    const reason = reasonOrDefault(interaction.options.getString("reason"));
+    const reason = reasonOrDefault(sanitizeString(interaction.options.getString("reason")));
     const deleteDays = interaction.options.getInteger("delete_days") || 0;
     const notifyUser = Boolean(interaction.options.getBoolean("notify_user"));
     const targetMember = await fetchTargetMember(interaction.guild, user.id);
@@ -205,8 +206,8 @@ export async function execute(interaction) {
 
   // ── unban ─────────────────────────────────────────────────────────────────────
   if (sub === "unban") {
-    const userId = interaction.options.getString("user_id", true);
-    const reason = reasonOrDefault(interaction.options.getString("reason"));
+    const userId = sanitizeString(interaction.options.getString("user_id", true));
+    const reason = reasonOrDefault(sanitizeString(interaction.options.getString("reason")));
     try {
       await interaction.guild.members.unban(userId, reason);
       await replyModSuccess(interaction, {
@@ -234,7 +235,7 @@ export async function execute(interaction) {
   // ── softban ───────────────────────────────────────────────────────────────────
   if (sub === "softban") {
     const user = interaction.options.getUser("user", true);
-    const reason = reasonOrDefault(interaction.options.getString("reason"));
+    const reason = reasonOrDefault(sanitizeString(interaction.options.getString("reason")));
     const deleteDays = interaction.options.getInteger("delete_days") || 0;
     const targetMember = await fetchTargetMember(interaction.guild, user.id);
     const gate = canModerateTarget(interaction, targetMember);
@@ -285,8 +286,8 @@ export async function execute(interaction) {
 
   // ── massban ───────────────────────────────────────────────────────────────────
   if (sub === "massban") {
-    const usersInput = interaction.options.getString("users", true);
-    const reason = reasonOrDefault(interaction.options.getString("reason"));
+    const usersInput = sanitizeString(interaction.options.getString("users", true));
+    const reason = reasonOrDefault(sanitizeString(interaction.options.getString("reason")));
     const deleteDays = interaction.options.getInteger("delete_days") ?? 0;
     const ids = parseMassBanIds(usersInput);
 
@@ -364,7 +365,7 @@ export async function execute(interaction) {
   // ── kick ──────────────────────────────────────────────────────────────────────
   if (sub === "kick") {
     const user = interaction.options.getUser("user", true);
-    const reason = reasonOrDefault(interaction.options.getString("reason"));
+    const reason = reasonOrDefault(sanitizeString(interaction.options.getString("reason")));
     const notifyUser = Boolean(interaction.options.getBoolean("notify_user"));
     const member = await fetchTargetMember(interaction.guild, user.id);
     if (!member) {
@@ -429,7 +430,7 @@ export async function execute(interaction) {
   if (sub === "timeout") {
     const user = interaction.options.getUser("user", true);
     const minutes = interaction.options.getInteger("minutes", true);
-    const reason = reasonOrDefault(interaction.options.getString("reason"));
+    const reason = reasonOrDefault(sanitizeString(interaction.options.getString("reason")));
     const notifyUser = Boolean(interaction.options.getBoolean("notify_user"));
     const member = await fetchTargetMember(interaction.guild, user.id);
     if (!member) {
@@ -503,7 +504,7 @@ export async function execute(interaction) {
   // ── warn ──────────────────────────────────────────────────────────────────────
   if (sub === "warn") {
     const user = interaction.options.getUser("user", true);
-    const reason = reasonOrDefault(interaction.options.getString("reason"));
+    const reason = reasonOrDefault(sanitizeString(interaction.options.getString("reason")));
     const targetMember = await fetchTargetMember(interaction.guild, user.id);
     const gate = canModerateTarget(interaction, targetMember);
     if (!gate.ok) {

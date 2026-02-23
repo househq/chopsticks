@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from "discord.js";
 import { loadGuildData, saveGuildData } from "../utils/storage.js";
 import { Colors } from "../utils/discordOutput.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   category: "admin",
@@ -58,7 +59,7 @@ export async function execute(interaction) {
   }
 
   if (sub === "message") {
-    const text = interaction.options.getString("text", true);
+    const text = sanitizeString(interaction.options.getString("text", true));
     data.welcome.message = text;
     data.welcome.enabled = true;
     await saveGuildData(interaction.guildId, data);

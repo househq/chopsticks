@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { botLogger } from "../utils/modernLogger.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   category: "tools",
@@ -37,7 +38,7 @@ function buildBar(ratio) {
 }
 
 export async function execute(interaction) {
-  const question = interaction.options.getString("question", true);
+  const question = sanitizeString(interaction.options.getString("question", true));
   const rawOpts = interaction.options.getString("options", true)
     .split(",").map(s => s.trim()).filter(Boolean);
   const durationMin = interaction.options.getInteger("duration") ?? 5;

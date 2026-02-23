@@ -2,6 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { httpRequest } from "../utils/httpFetch.js";
 import { botLogger } from "../utils/modernLogger.js";
 import { withTimeout } from "../utils/interactionTimeout.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = { category: "fun", guildOnly: false };
 
@@ -15,7 +16,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction) {
   await interaction.deferReply();
   await withTimeout(interaction, async () => {
-    const term = interaction.options.getString("term", true).trim();
+    const term = sanitizeString(interaction.options.getString("term", true)).trim();
 
     try {
       const url = `https://api.urbandictionary.com/v0/define?term=${encodeURIComponent(term)}`;

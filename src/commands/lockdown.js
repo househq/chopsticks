@@ -2,6 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.j
 import { replyModError, replyModSuccess } from "../moderation/output.js";
 import { dispatchModerationLog } from "../utils/modLogs.js";
 import { loadGuildData, saveGuildData } from "../utils/storage.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   guildOnly: true,
@@ -46,7 +47,7 @@ export async function execute(interaction) {
 
   if (sub === "start") {
     const categoryChannel = interaction.options.getChannel("category");
-    const reason = interaction.options.getString("reason") || "Lockdown initiated";
+    const reason = sanitizeString(interaction.options.getString("reason")) || "Lockdown initiated";
 
     let channelsToLock = [];
 

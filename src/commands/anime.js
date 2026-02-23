@@ -2,6 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { httpRequest } from "../utils/httpFetch.js";
 import { botLogger } from "../utils/modernLogger.js";
 import { withTimeout } from "../utils/interactionTimeout.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = { category: "fun", guildOnly: false };
 
@@ -35,7 +36,7 @@ query ($search: String) {
 export async function execute(interaction) {
   await interaction.deferReply();
   await withTimeout(interaction, async () => {
-    const title = interaction.options.getString("title", true).trim();
+    const title = sanitizeString(interaction.options.getString("title", true)).trim();
 
     try {
       const { statusCode, body } = await httpRequest("anilist", ANILIST_URL, {

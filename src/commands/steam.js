@@ -2,6 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { httpRequest } from "../utils/httpFetch.js";
 import { botLogger } from "../utils/modernLogger.js";
 import { withTimeout } from "../utils/interactionTimeout.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   category: "info",
@@ -42,7 +43,7 @@ export async function execute(interaction) {
   await interaction.deferReply();
 
   await withTimeout(interaction, async () => {
-    const input = interaction.options.getString("profile", true);
+    const input = sanitizeString(interaction.options.getString("profile", true));
     const { type, value } = resolveIdentifier(input);
     const url = `https://steamcommunity.com/${type}/${encodeURIComponent(value)}?xml=1`;
 

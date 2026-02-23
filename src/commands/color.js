@@ -2,6 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } from "discord.js
 import { createCanvas } from "@napi-rs/canvas";
 import { botLogger } from "../utils/modernLogger.js";
 import { withTimeout } from "../utils/interactionTimeout.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   category: "utility",
@@ -66,7 +67,7 @@ function makePreview(hex, r, g, b) {
 }
 
 export async function execute(interaction) {
-  const raw = interaction.options.getString("hex", true).trim();
+  const raw = sanitizeString(interaction.options.getString("hex", true)).trim();
   const hex = raw.startsWith("#") ? raw : `#${raw}`;
 
   if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {

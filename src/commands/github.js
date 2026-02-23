@@ -2,6 +2,7 @@ import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { httpRequest } from "../utils/httpFetch.js";
 import { botLogger } from "../utils/modernLogger.js";
 import { withTimeout } from "../utils/interactionTimeout.js";
+import { sanitizeString } from "../utils/validation.js";
 
 export const meta = { category: "util", guildOnly: false };
 
@@ -32,7 +33,7 @@ export async function execute(interaction) {
   await interaction.deferReply();
 
   await withTimeout(interaction, async () => {
-    const query = interaction.options.getString("query", true).trim();
+    const query = sanitizeString(interaction.options.getString("query", true)).trim();
     const isRepo = query.includes("/");
 
     try {
