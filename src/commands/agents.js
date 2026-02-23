@@ -2094,7 +2094,7 @@ export async function execute(interaction) {
         }
         
         // Add as pending (requires manual activation by pool owner)
-        const result = await insertAgentBot(agentId, token, clientId, botUser.tag, poolId, userId);
+        const result = await insertAgentBot(agentId, token, clientId, botUser.tag, poolId, userId, 'pending');
         
         const operationMsg = result.operation === 'inserted' ? 'submitted' : 'updated';
         await interaction.editReply({
