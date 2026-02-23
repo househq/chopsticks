@@ -147,7 +147,7 @@ function deriveJwtSecret() {
 
   const botToken = String(process.env.DISCORD_TOKEN || "").trim();
   if (botToken) {
-    return createHash("sha256").update(botToken + "chopsticks-console-v1").digest("hex").slice(0, 32);
+    return createHash("sha256").update(botToken + "chopsticks-console-v1").digest("hex").slice(0, 64);
   }
   // Last resort: ephemeral (sessions won't survive restarts)
   return randomBytes(32).toString("hex");
@@ -1683,7 +1683,7 @@ app.get("/console-auth", async (req, res) => {
 
   let payload;
   try {
-    payload = jwt.verify(token, secret);
+    payload = jwt.verify(token, secret, { algorithms: ["HS256"] });
   } catch (err) {
     return res.status(401).send(
       `<html><body style="font-family:sans-serif;background:#0b0f1a;color:#e6e6e6;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">

@@ -124,6 +124,7 @@
 - `/book <query>` — Open Library book search (cover, author, subjects)
 - `/afk [reason]` — Set AFK status; bot notifies others who mention you
 - `/color <hex>` — Preview a hex color with RGB, HSL breakdown and a rendered swatch
+- `/colorrole set <hex>` / `/colorrole clear` — Personal color role management (self-service)
 - `/steam <profile>` — Look up a Steam community profile (no API key)
 - `/convert <amount> <from> <to>` — Currency conversion via Frankfurter (ECB data, free)
 - `/botinfo` `/ping` `/serverinfo` `/userinfo` — rich stat embeds
