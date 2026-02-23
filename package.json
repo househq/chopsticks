@@ -36,7 +36,8 @@
     "ops:uninstall-update-timer": "bash scripts/ops/uninstall-update-timer.sh",
     "test": "mocha 'test/unit/**/*.test.js'",
     "test:watch": "mocha 'test/unit/**/*.test.js' --watch",
-    "test:level-1": "mocha 'test/unit/protocol-version.test.js' 'test/unit/agent-limits.test.js' 'test/unit/agent-deployment.test.js' 'test/unit/session-lifecycle.test.js'"
+    "test:level-1": "mocha 'test/unit/protocol-version.test.js' 'test/unit/agent-limits.test.js' 'test/unit/agent-deployment.test.js' 'test/unit/session-lifecycle.test.js'",
+    "loadtest": "node tools/loadtest.js"
   },
   "dependencies": {
     "@discordjs/opus": "^0.10.0",
