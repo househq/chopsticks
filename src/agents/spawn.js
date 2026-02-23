@@ -1,5 +1,6 @@
 // src/agents/spawn.js
 import { spawn } from "node:child_process";
+import { botLogger } from "../utils/modernLogger.js";
 
 export function spawnAgentsProcess() {
   // Prevent recursion if agentRunner ever imports main
@@ -22,7 +23,7 @@ export function spawnAgentsProcess() {
 
   child.on("exit", code => {
     if (code && code !== 0) {
-      console.error(`[agents] process exited with code ${code}`);
+      botLogger.error({ code }, "[agents] process exited with code %d", code);
     }
   });
 

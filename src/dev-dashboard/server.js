@@ -3,12 +3,19 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-// Node 20+ provides global fetch.
+import { createServer } from 'node:http';
+import { Server as SocketIOServer } from 'socket.io';
+import { logger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+const httpServer = createServer(app);
+const io = new SocketIOServer(httpServer, {
+  cors: { origin: false },
+  transports: ["websocket", "polling"]
+});
 const PORT = process.env.DEV_DASHBOARD_PORT || 3001;
 const USERNAME = process.env.DEV_DASHBOARD_USERNAME;
 const PASSWORD = process.env.DEV_DASHBOARD_PASSWORD;
@@ -88,7 +95,7 @@ app.get('/', async (req, res) => {
             error: null
         });
     } catch (error) {
-        console.error("Error fetching dashboard data:", error);
+        logger.error({ err: error }, "Error fetching dashboard data");
         res.render('index', {
             registeredAgents: [],
             activeAgents: [],
@@ -250,6 +257,28 @@ app.post('/api/agents/start/:agentId', async (req, res) => {
 
 
 // Start the server
-app.listen(PORT, () => {
-    console.log(`Dev Dashboard running on http://localhost:${PORT}`);
+httpServer.listen(PORT, () => {
+    logger.info(`Dev Dashboard running on http://localhost:${PORT}`);
+});
+
+// Real-time live stats push via Socket.io — polls health API every 5s
+async function pushLiveStats() {
+  try {
+    const healthPort = process.env.HEALTH_PORT || 9100;
+    const metricsToken = process.env.METRICS_TOKEN || "";
+    const headers = metricsToken ? { Authorization: `Bearer ${metricsToken}` } : {};
+
+    const res = await fetch(`http://localhost:${healthPort}/debug/stats`, { headers });
+    if (!res.ok) return;
+    const stats = await res.json();
+    io.emit("live_stats", stats);
+  } catch {}
+}
+
+setInterval(pushLiveStats, 5_000);
+
+io.on("connection", (socket) => {
+  // Push immediately on connect so the UI has data right away
+  pushLiveStats();
+  socket.on("disconnect", () => {});
 });

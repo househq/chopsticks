@@ -7,6 +7,7 @@ import { maybeBuildGuildFunLine } from "../fun/integrations.js";
 import { addGameXp } from "../game/profile.js";
 import { getMultiplier } from "../game/buffs.js";
 import { recordQuestEvent } from "../game/quests.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 export const WORK_COOLDOWN = 30 * 60 * 1000; // 30 minutes
 
@@ -200,7 +201,7 @@ export default {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      console.error("Work command error:", error);
+      botLogger.error({ err: error }, "Work command error:");
       await replyError(interaction, "Work Failed", "Failed to complete job. Try again later.", true);
     }
   }

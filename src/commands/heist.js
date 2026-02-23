@@ -5,6 +5,7 @@ import { addCredits, removeCredits } from '../economy/wallet.js';
 import { checkRateLimit } from '../utils/ratelimit.js';
 import { getPool } from '../utils/storage_pg.js';
 import crypto from 'node:crypto';
+import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = { category: 'economy', guildOnly: true };
 
@@ -158,7 +159,7 @@ export async function execute(interaction) {
             }).catch(() => {});
           }
         } catch (e) {
-          console.error('[heist] auto-resolve error:', e);
+          botLogger.error({ err: e }, '[heist] auto-resolve error:');
         }
       }, newHeist.join_window_seconds * 1000);
 
@@ -231,7 +232,7 @@ export async function execute(interaction) {
     }
 
   } catch (err) {
-    console.error('[heist] Error:', err);
+    botLogger.error({ err: err }, '[heist] Error:');
     const replied = interaction.replied || interaction.deferred;
     await interaction[replied ? 'editReply' : 'reply']({
       embeds: [makeEmbed('Error', 'An error occurred.', [], null, null, Colors.ERROR)],

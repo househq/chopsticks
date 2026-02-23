@@ -7,6 +7,7 @@ import { recordQuestEvent } from "../game/quests.js";
 import { openCrateRolls } from "../game/crates.js";
 import itemsData from "../economy/items.json" with { type: "json" };
 import { addItem } from "../economy/inventory.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = {
   category: "economy",
@@ -98,7 +99,7 @@ export default {
         return await replyError(interaction, "Unknown Item Type", "This item cannot be used.", true);
       }
     } catch (error) {
-      console.error("Use command error:", error);
+      botLogger.error({ err: error }, "Use command error");
       await replyError(interaction, "Error", "Failed to use item. Try again later.", true);
     }
   }

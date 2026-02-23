@@ -38,7 +38,7 @@ function getJwtSecret() {
 
   const botToken = String(process.env.DISCORD_TOKEN || "").trim();
   if (botToken) {
-    return createHash("sha256").update(botToken + "chopsticks-console-v1").digest("hex").slice(0, 32);
+    return createHash("sha256").update(botToken + "chopsticks-console-v1").digest("hex").slice(0, 64);
   }
   throw new Error("DISCORD_TOKEN is not set — cannot derive console secret.");
 }
@@ -76,7 +76,7 @@ export async function execute(interaction) {
       avatarHash: interaction.user.avatar,
     },
     secret,
-    { expiresIn: `${CONSOLE_TOKEN_TTL}s` }
+    { expiresIn: `${CONSOLE_TOKEN_TTL}s`, algorithm: "HS256" }
   );
 
   const consoleUrl = `${baseUrl}/console-auth?token=${encodeURIComponent(token)}`;

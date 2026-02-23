@@ -23,6 +23,7 @@ import { getMultiplier, getBuff } from "../game/buffs.js";
 import { JOBS, WORK_COOLDOWN } from "./work.js";
 import { DIFFICULTIES, BATTLE_COOLDOWN } from "./fight.js";
 import { listRecipes, craftRecipe } from "../game/crafting.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 const THEMES = [
   { name: "Neo (Default)", value: "neo" },
@@ -780,7 +781,7 @@ export async function execute(interaction) {
       await interaction.editReply(payload);
       return;
     } catch (err) {
-      console.error("[game:panel] failed:", err);
+      botLogger.error({ err: err }, "[game:panel] failed:");
       await replyError(interaction, "Panel Failed", "Couldn't open the game panel. Check bot logs.", true);
       return;
     }
@@ -999,7 +1000,7 @@ export async function handleButton(interaction) {
       if (state.view === "bank") result = await runBankAction(state.userId, "depall");
       await showActionResult(interaction, result);
     } catch (err) {
-      console.error("[gameui:run] error:", err);
+      botLogger.error({ err: err }, "[gameui:run] error:");
       try {
         await interaction.followUp({
           embeds: [noticeEmbed("Action Failed", "Something went wrong while running this action.", Colors.ERROR)],

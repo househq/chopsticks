@@ -1,4 +1,5 @@
-import { SlashCommandBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = {
   category: "tools",
@@ -7,25 +8,95 @@ export const meta = {
 
 export const data = new SlashCommandBuilder()
   .setName("poll")
-  .setDescription("Create a poll")
-  .addStringOption(o => o.setName("question").setDescription("Question").setRequired(true))
+  .setDescription("Create a timed poll with automatic result reveal")
   .addStringOption(o =>
-    o.setName("options").setDescription("Comma-separated options (2-10)").setRequired(true)
+    o.setName("question").setDescription("Poll question").setRequired(true).setMaxLength(200)
+  )
+  .addStringOption(o =>
+    o.setName("options")
+      .setDescription("Comma-separated options (2-10)")
+      .setRequired(true)
+      .setMaxLength(500)
+  )
+  .addIntegerOption(o =>
+    o.setName("duration")
+      .setDescription("Poll duration in minutes (1-1440, default: 5)")
+      .setMinValue(1)
+      .setMaxValue(1440)
+      .setRequired(false)
   );
 
-const emoji = ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
+const VOTE_EMOJI = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
+const BAR_FILL = "█";
+const BAR_EMPTY = "░";
+const BAR_LEN = 10;
+
+function buildBar(ratio) {
+  const filled = Math.round(ratio * BAR_LEN);
+  return BAR_FILL.repeat(filled) + BAR_EMPTY.repeat(BAR_LEN - filled);
+}
 
 export async function execute(interaction) {
-  const q = interaction.options.getString("question", true);
-  const opts = interaction.options.getString("options", true).split(",").map(s => s.trim()).filter(Boolean);
-  if (opts.length < 2 || opts.length > 10) {
-    await interaction.reply({ content: "Provide 2-10 options.", ephemeral: true });
-    return;
+  const question = interaction.options.getString("question", true);
+  const rawOpts = interaction.options.getString("options", true)
+    .split(",").map(s => s.trim()).filter(Boolean);
+  const durationMin = interaction.options.getInteger("duration") ?? 5;
+
+  if (rawOpts.length < 2 || rawOpts.length > 10) {
+    return interaction.reply({ content: "❌ Provide 2–10 comma-separated options.", ephemeral: true });
   }
-  const lines = opts.map((o, i) => `${i + 1}. ${o}`).join("\n");
-  await interaction.reply({ content: `**${q}**\n${lines}` });
+
+  const endsAt = Date.now() + durationMin * 60 * 1000;
+  const endsStr = `<t:${Math.floor(endsAt / 1000)}:R>`;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`📊 ${question}`)
+    .setDescription(rawOpts.map((opt, i) => `${VOTE_EMOJI[i]} **${opt}**`).join("\n"))
+    .setColor(0x5865f2)
+    .setFooter({ text: `Poll ends ${endsStr.replace(/<[^>]+>/g, "")} · ${durationMin}m` })
+    .addFields({ name: "Ends", value: endsStr, inline: true });
+
+  await interaction.reply({ embeds: [embed] });
   const msg = await interaction.fetchReply();
-  for (let i = 0; i < opts.length; i++) {
-    await msg.react(emoji[i]).catch(() => {});
+
+  // Add reactions
+  for (let i = 0; i < rawOpts.length; i++) {
+    await msg.react(VOTE_EMOJI[i]).catch(() => {});
   }
+
+  // Schedule result reveal
+  const delay = Math.min(durationMin * 60 * 1000, 60 * 60 * 1000); // cap at 1h for memory safety
+  setTimeout(async () => {
+    try {
+      // Re-fetch to get latest reactions
+      const fresh = await msg.fetch().catch(() => null);
+      if (!fresh) return;
+
+      const votes = rawOpts.map((opt, i) => {
+        const reaction = fresh.reactions.cache.get(VOTE_EMOJI[i]);
+        return { opt, count: Math.max(0, (reaction?.count ?? 1) - 1) }; // subtract bot's own reaction
+      });
+      const total = votes.reduce((s, v) => s + v.count, 0);
+
+      const resultEmbed = new EmbedBuilder()
+        .setTitle(`📊 Poll Closed: ${question}`)
+        .setColor(0x57f287)
+        .setDescription(
+          votes.map((v, i) => {
+            const ratio = total > 0 ? v.count / total : 0;
+            const pct = total > 0 ? Math.round(ratio * 100) : 0;
+            const bar = buildBar(ratio);
+            return `${VOTE_EMOJI[i]} **${v.opt}**\n\`${bar}\` ${pct}% (${v.count} vote${v.count !== 1 ? "s" : ""})`;
+          }).join("\n\n")
+        )
+        .addFields({ name: "Total votes", value: String(total), inline: true })
+        .setFooter({ text: "Poll closed" })
+        .setTimestamp();
+
+      await fresh.edit({ embeds: [resultEmbed] }).catch(() => {});
+    } catch (err) {
+      botLogger.warn({ err }, "[poll] result reveal failed");
+    }
+  }, delay).unref();
 }
+

@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { guildLRU, invalidateGuild } from "./localCache.js";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const SCHEMA_VERSION = 1;
@@ -417,14 +418,23 @@ export async function loadGuildData(guildId) {
   if (STORAGE_DRIVER === "postgres") {
     const fallback = () => baseData();
     try {
+      // Layer 1: in-process LRU (synchronous, zero network hop)
+      const lruHit = guildLRU.get(guildId);
+      if (lruHit) return lruHit;
+
       if (GUILD_CACHE_TTL_SEC > 0) {
         const cache = await getCache();
         const cached = await cache.cacheGet(`guild:${guildId}`);
-        if (cached) return normalizeData(cached);
+        if (cached) {
+          const norm = normalizeData(cached);
+          guildLRU.set(guildId, norm);
+          return norm;
+        }
       }
       const pg = await getPg();
       const data = await pg.loadGuildDataPg(guildId, fallback);
       const normalized = normalizeData(data);
+      guildLRU.set(guildId, normalized);
       if (GUILD_CACHE_TTL_SEC > 0) {
         const cache = await getCache();
         await cache.cacheSet(`guild:${guildId}`, normalized, GUILD_CACHE_TTL_SEC);
@@ -444,14 +454,23 @@ export async function ensureGuildData(guildId) {
   if (STORAGE_DRIVER === "postgres") {
     const fallback = () => baseData();
     try {
+      // Layer 1: in-process LRU
+      const lruHit = guildLRU.get(guildId);
+      if (lruHit) return lruHit;
+
       if (GUILD_CACHE_TTL_SEC > 0) {
         const cache = await getCache();
         const cached = await cache.cacheGet(`guild:${guildId}`);
-        if (cached) return normalizeData(cached);
+        if (cached) {
+          const norm = normalizeData(cached);
+          guildLRU.set(guildId, norm);
+          return norm;
+        }
       }
       const pg = await getPg();
       const data = await pg.loadGuildDataPg(guildId, fallback);
       const normalized = normalizeData(data);
+      guildLRU.set(guildId, normalized);
       if (GUILD_CACHE_TTL_SEC > 0) {
         const cache = await getCache();
         await cache.cacheSet(`guild:${guildId}`, normalized, GUILD_CACHE_TTL_SEC);
@@ -477,9 +496,12 @@ export async function saveGuildData(guildId, data) {
     try {
       const pg = await getPg();
       const saved = await pg.saveGuildDataPg(guildId, data, normalizeData, mergeOnConflict);
+      const normalized = normalizeData(saved);
+      // Invalidate LRU immediately so next read gets fresh data
+      invalidateGuild(guildId);
       if (GUILD_CACHE_TTL_SEC > 0) {
         const cache = await getCache();
-        await cache.cacheSet(`guild:${guildId}`, normalizeData(saved), GUILD_CACHE_TTL_SEC);
+        await cache.cacheSet(`guild:${guildId}`, normalized, GUILD_CACHE_TTL_SEC);
       }
       return saved;
     } catch {

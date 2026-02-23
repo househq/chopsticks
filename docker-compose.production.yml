@@ -20,7 +20,7 @@ services:
     networks:
       - chopsticks
     depends_on:
-      postgres:
+      pgbouncer:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -108,7 +108,7 @@ services:
       -c work_mem=2MB
       -c min_wal_size=1GB
       -c max_wal_size=4GB
-      -c max_connections=100
+      -c max_connections=200
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chopsticks}"]
       interval: 10s
@@ -119,6 +119,44 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # PgBouncer — Connection Pooler (REQUIRED for 200k DAU horizontal scaling)
+  # Routes ALL bot connections through transaction-mode pooling.
+  # Set POSTGRES_URL=postgres://user:pass@pgbouncer:5432/chopsticks in .env
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: "${COMPOSE_PROJECT_NAME:-chopsticks}-pgbouncer"
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-chopsticks}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      DB_NAME: ${POSTGRES_DB:-chopsticks}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 25
+      SERVER_RESET_QUERY: DISCARD ALL
+      LOG_CONNECTIONS: 0
+      LOG_DISCONNECTIONS: 0
+    networks:
+      - chopsticks
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 64m
+    mem_reservation: 32m
+    cpus: '0.10'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER:-chopsticks}"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   # Redis Cache
   redis:

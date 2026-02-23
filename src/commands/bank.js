@@ -2,6 +2,7 @@
 import { SlashCommandBuilder } from "discord.js";
 import { makeEmbed, Colors } from "../utils/discordOutput.js";
 import { depositToBank, withdrawFromBank, getWallet, upgradeBankCapacity } from "../economy/wallet.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = {
   category: "economy",
@@ -165,7 +166,7 @@ export async function execute(interaction) {
       await interaction.reply({ embeds: [embed], ephemeral: true });
     }
   } catch (err) {
-    console.error("[bank] Error:", err);
+    botLogger.error({ err }, "[bank] Error");
     await interaction.reply({
       embeds: [makeEmbed("Error", "Failed to process bank transaction.", [], null, null, Colors.ERROR)],
       ephemeral: true

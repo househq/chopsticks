@@ -1,5 +1,5 @@
 import { SlashCommandBuilder } from "discord.js";
-import { fetch } from "undici";
+import { httpFetch } from "../utils/httpFetch.js";
 import { cacheGet, cacheSet } from "../utils/cache.js";
 
 export const meta = {
@@ -112,7 +112,7 @@ async function getCurrencyRate(from, to) {
   let rates = await cacheGet(cacheKey);
   if (!rates) {
     try {
-      const res = await fetch(`https://open.er-api.com/v6/latest/${fromUpper}`, {
+      const res = await httpFetch("exchangerate", `https://open.er-api.com/v6/latest/${fromUpper}`, {
         signal: AbortSignal.timeout(5000)
       });
       if (!res.ok) return null;

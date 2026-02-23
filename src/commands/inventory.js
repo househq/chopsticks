@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getInventory } from "../economy/inventory.js";
 import { Colors, replyEmbed } from "../utils/discordOutput.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -82,7 +83,7 @@ export default {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      console.error("Inventory command error:", error);
+      botLogger.error({ err: error }, "Inventory command error");
       await interaction.editReply({
         content: "❌ Failed to load inventory. Try again later.",
         ephemeral: true

@@ -2,6 +2,7 @@
 import { SlashCommandBuilder } from "discord.js";
 import { makeEmbed, Colors } from "../utils/discordOutput.js";
 import { getWallet } from "../economy/wallet.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = {
   category: "economy",
@@ -43,7 +44,7 @@ export async function execute(interaction) {
     
     await interaction.reply({ embeds: [embed] });
   } catch (err) {
-    console.error("[balance] Error:", err);
+    botLogger.error({ err: err }, "[balance] Error:");
     await interaction.reply({
       embeds: [makeEmbed("Error", "Failed to fetch balance.", [], null, null, Colors.ERROR)],
       ephemeral: true

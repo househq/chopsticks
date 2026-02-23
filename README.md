@@ -8,7 +8,7 @@
 <br/>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Discord.js](https://img.shields.io/badge/discord.js-v14-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.js.org)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](docker-compose.laptop.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=for-the-badge&logo=github)](CONTRIBUTING.md)
@@ -26,8 +26,9 @@
   <img src="https://img.shields.io/badge/Join%20Support%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord Support Server"/>
 </a>
 &nbsp;
+<!-- Replace YOUR_CLIENT_ID with your bot's application ID from the Discord Developer Portal -->
 <a href="https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=8&scope=bot%20applications.commands">
-  <img src="https://img.shields.io/badge/Invite%20Chopsticks-57F287?style=for-the-badge&logo=discord&logoColor=white" alt="Invite Bot"/>
+  <img src="https://img.shields.io/badge/Invite%20Chopsticks-57F287?style=for-the-badge&logo=discord&logoColor=white" alt="Invite Bot — replace YOUR_CLIENT_ID in this URL"/>
 </a>
 &nbsp;
 <a href="docs/">
@@ -90,17 +91,41 @@
 
 - Earn and spend Credits via `/daily` `/work` `/gather`
 - `/shop` `/buy` `/inventory` `/vault` — items and collectibles
-- `/leaderboard` `/profile` — server-wide rankings and per-user progression cards
+- `/leaderboard` `/profile` `/profilecard` — server-wide rankings, per-user progression, and a canvas-rendered profile image card
 
 </details>
 
 <details>
 <summary><b>🎮 Games & Fun</b></summary>
 
-- `/trivia` — solo, PvP versus, fleet, and agent-duel modes
+- `/trivia` — solo, PvP versus, fleet, and agent-duel modes (with live Open Trivia DB fallback for extended categories)
 - `/gather` `/work` — loot missions with card-image outputs
 - `/fun` — interactive catalog-driven fun commands
 - `/agent chat` — chat with a deployed agent identity
+- `/fact` — random interesting fact (uselessfacts.jsph.pl, free)
+- `/joke [category]` — programming, pun, misc, dark and more (JokeAPI v2, free)
+- `/dadjoke` — random dad joke (icanhazdadjoke.com, free)
+- `/urban <term>` — Urban Dictionary lookup with thumbs up/down
+- `/8ball` `/coinflip` `/roll` `/roast` `/choose`
+
+</details>
+
+<details>
+<summary><b>🌐 Info & Lookup Commands</b></summary>
+
+- `/wiki <query>` — Wikipedia article summary + thumbnail
+- `/github <user|user/repo>` — GitHub user profile or repository stats
+- `/anime <title>` — AniList anime info (score, studio, episodes, genres)
+- `/weather <location>` — Current weather via Open-Meteo (free, no API key)
+- `/apod [date]` — NASA Astronomy Picture of the Day
+- `/book <query>` — Open Library book search (cover, author, subjects)
+- `/afk [reason]` — Set AFK status; bot notifies others who mention you
+- `/color <hex>` — Preview a hex color with RGB, HSL breakdown and a rendered swatch
+- `/colorrole set <hex>` / `/colorrole clear` — Personal color role management (self-service)
+- `/statschannel set/clear/list` — Designate a voice channel as a live server-stats display (auto-renames every 10 min)
+- `/steam <profile>` — Look up a Steam community profile (no API key)
+- `/convert <amount> <from> <to>` — Currency conversion via Frankfurter (ECB data, free)
+- `/botinfo` `/ping` `/serverinfo` `/userinfo` — rich stat embeds
 
 </details>
 
@@ -108,8 +133,9 @@
 <summary><b>📊 Dashboard & Monitoring</b></summary>
 
 - Web dashboard for server config, pool management, and live stats
-- Prometheus metrics + Grafana integration
-- Structured JSON logging with Pino
+- Dev dashboard with **real-time Socket.io push** — commands/min, agents online, error rate, top command
+- Prometheus metrics + Grafana integration (unified `/metrics` endpoint)
+- Structured JSON logging with Pino (zero `console.*` in production paths)
 
 </details>
 
@@ -166,7 +192,7 @@ Your Server ──► Guild Pool Config ──► Primary Pool + up to 2 Seconda
 
 | Requirement | Version |
 |-------------|---------|
-| [Node.js](https://nodejs.org) | 20+ |
+| [Node.js](https://nodejs.org) | 22+ |
 | [PostgreSQL](https://postgresql.org) | 14+ |
 | [Redis](https://redis.io) | 7+ |
 | [Lavalink](https://github.com/lavalink-devs/Lavalink) | 4+ |

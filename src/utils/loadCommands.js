@@ -4,6 +4,7 @@
 import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
+import { botLogger } from "./modernLogger.js";
 
 export async function loadCommands() {
   const commands = new Map();
@@ -20,9 +21,7 @@ export async function loadCommands() {
     try {
       mod = await import(pathToFileURL(fullPath).href);
     } catch (err) {
-      console.error("\n=== COMMAND IMPORT FAILURE ===");
-      console.error("File:", file);
-      console.error(err);
+      botLogger.error({ err, file }, "COMMAND IMPORT FAILURE");
       process.exit(1);
     }
 
@@ -36,11 +35,7 @@ export async function loadCommands() {
     try {
       cmd.data.toJSON();
     } catch (err) {
-      console.error("\n=== COMMAND BUILD FAILURE ===");
-      console.error("File:", file);
-      console.error("Command name:", cmd.data?.name);
-      console.error("Builder object:", cmd.data);
-      console.error("Error:", err);
+      botLogger.error({ err, file, commandName: cmd.data?.name }, "COMMAND BUILD FAILURE");
       process.exit(1);
     }
 

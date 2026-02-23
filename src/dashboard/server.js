@@ -39,11 +39,15 @@ import Joi from "joi";
 import { generateCorrelationId } from "../utils/logger.js";
 import { installProcessSafety } from "../utils/processSafety.js";
 import { createRequire as _cjsRequire } from "node:module";
+import compression from "compression";
 const _require = _cjsRequire(import.meta.url);
 const jwt = _require("jsonwebtoken");
 
 const app = express();
 installProcessSafety("dashboard", dashboardLogger);
+
+// Gzip/deflate all text responses — critical for 200k DAU serving JSON/HTML
+app.use(compression());
 
 // Apply modern security middleware FIRST
 applySecurityMiddleware(app);
@@ -100,7 +104,7 @@ function detectBaseUrl() {
   const explicit = String(process.env.DASHBOARD_BASE_URL || "").trim();
   if (explicit) {
     const valid = validateUrl(explicit);
-    if (!valid) console.warn(`[dashboard] DASHBOARD_BASE_URL is invalid: "${explicit}" — falling back`);
+    if (!valid) dashboardLogger.warn({ url: explicit }, "[dashboard] DASHBOARD_BASE_URL is invalid — falling back");
     else return valid;
   }
 
@@ -147,7 +151,7 @@ function deriveJwtSecret() {
 
   const botToken = String(process.env.DISCORD_TOKEN || "").trim();
   if (botToken) {
-    return createHash("sha256").update(botToken + "chopsticks-console-v1").digest("hex").slice(0, 32);
+    return createHash("sha256").update(botToken + "chopsticks-console-v1").digest("hex").slice(0, 64);
   }
   // Last resort: ephemeral (sessions won't survive restarts)
   return randomBytes(32).toString("hex");
@@ -159,16 +163,14 @@ const DISCORD_REDIRECT_URI = String(process.env.DISCORD_REDIRECT_URI || "").trim
 const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "").trim();
 
 if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
-  console.warn("[dashboard] DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET missing");
+  dashboardLogger.warn("[dashboard] DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET missing");
 }
 
 let sessionSecret = String(process.env.DASHBOARD_SESSION_SECRET || "").trim();
 if (!sessionSecret) {
   // Avoid a known default secret. In multi-instance deployments, set DASHBOARD_SESSION_SECRET explicitly.
   sessionSecret = randomBytes(32).toString("hex");
-  console.warn(
-    "[dashboard] DASHBOARD_SESSION_SECRET missing; generated an ephemeral secret (sessions will reset on restart)."
-  );
+  dashboardLogger.warn("[dashboard] DASHBOARD_SESSION_SECRET missing; generated an ephemeral secret (sessions will reset on restart).");
 }
 const cookieSecure = String(process.env.DASHBOARD_COOKIE_SECURE || "false").toLowerCase() === "true";
 const trustProxyRaw = String(
@@ -188,7 +190,7 @@ if (REDIS_URL) {
   redisClient.connect().catch(() => {});
   store = new RedisStore({ client: redisClient });
 } else {
-  console.warn("[dashboard] REDIS_URL not set, using in-memory sessions.");
+  dashboardLogger.warn("[dashboard] REDIS_URL not set, using in-memory sessions.");
 }
 
 app.use(
@@ -1686,7 +1688,7 @@ app.get("/console-auth", async (req, res) => {
 
   let payload;
   try {
-    payload = jwt.verify(token, secret);
+    payload = jwt.verify(token, secret, { algorithms: ["HS256"] });
   } catch (err) {
     return res.status(401).send(
       `<html><body style="font-family:sans-serif;background:#0b0f1a;color:#e6e6e6;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
@@ -1767,7 +1769,7 @@ app.get("/oauth/callback", async (req, res) => {
     }
     res.redirect("/");
   } catch (err) {
-    console.error("OAuth Error:", err);
+    dashboardLogger.error({ err }, "OAuth Error");
     res.status(500).send("OAuth failed: " + err.message);
   }
 });
@@ -2808,8 +2810,8 @@ export function startDashboard() {
     const url = DASHBOARD_BASE_URL.startsWith("http://localhost")
       ? DASHBOARD_BASE_URL
       : DASHBOARD_BASE_URL;
-    console.log(`[dashboard] 🖥️  Console ready → ${url}/guild/<server-id>`);
-    console.log(`[dashboard] listening on :${DASHBOARD_PORT}`);
+    dashboardLogger.info(`[dashboard] 🖥️  Console ready → ${url}/guild/<server-id>`);
+    dashboardLogger.info(`[dashboard] listening on :${DASHBOARD_PORT}`);
   });
   return _server;
 }
