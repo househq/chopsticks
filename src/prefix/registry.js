@@ -14,17 +14,23 @@ import serverCommands from "./commands/server.js";
 import mediaCommands from "./commands/media.js";
 import economyCommands from "./commands/economy.js";
 import socialCommands from "./commands/social.js";
+import animalCommands from "./commands/animals.js";
+import entertainmentCommands from "./commands/entertainment.js";
+import knowledgeCommands from "./commands/knowledge.js";
 
 const CATEGORY_GROUPS = [
-  { category: "meta",     commands: metaCommands,     emoji: "⚙️" },
-  { category: "utility",  commands: utilityCommands,  emoji: "🔧" },
-  { category: "fun",      commands: funCommands,       emoji: "🎉" },
-  { category: "social",   commands: socialCommands,    emoji: "💬" },
-  { category: "info",     commands: infoCommands,      emoji: "ℹ️" },
-  { category: "mod",      commands: modCommands,       emoji: "🔨" },
-  { category: "server",   commands: serverCommands,    emoji: "🏰" },
-  { category: "media",    commands: mediaCommands,     emoji: "🎬" },
-  { category: "economy",  commands: economyCommands,   emoji: "💰" },
+  { category: "meta",          commands: metaCommands,          emoji: "⚙️" },
+  { category: "utility",       commands: utilityCommands,       emoji: "🔧" },
+  { category: "fun",           commands: funCommands,           emoji: "🎉" },
+  { category: "social",        commands: socialCommands,        emoji: "💬" },
+  { category: "info",          commands: infoCommands,          emoji: "ℹ️" },
+  { category: "mod",           commands: modCommands,           emoji: "🔨" },
+  { category: "server",        commands: serverCommands,        emoji: "🏰" },
+  { category: "media",         commands: mediaCommands,         emoji: "🎬" },
+  { category: "economy",       commands: economyCommands,       emoji: "💰" },
+  { category: "animals",       commands: animalCommands,        emoji: "🐾" },
+  { category: "entertainment", commands: entertainmentCommands, emoji: "🎭" },
+  { category: "knowledge",     commands: knowledgeCommands,     emoji: "📚" },
 ];
 
 export const CATEGORIES = CATEGORY_GROUPS.map(g => ({ category: g.category, emoji: g.emoji }));

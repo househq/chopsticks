@@ -343,4 +343,114 @@ export default [
       await message.reply(`\`\`\`\n${text.toUpperCase()}\n\`\`\`\n${big}`);
     }
   },
+
+  // ── Cycle P9: Utility power pack ─────────────────────────────────────────
+
+  {
+    name: "calc",
+    aliases: ["math", "calculate", "="],
+    description: "Evaluate a math expression — !calc <expr>",
+    rateLimit: 2000,
+    async execute(message, args) {
+      const expr = args.join(" ").trim();
+      if (!expr) return reply(message, "Usage: `!calc <expression>` — e.g. `!calc (3 + 4) * 2`");
+      // Safe evaluation: only allow numbers and math operators
+      if (!/^[\d\s+\-*/.%^()]+$/.test(expr)) {
+        return reply(message, "❌ Only numbers and operators `+ - * / % ( )` allowed.");
+      }
+      try {
+        // eslint-disable-next-line no-new-func
+        const result = Function(`"use strict"; return (${expr})`)();
+        if (!isFinite(result)) return reply(message, "❌ Result is not a finite number.");
+        const embed = new EmbedBuilder()
+          .setTitle("🔢 Calculator")
+          .addFields(
+            { name: "Expression", value: `\`${expr}\``, inline: true },
+            { name: "Result", value: `\`${result}\``, inline: true },
+          )
+          .setColor(0x5865F2)
+          .setFooter({ text: "Chopsticks !calc" });
+        await message.reply({ embeds: [embed] });
+      } catch {
+        await reply(message, "❌ Invalid expression.");
+      }
+    }
+  },
+
+  {
+    name: "timestamp",
+    aliases: ["ts", "time", "epoch"],
+    description: "Convert a date to Discord timestamps — !timestamp <date>",
+    rateLimit: 2000,
+    async execute(message, args) {
+      const input = args.join(" ").trim() || "now";
+      const d = input === "now" ? new Date() : new Date(input);
+      if (isNaN(d.getTime())) return reply(message, "❌ Invalid date. Try `!timestamp 2024-12-25` or `!timestamp now`");
+      const unix = Math.floor(d.getTime() / 1000);
+      const embed = new EmbedBuilder()
+        .setTitle("⏰ Discord Timestamps")
+        .setDescription(`Unix epoch: \`${unix}\``)
+        .addFields(
+          { name: "Short Date",      value: `<t:${unix}:d>  →  \`<t:${unix}:d>\``,  inline: false },
+          { name: "Short Date/Time", value: `<t:${unix}:f>  →  \`<t:${unix}:f>\``,  inline: false },
+          { name: "Long Date/Time",  value: `<t:${unix}:F>  →  \`<t:${unix}:F>\``,  inline: false },
+          { name: "Relative",        value: `<t:${unix}:R>  →  \`<t:${unix}:R>\``,  inline: false },
+        )
+        .setColor(0x5865F2)
+        .setFooter({ text: "Copy the code into any Discord message • Chopsticks !timestamp" });
+      await message.reply({ embeds: [embed] });
+    }
+  },
+
+  {
+    name: "encode",
+    aliases: ["b64", "base64"],
+    description: "Base64 encode — !encode <text>",
+    rateLimit: 2000,
+    async execute(message, args) {
+      const text = args.join(" ").trim();
+      if (!text) return reply(message, "Usage: `!encode <text>`");
+      const encoded = Buffer.from(text).toString("base64");
+      await message.reply(`🔒 \`${encoded.slice(0, 1900)}\``);
+    }
+  },
+
+  {
+    name: "decode",
+    aliases: ["b64d", "base64d"],
+    description: "Base64 decode — !decode <base64>",
+    rateLimit: 2000,
+    async execute(message, args) {
+      const text = args.join(" ").trim();
+      if (!text) return reply(message, "Usage: `!decode <base64 string>`");
+      try {
+        const decoded = Buffer.from(text, "base64").toString("utf8");
+        await message.reply(`🔓 \`${decoded.slice(0, 1900)}\``);
+      } catch {
+        await reply(message, "❌ Invalid base64 string.");
+      }
+    }
+  },
+
+  {
+    name: "hash",
+    aliases: ["sha256", "checksum"],
+    description: "SHA-256 hash of text — !hash <text>",
+    rateLimit: 2000,
+    async execute(message, args) {
+      const text = args.join(" ").trim();
+      if (!text) return reply(message, "Usage: `!hash <text>`");
+      const { createHash } = await import("crypto");
+      const h = createHash("sha256").update(text).digest("hex");
+      const embed = new EmbedBuilder()
+        .setTitle("🔐 SHA-256 Hash")
+        .addFields(
+          { name: "Input", value: `\`${text.slice(0, 200)}\`` },
+          { name: "Hash", value: `\`${h}\`` },
+        )
+        .setColor(0x5865F2)
+        .setFooter({ text: "Chopsticks !hash" });
+      await message.reply({ embeds: [embed] });
+    }
+  },
 ];
