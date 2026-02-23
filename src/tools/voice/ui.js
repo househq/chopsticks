@@ -25,6 +25,7 @@ import {
 import { ownerPermissionOverwrite } from "./ownerPerms.js";
 import { auditLog } from "../../utils/audit.js";
 import { removeTempChannel } from "./state.js";
+import { botLogger } from "../../utils/modernLogger.js";
 
 const UI_PREFIX = "voiceui";
 const ROOM_PANEL_PREFIX = "voiceroom";
@@ -493,7 +494,7 @@ async function handleClaim(interaction, ctx) {
 
   if (ctx.roomChannel.permissionOverwrites.cache.has(ctx.temp.ownerId)) {
     await ctx.roomChannel.permissionOverwrites.delete(ctx.temp.ownerId).catch(err => {
-      console.warn(`[voice-ui] failed to clear previous owner overwrite: ${err?.message ?? err}`);
+      botLogger.warn({ err }, "[voice-ui] failed to clear previous owner overwrite");
     });
   }
 
@@ -700,20 +701,20 @@ export async function refreshRegisteredRoomPanelsForRoom(guild, roomChannelId, r
     const textChannel = guild.channels.cache.get(ref.textChannelId)
       ?? (await guild.channels.fetch(ref.textChannelId).catch(() => null));
     if (!textChannel?.isTextBased?.()) {
-      console.warn(`[voice-ui] live panel target channel missing or not text: ${ref.textChannelId}`);
+      botLogger.warn({ textChannelId: ref.textChannelId }, "[voice-ui] live panel target channel missing or not text");
       unregisterRoomPanelRef(guild.id, roomChannelId, ref.textChannelId, ref.messageId);
       continue;
     }
 
     const message = await textChannel.messages.fetch(ref.messageId).catch(() => null);
     if (!message) {
-      console.warn(`[voice-ui] live panel message missing: ${ref.textChannelId}/${ref.messageId}`);
+      botLogger.warn({ textChannelId: ref.textChannelId, messageId: ref.messageId }, "[voice-ui] live panel message missing");
       unregisterRoomPanelRef(guild.id, roomChannelId, ref.textChannelId, ref.messageId);
       continue;
     }
 
     const edited = await message.edit(payload).catch(err => {
-      console.warn(`[voice-ui] failed to edit live panel ${ref.messageId}: ${err?.message ?? err}`);
+      botLogger.warn({ err, messageId: ref.messageId }, "[voice-ui] failed to edit live panel");
       return null;
     });
     if (!edited) {

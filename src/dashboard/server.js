@@ -100,7 +100,7 @@ function detectBaseUrl() {
   const explicit = String(process.env.DASHBOARD_BASE_URL || "").trim();
   if (explicit) {
     const valid = validateUrl(explicit);
-    if (!valid) console.warn(`[dashboard] DASHBOARD_BASE_URL is invalid: "${explicit}" — falling back`);
+    if (!valid) dashboardLogger.warn({ url: explicit }, "[dashboard] DASHBOARD_BASE_URL is invalid — falling back");
     else return valid;
   }
 
@@ -159,16 +159,14 @@ const DISCORD_REDIRECT_URI = String(process.env.DISCORD_REDIRECT_URI || "").trim
 const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "").trim();
 
 if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
-  console.warn("[dashboard] DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET missing");
+  dashboardLogger.warn("[dashboard] DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET missing");
 }
 
 let sessionSecret = String(process.env.DASHBOARD_SESSION_SECRET || "").trim();
 if (!sessionSecret) {
   // Avoid a known default secret. In multi-instance deployments, set DASHBOARD_SESSION_SECRET explicitly.
   sessionSecret = randomBytes(32).toString("hex");
-  console.warn(
-    "[dashboard] DASHBOARD_SESSION_SECRET missing; generated an ephemeral secret (sessions will reset on restart)."
-  );
+  dashboardLogger.warn("[dashboard] DASHBOARD_SESSION_SECRET missing; generated an ephemeral secret (sessions will reset on restart).");
 }
 const cookieSecure = String(process.env.DASHBOARD_COOKIE_SECURE || "false").toLowerCase() === "true";
 const trustProxyRaw = String(
@@ -188,7 +186,7 @@ if (REDIS_URL) {
   redisClient.connect().catch(() => {});
   store = new RedisStore({ client: redisClient });
 } else {
-  console.warn("[dashboard] REDIS_URL not set, using in-memory sessions.");
+  dashboardLogger.warn("[dashboard] REDIS_URL not set, using in-memory sessions.");
 }
 
 app.use(
@@ -1766,7 +1764,7 @@ app.get("/oauth/callback", async (req, res) => {
     }
     res.redirect("/");
   } catch (err) {
-    console.error("OAuth Error:", err);
+    dashboardLogger.error({ err }, "OAuth Error");
     res.status(500).send("OAuth failed: " + err.message);
   }
 });
@@ -2809,8 +2807,8 @@ export function startDashboard() {
     const url = DASHBOARD_BASE_URL.startsWith("http://localhost")
       ? DASHBOARD_BASE_URL
       : DASHBOARD_BASE_URL;
-    console.log(`[dashboard] 🖥️  Console ready → ${url}/guild/<server-id>`);
-    console.log(`[dashboard] listening on :${DASHBOARD_PORT}`);
+    dashboardLogger.info(`[dashboard] 🖥️  Console ready → ${url}/guild/<server-id>`);
+    dashboardLogger.info(`[dashboard] listening on :${DASHBOARD_PORT}`);
   });
   return _server;
 }

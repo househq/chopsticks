@@ -140,6 +140,50 @@ export function startHealthServer(manager = null) {
         return;
       }
 
+      // Debug stats JSON — lightweight live stats for Socket.io dashboard
+      if (url === "/debug/stats") {
+        if (!isHealthAuthorized(req, security.metricsToken)) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "unauthorized" }));
+          return;
+        }
+        const memMB = process.memoryUsage().rss / 1_048_576;
+        const agentsOnline = agentManager?.liveAgents?.size ?? 0;
+
+        // Aggregate delta since last push
+        let commandsPerMin = 0;
+        let errorsPerMin = 0;
+        let totalLatencyMs = 0;
+        let totalCount = 0;
+        let topCommand = null;
+        let topCount = 0;
+        for (const [cmd, d] of commandDelta) {
+          commandsPerMin += d.ok + d.err;
+          errorsPerMin += d.err;
+          totalLatencyMs += d.totalMs;
+          totalCount += d.count;
+          if (d.ok + d.err > topCount) {
+            topCount = d.ok + d.err;
+            topCommand = cmd;
+          }
+        }
+        // Clear delta window after reading (1-min rolling approximation)
+        commandDelta.clear();
+        commandDeltaByGuild.clear();
+
+        const avgLatencyMs = totalCount > 0 ? totalLatencyMs / totalCount : 0;
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          commandsPerMin,
+          errorsPerMin,
+          agentsOnline,
+          avgLatencyMs: Math.round(avgLatencyMs * 100) / 100,
+          memoryMB: Math.round(memMB * 10) / 10,
+          topCommand
+        }));
+        return;
+      }
+
       // Debug info (JSON)
       if (url.startsWith("/debug")) {
         if (!security.debugEnabled) {

@@ -9,6 +9,7 @@ import { loadGuildData } from "../utils/storage.js";
 import { addGameXp } from "../game/profile.js";
 import { getMultiplier, getBuff } from "../game/buffs.js";
 import { recordQuestEvent } from "../game/quests.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 const GATHER_COOLDOWN = 5 * 60 * 1000; // 5 minutes
 
@@ -87,7 +88,7 @@ export default {
         if (Math.random() < 0.2) {
           // TODO: Implement durability system with metadata
           // For now, just log
-          console.log(`Tool ${selectedTool} used, durability decreased`);
+          botLogger.debug(`Tool ${selectedTool} used, durability decreased`);
         }
       }
 
@@ -210,12 +211,12 @@ export default {
         files.push(new AttachmentBuilder(png, { name: "gather.png" }));
         embed.setImage("attachment://gather.png");
       } catch (err) {
-        console.warn("[gather] failed to render card image:", err?.message ?? err);
+        botLogger.warn("[gather] failed to render card image:", err?.message ?? err);
       }
 
       await interaction.editReply({ embeds: [embed], files });
     } catch (error) {
-      console.error("Gather command error:", error);
+      botLogger.error({ err: error }, "Gather command error:");
       await replyError(interaction, "Gather Failed", "Something went wrong. Try again later.", true);
     }
   }

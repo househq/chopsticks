@@ -7,6 +7,7 @@ import { formatCooldown } from "../economy/cooldowns.js";
 import { maybeBuildGuildFunLine } from "../fun/integrations.js";
 import { addGameXp } from "../game/profile.js";
 import { getMultiplier } from "../game/buffs.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = {
   category: "economy",
@@ -108,7 +109,7 @@ export async function execute(interaction) {
     
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
-    console.error("[daily] Error:", err);
+    botLogger.error({ err: err }, "[daily] Error:");
     await interaction.editReply({
       embeds: [makeEmbed("Error", "Failed to claim daily reward.", [], null, null, Colors.ERROR)]
     });

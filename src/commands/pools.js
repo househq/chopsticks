@@ -18,6 +18,7 @@ import { canManagePool, getUserPoolRole, logPoolEvent, maskToken, SPECIALTIES, B
          setPoolSpecialty, getGuildPoolConfig, setGuildPoolConfig,
          addGuildSecondaryPool, removeGuildSecondaryPool, getGuildAllPoolIds,
          rankPoolsBySpecialty, evaluatePoolBadges } from '../utils/storage.js';
+import { botLogger } from "../utils/modernLogger.js";
 
 const _poolWriteRateLimit = new Map();
 function checkPoolWriteRateLimit(userId, cooldownMs = 5000) {
@@ -381,7 +382,7 @@ export async function execute(interaction) {
           });
       }
     } catch (error) {
-      console.error('[pools]', error);
+      botLogger.error({ err: error }, '[pools]');
       const replyMethod = interaction.deferred ? 'editReply' : 'reply';
       await interaction[replyMethod]({
         embeds: [buildPoolEmbed('Pool Command Failed', error?.message || 'Unknown error.', Colors.ERROR)],

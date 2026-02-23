@@ -8,6 +8,7 @@ import {
 } from "discord.js";
 import { Colors, replyError } from "../utils/discordOutput.js";
 import { claimQuestRewards, getDailyQuests } from "../game/quests.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 const QUEST_UI_PREFIX = "questui";
 
@@ -85,7 +86,7 @@ export async function execute(interaction) {
     const components = buildComponents(interaction.user.id);
     await interaction.editReply({ embeds: [embed], components });
   } catch (err) {
-    console.error("[quests] error:", err);
+    botLogger.error({ err: err }, "[quests] error:");
     await replyError(interaction, "Quests Failed", "Couldn't load quests right now.", true);
   }
 }
@@ -130,7 +131,7 @@ export async function handleButton(interaction) {
       await interaction.followUp({ content: rewardLine, flags: MessageFlags.Ephemeral });
       return true;
     } catch (err) {
-      console.error("[quests:claim] error:", err);
+      botLogger.error({ err: err }, "[quests:claim] error:");
       await interaction.followUp({ content: "Claim failed. Try again.", flags: MessageFlags.Ephemeral });
       return true;
     }

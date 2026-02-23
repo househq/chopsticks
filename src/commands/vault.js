@@ -3,6 +3,7 @@ import { getCollection } from "../economy/collections.js";
 import { getItemData } from "../economy/inventory.js";
 import { describeLegacyItem, isLegacyItemId } from "../economy/legacyItems.js";
 import { Colors, replyEmbed } from "../utils/discordOutput.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = {
   category: "economy",
@@ -102,7 +103,7 @@ export default {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      console.error("Vault command error:", error);
+      botLogger.error({ err: error }, "Vault command error");
       await interaction.editReply({
         content: "❌ Failed to load vault. Try again later.",
         ephemeral: true

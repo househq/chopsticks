@@ -3,6 +3,7 @@ import { getCollection, getCollectionStats } from "../economy/collections.js";
 import { getItemData } from "../economy/inventory.js";
 import { describeLegacyItem, isLegacyItemId } from "../economy/legacyItems.js";
 import { Colors, replyEmbed } from "../utils/discordOutput.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 const ITEMS_PER_PAGE = 12;
 
@@ -116,7 +117,7 @@ export default {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      console.error("Collection command error:", error);
+      botLogger.error({ err: error }, "Collection command error");
       await interaction.editReply({
         content: "❌ Failed to load collection. Try again later.",
         ephemeral: true

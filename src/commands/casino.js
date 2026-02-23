@@ -3,6 +3,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import { makeEmbed, Colors } from '../utils/discordOutput.js';
 import { getWallet, addCredits, removeCredits } from '../economy/wallet.js';
 import { checkRateLimit } from '../utils/ratelimit.js';
+import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = { category: 'economy', guildOnly: true };
 
@@ -202,7 +203,7 @@ export async function execute(interaction) {
     }
 
   } catch (err) {
-    console.error('[casino] Error:', err);
+    botLogger.error({ err: err }, '[casino] Error:');
     const replied = interaction.replied || interaction.deferred;
     await interaction[replied ? 'editReply' : 'reply']({
       embeds: [makeEmbed('Error', 'An error occurred.', [], null, null, Colors.ERROR)],

@@ -1,19 +1,14 @@
 import { Pool } from "pg";
 import crypto from "node:crypto"; // Added for encryption
 import retry from "async-retry";
-import { createClient } from "redis";
 import { logger } from "./logger.js";
 import { levelFromXp } from "../game/progression.js";
+import { getRedis } from "./cache.js";
 
 let pool = null;
-let redisClient = null;
 
-const REDIS_URL = process.env.REDIS_URL || "";
-if (REDIS_URL) {
-  redisClient = createClient({ url: REDIS_URL });
-  redisClient.on("error", () => {});
-  redisClient.connect().catch(() => {});
-}
+// Accessor for the shared Redis singleton (lazy — may be null before cache.js connects)
+function redisClient() { return getRedis(); }
 
 export async function closeStoragePg() {
   // Intended for short-lived scripts (migrations/diagnostics), not the long-running bot.
@@ -22,19 +17,11 @@ export async function closeStoragePg() {
   } finally {
     pool = null;
   }
-
-  try {
-    if (redisClient) {
-      // Prefer quit() to flush pending commands; fall back to disconnect if needed.
-      await redisClient.quit().catch(() => redisClient.disconnect?.());
-    }
-  } finally {
-    redisClient = null;
-  }
+  // Redis is managed by cache.js — do not close it here
 }
 
 export function getPool() {
-  logger.info("--> getPool() called in storage_pg.js");
+  logger.debug("--> getPool() called in storage_pg.js");
   if (pool) return pool;
   const url = process.env.POSTGRES_URL || process.env.DATABASE_URL;
   if (!url) {
@@ -43,7 +30,14 @@ export function getPool() {
     throw error;
   }
   try {
-    pool = new Pool({ connectionString: url });
+    pool = new Pool({
+      connectionString: url,
+      max: parseInt(process.env.PG_POOL_MAX || "10", 10),
+      min: parseInt(process.env.PG_POOL_MIN || "2", 10),
+      idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT || "30000", 10),
+      connectionTimeoutMillis: parseInt(process.env.PG_CONNECT_TIMEOUT || "5000", 10),
+      statement_timeout: parseInt(process.env.PG_STATEMENT_TIMEOUT || "30000", 10)
+    });
     pool.on("error", (err) => {
       logger.error("PostgreSQL pool error (from event listener):", { error: err.message });
     });
@@ -762,9 +756,10 @@ export async function deleteAgentRunner(runnerId) {
 
 export async function loadGuildDataPg(guildId, fallbackFactory) {
   const cacheKey = `guild_data:${guildId}`;
-  if (redisClient) {
+  const rc = redisClient();
+  if (rc) {
     try {
-      const cached = await redisClient.get(cacheKey);
+      const cached = await rc.get(cacheKey);
       if (cached) {
         return JSON.parse(cached);
       }
@@ -791,12 +786,10 @@ export async function loadGuildDataPg(guildId, fallbackFactory) {
         [guildId, base, base.rev ?? 0]
       );
     }, { retries: 3, minTimeout: 100, maxTimeout: 1000 });
-    if (redisClient) {
-      try {
-        await redisClient.setEx(cacheKey, 300, JSON.stringify(base)); // Cache for 5 min
-      } catch (err) {
-        logger.warn("Redis cache write failed:", { error: err.message });
-      }
+    try {
+      const rc = redisClient(); if (rc) await rc.setEx(cacheKey, 300, JSON.stringify(base)); // Cache for 5 min
+    } catch (err) {
+      logger.warn("Redis cache write failed:", { error: err.message });
     }
     return base;
   }
@@ -804,12 +797,10 @@ export async function loadGuildDataPg(guildId, fallbackFactory) {
   const data = row.data || fallbackFactory();
   data.rev = Number.isInteger(row.rev) ? row.rev : data.rev ?? 0;
 
-  if (redisClient) {
-    try {
-      await redisClient.setEx(cacheKey, 300, JSON.stringify(data));
-    } catch (err) {
-      logger.warn("Redis cache write failed:", { error: err.message });
-    }
+  try {
+    const rc = redisClient(); if (rc) await rc.setEx(cacheKey, 300, JSON.stringify(data));
+  } catch (err) {
+    logger.warn("Redis cache write failed:", { error: err.message });
   }
 
   return data;
@@ -836,12 +827,10 @@ export async function saveGuildDataPg(guildId, data, normalizeFn, mergeOnConflic
       );
     }, { retries: 3, minTimeout: 100, maxTimeout: 1000 });
     // Invalidate cache
-    if (redisClient) {
-      try {
-        await redisClient.del(`guild_data:${guildId}`);
-      } catch (err) {
-        logger.warn("Redis cache delete failed:", { error: err.message });
-      }
+    try {
+      const rc = redisClient(); if (rc) await rc.del(`guild_data:${guildId}`);
+    } catch (err) {
+      logger.warn("Redis cache delete failed:", { error: err.message });
     }
     return toWrite;
   }
@@ -887,23 +876,19 @@ export async function saveGuildDataPg(guildId, data, normalizeFn, mergeOnConflic
       );
     }, { retries: 3, minTimeout: 100, maxTimeout: 1000 });
     // Invalidate cache
-    if (redisClient) {
-      try {
-        await redisClient.del(`guild_data:${guildId}`);
-      } catch (err) {
-        logger.warn("Redis cache delete failed:", { error: err.message });
-      }
+    try {
+      const rc = redisClient(); if (rc) await rc.del(`guild_data:${guildId}`);
+    } catch (err) {
+      logger.warn("Redis cache delete failed:", { error: err.message });
     }
     return final;
   }
 
   // Invalidate cache
-  if (redisClient) {
-    try {
-      await redisClient.del(`guild_data:${guildId}`);
-    } catch (err) {
-      logger.warn("Redis cache delete failed:", { error: err.message });
-    }
+  try {
+    const rc = redisClient(); if (rc) await rc.del(`guild_data:${guildId}`);
+  } catch (err) {
+    logger.warn("Redis cache delete failed:", { error: err.message });
   }
 
   return toWrite;

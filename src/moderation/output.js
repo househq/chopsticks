@@ -1,6 +1,7 @@
 import { AttachmentBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 import { Colors } from "../utils/discordOutput.js";
 import { renderEmbedCardPng } from "../render/svgCard.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 export function sanitizeText(text, max = 1024) {
   const value = String(text ?? "").trim();
@@ -70,7 +71,7 @@ async function maybeAttachSvgCard(payload) {
     eb.setImage(`attachment://${fileName}`);
     return { ...payload, embeds: [eb], files: [new AttachmentBuilder(png, { name: fileName })] };
   } catch (err) {
-    console.warn("[svg-cards:mod] render failed:", err?.message ?? err);
+    botLogger.warn({ err }, "[svg-cards:mod] render failed");
     return payload;
   }
 }

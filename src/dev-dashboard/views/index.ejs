@@ -5,9 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chopsticks Dev Dashboard</title>
     <link rel="stylesheet" href="/style.css">
+    <style>
+      #live-stats { background:#1a1a2e; color:#e0e0ff; border-radius:8px; padding:16px; margin:16px 0; }
+      #live-stats h2 { margin-top:0; color:#7cf }
+      .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
+      .stat-card { background:#16213e; border-radius:6px; padding:12px; text-align:center; }
+      .stat-card .val { font-size:2em; font-weight:bold; color:#57f287; }
+      .stat-card .lbl { font-size:.8em; color:#aaa; margin-top:4px; }
+      #live-dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:#555; margin-right:6px; }
+      #live-dot.connected { background:#57f287; animation:pulse 2s infinite; }
+      @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    </style>
 </head>
 <body>
     <h1>Chopsticks Dev Dashboard</h1>
+
+    <!-- Real-time live stats panel (Socket.io) -->
+    <div id="live-stats">
+      <h2><span id="live-dot"></span>⚡ Live Stats <small id="live-ts" style="font-size:.6em;color:#888"></small></h2>
+      <div class="stat-grid" id="stat-grid">
+        <div class="stat-card"><div class="val" id="ls-commands">—</div><div class="lbl">Commands/min</div></div>
+        <div class="stat-card"><div class="val" id="ls-agents">—</div><div class="lbl">Live Agents</div></div>
+        <div class="stat-card"><div class="val" id="ls-errors">—</div><div class="lbl">Errors/min</div></div>
+        <div class="stat-card"><div class="val" id="ls-latency">—</div><div class="lbl">Avg Latency (ms)</div></div>
+        <div class="stat-card"><div class="val" id="ls-memory">—</div><div class="lbl">Memory (MB)</div></div>
+        <div class="stat-card"><div class="val" id="ls-top">—</div><div class="lbl">Top Command</div></div>
+      </div>
+    </div>
 
     <% if (error) { %>
         <p style="color: red;">Error: <%= error %></p>
@@ -198,5 +222,21 @@
         </form>
     </section>
 
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+      const dot = document.getElementById('live-dot');
+      socket.on('connect', () => dot.classList.add('connected'));
+      socket.on('disconnect', () => dot.classList.remove('connected'));
+      socket.on('live_stats', data => {
+        document.getElementById('ls-commands').textContent = data.commandsPerMin ?? '—';
+        document.getElementById('ls-agents').textContent = data.agentsOnline ?? '—';
+        document.getElementById('ls-errors').textContent = data.errorsPerMin ?? '—';
+        document.getElementById('ls-latency').textContent = data.avgLatencyMs != null ? data.avgLatencyMs.toFixed(0) : '—';
+        document.getElementById('ls-memory').textContent = data.memoryMB != null ? data.memoryMB.toFixed(1) : '—';
+        document.getElementById('ls-top').textContent = data.topCommand ?? '—';
+        document.getElementById('live-ts').textContent = new Date().toLocaleTimeString();
+      });
+    </script>
 </body>
 </html>

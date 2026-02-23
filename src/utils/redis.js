@@ -1,4 +1,5 @@
 import { createClient } from "redis";
+import { botLogger } from "./modernLogger.js";
 
 let redisClient = null;
 
@@ -14,7 +15,7 @@ export async function getRedisClient() {
   redisClient.on("error", (err) => {
     // Suppress spammy connection errors
     if (err.code === "ECONNREFUSED") return;
-    console.error("[redis-client] error:", err.message);
+    botLogger.error({ err }, "[redis-client] error");
   });
 
   await redisClient.connect();
@@ -24,7 +25,7 @@ export async function getRedisClient() {
 export async function setCache(key, value, ttlSeconds = 600) {
   const client = await getRedisClient();
   if (!client?.isOpen) {
-    console.error(`[redis:set] client not open for key=${key}`);
+    botLogger.error({ key }, "[redis:set] client not open");
     return false;
   }
   try {
@@ -32,7 +33,7 @@ export async function setCache(key, value, ttlSeconds = 600) {
     await client.set(key, data, { EX: ttlSeconds });
     return true;
   } catch (err) {
-    console.error(`[redis:set] error for key=${key}:`, err.message);
+    botLogger.error({ err, key }, "[redis:set] error");
     return false;
   }
 }
@@ -40,14 +41,14 @@ export async function setCache(key, value, ttlSeconds = 600) {
 export async function getCache(key) {
   const client = await getRedisClient();
   if (!client?.isOpen) {
-    console.error(`[redis:get] client not open for key=${key}`);
+    botLogger.error({ key }, "[redis:get] client not open");
     return null;
   }
   try {
     const data = await client.get(key);
     return data ? JSON.parse(data) : null;
   } catch (err) {
-    console.error(`[redis:get] error for key=${key}:`, err.message);
+    botLogger.error({ err, key }, "[redis:get] error");
     return null;
   }
 }
@@ -55,14 +56,14 @@ export async function getCache(key) {
 export async function delCache(key) {
   const client = await getRedisClient();
   if (!client?.isOpen) {
-    console.error(`[redis:del] client not open for key=${key}`);
+    botLogger.error({ key }, "[redis:del] client not open");
     return false;
   }
   try {
     await client.del(key);
     return true;
   } catch (err) {
-    console.error(`[redis:del] error for key=${key}:`, err.message);
+    botLogger.error({ err, key }, "[redis:del] error");
     return false;
   }
 }

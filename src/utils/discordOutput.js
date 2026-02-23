@@ -1,5 +1,6 @@
 import { AttachmentBuilder, EmbedBuilder, MessageFlags } from "discord.js";
 import { renderEmbedCardPng } from "../render/svgCard.js";
+import { botLogger } from "./modernLogger.js";
 
 // Canonical UI color palette (from color_palette.json)
 export const Colors = {
@@ -70,7 +71,7 @@ async function maybeAttachSvgCard(payload) {
     };
   } catch (err) {
     // Never block a response on visuals.
-    console.warn("[svg-cards] render failed:", err?.message ?? err);
+    botLogger.warn({ err }, "[svg-cards] render failed");
     return payload;
   }
 }

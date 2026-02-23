@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from "discord.js";
 import { getPool } from "../utils/storage_pg.js";
 import { Colors, replyError } from "../utils/discordOutput.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 function rankLines(rows, fmt) {
   return rows.map((r, i) => `${i + 1}. <@${r.user_id}> ${fmt(r)}`).join("\n");
@@ -95,7 +96,7 @@ export default {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
-      console.error("[leaderboard] error:", err);
+      botLogger.error({ err: err }, "[leaderboard] error:");
       await replyError(interaction, "Leaderboard Failed", "Could not load leaderboard right now.", true);
     }
   }

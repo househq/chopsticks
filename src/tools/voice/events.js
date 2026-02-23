@@ -2,6 +2,7 @@
 import { Events } from "discord.js";
 import * as VoiceDomain from "./domain.js";
 import * as VoiceState from "./state.js";
+import { botLogger } from "../../utils/modernLogger.js";
 
 export const name = Events.VoiceStateUpdate;
 
@@ -57,9 +58,9 @@ async function handleJoin(guild, member, channel) {
     // Track temp channel
     VoiceState.trackTempChannel(guild.id, tempChannel.id, member.id);
 
-    console.log(`[Voice] Created temp channel ${tempChannel.id} for ${member.displayName}`);
+    botLogger.info({ channelId: tempChannel.id, member: member.displayName }, "[Voice] Created temp channel");
   } catch (err) {
-    console.error(`[Voice] Failed to create temp channel:`, err);
+    botLogger.error({ err }, "[Voice] Failed to create temp channel");
   }
 }
 
@@ -72,9 +73,9 @@ async function handleLeave(guild, channel) {
     try {
       await channel.delete();
       VoiceState.removeTempChannel(guild.id, channel.id);
-      console.log(`[Voice] Deleted empty temp channel ${channel.id}`);
+      botLogger.info({ channelId: channel.id }, "[Voice] Deleted empty temp channel");
     } catch (err) {
-      console.error(`[Voice] Failed to delete temp channel:`, err);
+      botLogger.error({ err }, "[Voice] Failed to delete temp channel");
     }
   }
 }

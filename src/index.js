@@ -5,15 +5,15 @@ import "dotenv/config";
 
 // ===================== CONFIGURATION VALIDATION =====================
 if (process.env.STORAGE_DRIVER !== 'postgres') {
-  console.error("FATAL: STORAGE_DRIVER environment variable must be set to 'postgres'.");
+  botLogger.error("FATAL: STORAGE_DRIVER environment variable must be set to 'postgres'.");
   process.exit(1);
 }
 
 if (!process.env.AGENT_TOKEN_KEY || process.env.AGENT_TOKEN_KEY.length !== 64) {
-  console.error("FATAL: AGENT_TOKEN_KEY environment variable is missing or is not a 64-character (32-byte) hex key.");
+  botLogger.error("FATAL: AGENT_TOKEN_KEY environment variable is missing or is not a 64-character (32-byte) hex key.");
   process.exit(1);
 }
-console.log("✅ Configuration validated.");
+botLogger.info("✅ Configuration validated.");
 // ====================================================================
 
 import fs from "node:fs";
@@ -131,7 +131,7 @@ if (fs.existsSync(commandsPath)) {
     try {
       mod = await import(pathToFileURL(filePath).href);
     } catch (err) {
-      console.error(`[command:load] ${file} failed`, err);
+      botLogger.error({ err, file }, "[command:load] failed");
       continue;
     }
 
@@ -169,7 +169,7 @@ if (fs.existsSync(eventsPath)) {
     try {
       mod = await import(pathToFileURL(filePath).href);
     } catch (err) {
-      console.error(`[event:load] ${file} failed`, err);
+      botLogger.error({ err, file }, "[event:load] failed");
       continue;
     }
 
@@ -180,7 +180,7 @@ if (fs.existsSync(eventsPath)) {
       try {
         await event.execute(...args);
       } catch (err) {
-        console.error(`[event:${event.name}]`, err);
+        botLogger.error({ err, event: event.name }, "[event] handler threw");
       }
     });
   }
@@ -294,7 +294,7 @@ devApiApp.get('/dev-api/status', async (req, res) => {
       assistantSessions: mgr.listAssistantSessions(),
     });
   } catch (error) {
-    console.error("Error fetching dev API status:", error);
+    botLogger.error({ err: error }, "Error fetching dev API status");
     res.status(500).json({ error: error.message });
   }
 });
@@ -308,7 +308,7 @@ devApiApp.post('/dev-api/agents/refresh-tokens', async (req, res) => {
     await mgr.loadRegisteredAgentsFromDb();
     res.json({ message: 'Agent tokens refreshed from database.' });
   } catch (error) {
-    console.error("Error refreshing agent tokens:", error);
+    botLogger.error({ err: error }, "Error refreshing agent tokens");
     res.status(500).json({ error: error.message });
   }
 });
@@ -330,7 +330,7 @@ devApiApp.post('/dev-api/agents/restart/:agentId', async (req, res) => {
     // After stopping, AgentManager's ensureSessionAgent will pick it up and restart if needed
     res.json({ message: `Restart signal sent to agent ${agentId}.` });
   } catch (error) {
-    console.error(`Error restarting agent ${agentId}:`, error);
+    botLogger.error({ err: error, agentId }, "Error restarting agent");
     res.status(500).json({ error: error.message });
   }
 });
@@ -353,7 +353,7 @@ devApiApp.post('/dev-api/agents/stop/:agentId', async (req, res) => {
     await updateAgentBotStatus(agentId, 'inactive');
     res.json({ message: `Agent ${agentId} stopped and marked inactive.` });
   } catch (error) {
-    console.error(`Error stopping agent ${agentId}:`, error);
+    botLogger.error({ err: error, agentId }, "Error stopping agent");
     res.status(500).json({ error: error.message });
   }
 });
@@ -373,7 +373,7 @@ devApiApp.post('/dev-api/agents/start/:agentId', async (req, res) => {
     // AgentManager's ensureSessionAgent logic will pick up and start it if needed
     res.json({ message: `Agent ${agentId} marked active. AgentManager will attempt to start it.` });
   } catch (error) {
-    console.error(`Error starting agent ${agentId}:`, error);
+    botLogger.error({ err: error, agentId }, "Error starting agent");
     res.status(500).json({ error: error.message });
   }
 });
@@ -384,7 +384,7 @@ if (DEV_API_ENABLED) {
       !devApiHasCreds && !isProd && DEV_API_ALLOW_INSECURE ? "127.0.0.1" : undefined;
     devApiApp.listen(DEV_API_PORT, bindHost, () => {
       const hostLabel = bindHost ? `${bindHost}:${DEV_API_PORT}` : `:${DEV_API_PORT}`;
-      console.log(`[dev-api] listening on ${hostLabel} (auth=${devApiHasCreds ? "basic" : "open-local"})`);
+      botLogger.info(`[dev-api] listening on ${hostLabel} (auth=${devApiHasCreds ? "basic" : "open-local"})`);
     });
   } else {
     botLogger.warn({ port: DEV_API_PORT }, "Dev API not started (missing credentials).");
@@ -397,15 +397,15 @@ if (DEV_API_ENABLED) {
 /* ===================== INTERACTIONS ===================== */
 
 client.once(Events.ClientReady, async () => {
-  console.log(`✅ Ready as ${client.user.tag}`);
-  console.log(`📊 Serving ${client.guilds.cache.size} guilds`);
+  botLogger.info(`✅ Ready as ${client.user.tag}`);
+  botLogger.info(`📊 Serving ${client.guilds.cache.size} guilds`);
   
   // Auto-register all commands in help registry
   try {
     await registerAllCommands();
-    console.log(`📚 Help registry initialized with ${client.commands.size} commands`);
+    botLogger.info(`📚 Help registry initialized with ${client.commands.size} commands`);
   } catch (err) {
-    console.warn(`⚠️  Help registry initialization failed: ${err.message}`);
+    botLogger.warn({ err }, `⚠️  Help registry initialization failed`);
   }
 
   // Rotating bot presence — cycles every 30s with live stats
@@ -445,12 +445,12 @@ client.once(Events.ClientReady, async () => {
 
   try {
     await mgr.start();
-    console.log(`🧩 Agent control listening on ws://${mgr.host}:${mgr.port}`);
+    botLogger.info(`🧩 Agent control listening on ws://${mgr.host}:${mgr.port}`);
     
     // Update health server with agent manager for debug dashboard
     startHealthServer(mgr);
   } catch (err) {
-    console.error("❌ Agent control startup failed:", err?.message ?? err);
+    botLogger.error({ err }, "❌ Agent control startup failed");
     return;
   }
 
@@ -459,24 +459,24 @@ client.once(Events.ClientReady, async () => {
     const { startLavalink } = await import("./lavalink/client.js");
     await startLavalink(client);
     global.primaryLavalinkReady = true;
-    console.log("🎵 Primary Lavalink initialized — music available without agents");
+    botLogger.info("🎵 Primary Lavalink initialized — music available without agents");
   } catch (err) {
-    console.warn("⚠️  Primary Lavalink init failed (music requires agents):", err?.message ?? err);
+    botLogger.warn({ err }, "⚠️  Primary Lavalink init failed (music requires agents)");
     global.primaryLavalinkReady = false;
   }
 
   // Ensure database schema is up-to-date
   try {
     await ensureSchema();
-    console.log("✅ Database schema ensured.");
+    botLogger.info("✅ Database schema ensured.");
     await ensureEconomySchema();
-    console.log("✅ Economy schema ensured.");
+    botLogger.info("✅ Economy schema ensured.");
     
     // Run database migrations (Level 1: Invariants Locked)
     await runMigrations();
-    console.log("✅ Database migrations completed.");
+    botLogger.info("✅ Database migrations completed.");
   } catch (err) {
-    console.error("❌ Database schema assurance failed:", err?.message ?? err);
+    botLogger.error({ err }, "❌ Database schema assurance failed");
     return;
   }
 
@@ -493,15 +493,15 @@ client.once(Events.ClientReady, async () => {
     });
     global.__agentsChild = agentChild;
     agentChild.on("exit", (code, signal) => {
-      console.warn(`⚠️  agentRunner exited (code=${code}, signal=${signal}). Agents will be offline until restart.`);
+      botLogger.warn({ code, signal }, "⚠️  agentRunner exited — agents offline until restart");
       global.__agentsChild = null;
     });
     agentChild.on("error", err => {
-      console.error("❌ agentRunner child error:", err?.message ?? err);
+      botLogger.error({ err }, "❌ agentRunner child error");
     });
-    console.log(`🤖 agentRunner spawned (pid=${agentChild.pid})`);
+    botLogger.info({ pid: agentChild.pid }, "🤖 agentRunner spawned");
   } else {
-    console.log("ℹ️  DISABLE_AGENT_RUNNER=true — manage agentRunner externally (e.g. via PM2).");
+    botLogger.info("ℹ️  DISABLE_AGENT_RUNNER=true — manage agentRunner externally (e.g. via PM2).");
   }
 
   const flushMs = Math.max(5_000, Math.trunc(Number(process.env.ANALYTICS_FLUSH_MS || 15000)));
@@ -525,12 +525,14 @@ client.once(Events.ClientReady, async () => {
     const { startDashboard } = await import("./dashboard/server.js");
     startDashboard();
   } catch (err) {
-    console.warn("⚠️  Dashboard server failed to start:", err?.message ?? err);
+    botLogger.warn({ err }, "⚠️  Dashboard server failed to start");
   }
 
-  const shutdown = async () => {
+  const shutdown = async (signal) => {
+    botLogger.info({ signal }, "[shutdown] Graceful shutdown initiated");
     clearInterval(flushTimer);
 
+    // 1. Flush pending command stats to DB
     try {
       const deltas = getAndResetCommandDeltas();
       const rows = [];
@@ -544,26 +546,36 @@ client.once(Events.ClientReady, async () => {
       }
     } catch {}
 
-    // Kill agentRunner child process on shutdown
+    // 2. Kill agentRunner child process
     try {
       if (global.__agentsChild && !global.__agentsChild.killed) {
         global.__agentsChild.kill("SIGTERM");
       }
     } catch {}
 
+    // 3. Stop agent control plane
+    try {
+      await global.agentManager?.stop?.();
+    } catch {}
+
+    // 4. Disconnect Discord client
     try {
       await client.destroy();
     } catch {}
 
+    // 5. Stop health server
     try {
       healthServer?.close?.();
     } catch {}
 
+    botLogger.info("[shutdown] Clean exit");
+    // Force exit after 5s in case something is hanging
+    setTimeout(() => process.exit(0), 5_000).unref();
     process.exit(0);
   };
 
-  process.once("SIGINT", shutdown);
-  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", () => shutdown("SIGINT"));
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
 
   /* ===================== PLAYLIST DROP THREAD CLEANUP ===================== */
   // When a playlist drop thread is deleted externally, clean up the channelBinding
@@ -587,7 +599,7 @@ client.once(Events.ClientReady, async () => {
   // When any bot (including agents) leaves a guild, update agent tracking
   client.on(Events.GuildDelete, async guild => {
     try {
-      console.log(`[GUILD_DELETE] Main bot removed from guild ${guild.id} (${guild.name})`);
+      botLogger.info({ guildId: guild.id, guildName: guild.name }, "[GUILD_DELETE] Main bot removed from guild");
       
       // Check if any agent was in this guild and remove it
       let removedCount = 0;
@@ -595,15 +607,15 @@ client.once(Events.ClientReady, async () => {
         if (agent.guildIds?.has?.(guild.id)) {
           agent.guildIds.delete(guild.id);
           removedCount++;
-          console.log(`[GUILD_DELETE] Removed agent ${agent.agentId} from guild ${guild.id}`);
+          botLogger.info({ agentId: agent.agentId, guildId: guild.id }, "[GUILD_DELETE] Removed agent from guild");
         }
       }
       
       if (removedCount > 0) {
-        console.log(`[GUILD_DELETE] Cleaned up ${removedCount} agent(s) from guild ${guild.id}`);
+        botLogger.info({ removedCount, guildId: guild.id }, "[GUILD_DELETE] Cleaned up agents from guild");
       }
     } catch (err) {
-      console.error("[GUILD_DELETE] Error:", err.message);
+      botLogger.error({ err }, "[GUILD_DELETE] Error");
     }
   });
 
@@ -614,7 +626,7 @@ client.once(Events.ClientReady, async () => {
       // Get the guild to verify all agents' membership
       const guild = await client.guilds.fetch(guildId).catch(() => null);
       if (guild) {
-        console.log(`[DEPLOY_VERIFY] Checking ${this.liveAgents.size} agents for guild ${guildId}`);
+        botLogger.debug({ agentCount: this.liveAgents.size, guildId }, "[DEPLOY_VERIFY] Checking agents for guild");
         
         // Collect all bot user IDs to check
         const agentsToCheck = [];
@@ -624,7 +636,7 @@ client.once(Events.ClientReady, async () => {
           }
         }
 
-        console.log(`[DEPLOY_VERIFY] Found ${agentsToCheck.length} agents claiming to be in guild ${guildId}`);
+        botLogger.debug({ count: agentsToCheck.length, guildId }, "[DEPLOY_VERIFY] Found agents claiming to be in guild");
 
         if (agentsToCheck.length > 0) {
           // Fetch all members at once (more efficient than one-by-one)
@@ -632,11 +644,11 @@ client.once(Events.ClientReady, async () => {
             user: agentsToCheck.map(a => a.botUserId),
             force: true // Force cache refresh to ensure accuracy
           }).catch(err => {
-            console.error(`[DEPLOY_VERIFY] Failed to fetch members:`, err.message);
+            botLogger.error({ err }, "[DEPLOY_VERIFY] Failed to fetch members");
             return new Map();
           });
           
-          console.log(`[DEPLOY_VERIFY] Discord API returned ${members.size} members`);
+          botLogger.debug({ memberCount: members.size }, "[DEPLOY_VERIFY] Discord API returned members");
           
           // Check which agents are missing
           let removedCount = 0;
@@ -645,21 +657,21 @@ client.once(Events.ClientReady, async () => {
               // Bot was kicked but we didn't know
               agent.guildIds.delete(guildId);
               removedCount++;
-              console.log(`[DEPLOY_VERIFY] Agent ${agent.agentId} (${agent.botUserId}) removed from guild ${guildId} - not found in member list`);
+              botLogger.info({ agentId: agent.agentId, botUserId: agent.botUserId, guildId }, "[DEPLOY_VERIFY] Agent removed from guild — not in member list");
             } else {
-              console.log(`[DEPLOY_VERIFY] Agent ${agent.agentId} (${agent.botUserId}) confirmed in guild ${guildId}`);
+              botLogger.debug({ agentId: agent.agentId, botUserId: agent.botUserId, guildId }, "[DEPLOY_VERIFY] Agent confirmed in guild");
             }
           }
           
           if (removedCount > 0) {
-            console.log(`[DEPLOY_VERIFY] Removed ${removedCount} stale agent(s) from guild ${guildId} cache`);
+            botLogger.info({ removedCount, guildId }, "[DEPLOY_VERIFY] Removed stale agents from guild cache");
           }
         }
       } else {
-        console.warn(`[DEPLOY_VERIFY] Could not fetch guild ${guildId} - bot may not be in this guild`);
+        botLogger.warn({ guildId }, "[DEPLOY_VERIFY] Could not fetch guild — bot may not be in this guild");
       }
     } catch (err) {
-      console.error("[DEPLOY_VERIFY] Error verifying agent membership:", err.message);
+      botLogger.error({ err }, "[DEPLOY_VERIFY] Error verifying agent membership");
     }
     
     // Call original method with all parameters
@@ -889,7 +901,7 @@ client.on(Events.MessageCreate, async message => {
       });
     }
   } catch (err) {
-    console.error(`[prefix:${cmd.name}]`, err);
+    botLogger.error({ err, command: cmd.name }, "[prefix] command handler threw");
     const duration = Date.now() - prefixStartedAt;
     void recordUserCommandStat({
       userId: message.author.id,
@@ -936,7 +948,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (await handleCommandsSelect(interaction)) return;
       if (await handleVoiceSelect(interaction)) return;
     } catch (err) {
-      console.error("[select]", err?.stack ?? err?.message ?? err);
+      botLogger.error({ err }, "[select] interaction handler threw");
       try {
         await replyInteractionIfFresh(interaction, {
           embeds: [buildErrorEmbed("Selection failed.")]
@@ -964,7 +976,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (await handlePurgeButton(interaction)) return;
       if (await handleTutorialsButton(interaction)) return;
     } catch (err) {
-      console.error("[button]", err?.stack ?? err?.message ?? err);
+      botLogger.error({ err }, "[button] interaction handler threw");
       try {
         await replyInteractionIfFresh(interaction, {
           embeds: [buildErrorEmbed("Button action failed.")]
@@ -980,7 +992,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (await handleModelModal(interaction)) return;
       if (await handleAiModal(interaction)) return;
     } catch (err) {
-      console.error("[modal]", err?.stack ?? err?.message ?? err);
+      botLogger.error({ err }, "[modal] interaction handler threw");
       try {
         await replyInteractionIfFresh(interaction, {
           embeds: [buildErrorEmbed("Form submit failed.")]
@@ -998,7 +1010,7 @@ client.on(Events.InteractionCreate, async interaction => {
     try {
       await command.autocomplete(interaction);
     } catch (err) {
-      console.error("[autocomplete]", err?.stack ?? err?.message ?? err);
+      botLogger.error({ err }, "[autocomplete] interaction handler threw");
       try {
         await interaction.respond([]);
       } catch {}

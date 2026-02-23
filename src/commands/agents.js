@@ -45,6 +45,7 @@ import {
 import { getBotOwnerIds, isBotOwner } from "../utils/owners.js";
 import { replyInteraction } from "../utils/interactionReply.js";
 import { trackAgentDeployment } from "../utils/metrics.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = {
   guildOnly: true,
@@ -1186,7 +1187,7 @@ export async function execute(interaction) {
 
       await replyInteraction(interaction, { embeds: [embed] });
     } catch (error) {
-      console.error(`[agents:status] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[agents:status] Error");
       await replyError(interaction, "Status Failed", `Could not fetch agent status.\n${error.message}`);
     }
     return;
@@ -1236,7 +1237,7 @@ export async function execute(interaction) {
 
       await replyInteraction(interaction, { embeds: [embed] });
     } catch (error) {
-      console.error(`[agents:manifest] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[agents:manifest] Error");
       await replyError(interaction, "Manifest Failed", `Could not fetch agent manifest.\n${error.message}`);
     }
     return;
@@ -1246,7 +1247,7 @@ export async function execute(interaction) {
     try {
       await renderDeployUi(interaction, mgr, ownerIds);
     } catch (error) {
-      console.error(`[agents:deploy_ui] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[agents:deploy_ui] Error");
       await replyError(interaction, "Deploy UI Failed", error.message || "Unknown error.");
     }
     return;
@@ -1256,7 +1257,7 @@ export async function execute(interaction) {
     try {
       await renderAdvisorUi(interaction, mgr, ownerIds);
     } catch (error) {
-      console.error(`[agents:advisor_ui] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[agents:advisor_ui] Error");
       await replyError(interaction, "Advisor UI Failed", error.message || "Unknown error.");
     }
     return;
@@ -1469,7 +1470,7 @@ export async function execute(interaction) {
         storageLayer.evaluatePoolBadges(selectedPoolId).catch(() => {});
       }
     } catch (error) {
-      console.error(`[agents:deploy] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[agents:deploy] Error");
       trackAgentDeployment(false);
       const embeds = [buildInfoEmbed("Deployment Failed", error.message || "Unknown error.", Colors.ERROR)];
       if (interaction.deferred) {
@@ -1576,7 +1577,7 @@ export async function execute(interaction) {
 
       await interaction.editReply({ embeds: [embed], components: actionRows });
     } catch (error) {
-      console.error(`[agents:advisor] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[agents:advisor] Error");
       if (interaction.deferred) {
         await interaction.editReply({
           embeds: [buildInfoEmbed("Advisor Failed", error.message || "Unknown error.", Colors.ERROR)]
@@ -1662,7 +1663,7 @@ export async function execute(interaction) {
       );
       await replyInteraction(interaction, { embeds: [embed] });
     } catch (error) {
-      console.error(`[agents:idle_policy] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[agents:idle_policy] Error");
       await replyError(interaction, "Idle Policy Failed", error.message || "Unknown error.");
     }
     return;
@@ -1705,7 +1706,7 @@ export async function execute(interaction) {
       user: agentsToCheck.map(a => a.botUserId),
       force: true // Force cache refresh
     }).catch(err => {
-      console.error("[VERIFY_MEMBERSHIP] Error fetching members:", err);
+      botLogger.error({ err }, "[VERIFY_MEMBERSHIP] Error fetching members");
       return null; // Indicate failure
     });
 
@@ -1779,7 +1780,7 @@ export async function execute(interaction) {
       }
       await replyInteraction(interaction, { embeds: [embed] });
     } catch (error) {
-      console.error(`[agents:sessions] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[agents:sessions] Error");
       await replyError(interaction, "Sessions Failed", error.message || "Unknown error.");
     }
     return;
@@ -1806,7 +1807,7 @@ export async function execute(interaction) {
         `Pinned \`${agentId}\` to <#${channel.id}> for **${kind}** usage.`
       );
     } catch (error) {
-      console.error(`[agents:assign] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[agents:assign] Error");
       await replyError(interaction, "Assign Failed", error.message || "Unknown error.");
     }
     return;
@@ -1849,7 +1850,7 @@ export async function execute(interaction) {
         `Released **${kind}** session for <#${channel.id}>.`
       );
     } catch (error) {
-      console.error(`[agents:release] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[agents:release] Error");
       await replyError(interaction, "Release Failed", error.message || "Unknown error.");
     }
     return;
@@ -1892,7 +1893,7 @@ export async function execute(interaction) {
         `Agent \`${agentId}\` marked for restart. AgentRunner will reconnect it.`
       );
     } catch (error) {
-      console.error(`Error marking agent ${agentId} for restart: ${error}`);
+      botLogger.error({ err: error, agentId }, "Error marking agent for restart");
       await replyError(interaction, "Restart Failed", error.message || "Unknown error.");
     }
     return;
@@ -1970,7 +1971,7 @@ export async function execute(interaction) {
         }
         
       } catch (validationError) {
-        console.error('[add_token] Token validation failed:', validationError.message);
+        botLogger.error({ err: validationError }, "[add_token] Token validation failed");
         return await interaction.editReply({
           embeds: [
             buildInfoEmbed(
@@ -2133,7 +2134,7 @@ export async function execute(interaction) {
       }
       
     } catch (error) {
-      console.error(`[add_token] Error: ${error.message}`);
+      botLogger.error({ err: error }, "[add_token] Error");
       await interaction.editReply({ 
         embeds: [buildInfoEmbed("Add Token Failed", error.message || "Unknown error.", Colors.ERROR)]
       });
@@ -2210,7 +2211,7 @@ export async function execute(interaction) {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      console.error(`Error listing agent tokens: ${error}`);
+      botLogger.error({ err: error }, "Error listing agent tokens");
       await interaction.editReply({
         embeds: [buildInfoEmbed("List Tokens Failed", error.message || "Unknown error.", Colors.ERROR)]
       });
@@ -2230,7 +2231,7 @@ export async function execute(interaction) {
         await replyError(interaction, "Agent Not Found", `Agent \`${agentId}\` was not found.`);
       }
     } catch (error) {
-      console.error(`Error updating agent token status: ${error}`);
+      botLogger.error({ err: error }, "Error updating agent token status");
       await replyError(interaction, "Status Update Failed", error.message || "Unknown error.");
     }
     return;
@@ -2311,7 +2312,7 @@ export async function execute(interaction) {
       });
 
     } catch (error) {
-      console.error(`Error during agent token deletion process: ${error}`);
+      botLogger.error({ err: error }, "Error during agent token deletion process");
       await replyEmbed(interaction, "Agent token delete", `Error: ${error.message}`);
     }
     return;
@@ -2433,7 +2434,7 @@ export async function execute(interaction) {
         await replyEmbed(interaction, "Agent profile", `Agent ${agentId} not found.`);
       }
     } catch (error) {
-      console.error(`Error setting agent profile: ${error}`);
+      botLogger.error({ err: error }, "Error setting agent profile");
       await replyEmbed(interaction, "Agent profile", `Error: ${error.message}`);
     }
     return;
@@ -2456,7 +2457,7 @@ export async function execute(interaction) {
         await replyEmbed(interaction, "Agent profile", `No profile set for agent ${agentId}.`);
       }
     } catch (error) {
-      console.error(`Error fetching agent profile: ${error}`);
+      botLogger.error({ err: error }, "Error fetching agent profile");
       await replyEmbed(interaction, "Agent profile", `Error: ${error.message}`);
     }
     return;

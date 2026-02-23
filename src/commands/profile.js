@@ -6,6 +6,7 @@ import { progressToNextLevel } from "../game/progression.js";
 import { Colors, replyError } from "../utils/discordOutput.js";
 import { getGlobalCommandUsage, getInventorySummary, getRecentEconomyActivity, getUserCommandUsage } from "../profile/usage.js";
 import { getUserProfilePrivacy, updateUserProfilePrivacy } from "../profile/privacy.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 function bar(pct, len = 12) {
   const p = Number.isFinite(Number(pct)) ? Number(pct) : 0;
@@ -273,7 +274,7 @@ export default {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
-      console.error("[profile] error:", err);
+      botLogger.error({ err: err }, "[profile] error:");
       await replyError(interaction, "Profile Failed", "Could not load profile right now. Try again.", true);
     }
   }

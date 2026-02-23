@@ -30,6 +30,7 @@ import { getCache, setCache } from "../utils/redis.js";
 import { checkRateLimit } from "../utils/ratelimit.js";
 import { makeEmbed } from "../utils/discordOutput.js";
 import { openAdvisorUiHandoff } from "./agents.js";
+import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = {
   guildOnly: true,
@@ -462,14 +463,14 @@ function isSupportedAudioAttachment(att) {
 async function setAudioDropCache(entry) {
   const key = randomKey();
   const ok = await setCache(`audiodrop:${key}`, { ...entry, createdAt: Date.now() }, AUDIO_DROP_TTL_SEC);
-  if (!ok) console.warn("[music:drops] Redis cache failed; audio drop panel may not work.");
+  if (!ok) botLogger.warn("[music:drops] Redis cache failed; audio drop panel may not work.");
   return key;
 }
 
 async function setPlaylistUiCache(entry) {
   const key = randomKey();
   const ok = await setCache(`mplui:${key}`, { ...entry, createdAt: Date.now() }, PLAYLIST_UI_TTL_SEC);
-  if (!ok) console.warn("[music:playlists] Redis cache failed; playlist UI may not work.");
+  if (!ok) botLogger.warn("[music:playlists] Redis cache failed; playlist UI may not work.");
   return key;
 }
 
@@ -740,7 +741,7 @@ async function tryUpdatePlaylistPanelMessage(guild, guildData, playlistId) {
       components: buildPlaylistPanelMessageComponents(pl.id)
     }).catch(() => {});
   } catch (err) {
-    console.error("[music:playlists] update panel failed:", err?.message ?? err);
+    botLogger.error("[music:playlists] update panel failed:", err?.message ?? err);
   }
 }
 
@@ -1047,7 +1048,7 @@ async function openPlaylistBrowser(interaction, { voiceChannelId = null, presetP
 async function setPlaylistModalState(payload) {
   const key = randomKey();
   const ok = await setCache(`musicplmodal:${key}`, { ...payload, createdAt: Date.now() }, 10 * 60);
-  if (!ok) console.warn("[music:playlists] modal cache failed; modal submit may fail.");
+  if (!ok) botLogger.warn("[music:playlists] modal cache failed; modal submit may fail.");
   return key;
 }
 
@@ -1119,7 +1120,7 @@ async function tryCreateDropThread(interaction, name) {
       await thread.members.add(interaction.user.id).catch(() => {});
       return thread;
     } catch (err) {
-      console.warn("[music:playlists] Private thread creation failed, trying public fallback:", err?.message ?? err);
+      botLogger.warn("[music:playlists] Private thread creation failed, trying public fallback:", err?.message ?? err);
     }
   }
 
@@ -1133,7 +1134,7 @@ async function tryCreateDropThread(interaction, name) {
       await thread.members.add(interaction.user.id).catch(() => {});
       return thread;
     } catch (err) {
-      console.warn("[music:playlists] Public thread fallback also failed:", err?.message ?? err);
+      botLogger.warn("[music:playlists] Public thread fallback also failed:", err?.message ?? err);
     }
   }
 
@@ -1361,7 +1362,7 @@ export async function maybeHandlePlaylistIngestMessage(message, guildData) {
     if (!rl.ok) return;
     await ingestPlaylistMessage(message, guildData);
   } catch (err) {
-    console.error("[music:playlists] ingest failed:", err?.stack ?? err?.message ?? err);
+    botLogger.error("[music:playlists] ingest failed:", err?.stack ?? err?.message ?? err);
   }
 }
 
@@ -1420,7 +1421,7 @@ export async function maybeHandleAudioDropMessage(message, guildData) {
     const payload = buildAudioDropPanel(message, dropKey, message.author.id, supported);
     await message.reply(payload).catch(() => {});
   } catch (err) {
-    console.error("[music:drops] message handler failed:", err?.stack ?? err?.message ?? err);
+    botLogger.error("[music:drops] message handler failed:", err?.stack ?? err?.message ?? err);
   }
 }
 
@@ -1429,7 +1430,7 @@ async function setSearchCache(entry) {
   // Store in Redis with TTL
   const ok = await setCache(`search:${key}`, { ...entry, createdAt: Date.now() }, SEARCH_TTL_SEC);
   if (!ok) {
-    console.warn("[music] Redis cache failed, search selection may not persist.");
+    botLogger.warn("[music] Redis cache failed, search selection may not persist.");
   }
   return key;
 }
@@ -2293,7 +2294,7 @@ export async function execute(interaction) {
       });
 
       if (!alloc.ok) {
-        console.warn("[music:play] alloc failed:", alloc.reason);
+        botLogger.warn("[music:play] alloc failed:", alloc.reason);
         const errorMsg = formatMusicError(alloc.reason);
         const embedFields = [];
         if (alloc.reason === "no-agents-in-guild" || alloc.reason === "no-free-agents") {
@@ -2326,7 +2327,7 @@ export async function execute(interaction) {
             requester: buildRequester(interaction.user)
           });
         } catch (err) {
-          console.error("[music:play] agent error:", err?.stack ?? err?.message ?? err);
+          botLogger.error("[music:play] agent error:", err?.stack ?? err?.message ?? err);
           await interaction.editReply({
             embeds: [makeEmbed("Music Error", formatMusicError(err), [], null, null, 0xFF0000)]
           });
@@ -2367,7 +2368,7 @@ export async function execute(interaction) {
           requester: buildRequester(interaction.user)
         });
       } catch (err) {
-        console.error("[music:search] agent error:", err?.stack ?? err?.message ?? err);
+        botLogger.error("[music:search] agent error:", err?.stack ?? err?.message ?? err);
         await interaction.editReply({
           embeds: [makeEmbed("Music Error", formatMusicError(err), [], null, null, 0xFF0000)]
         });
@@ -5023,7 +5024,7 @@ export async function handleSelect(interaction) {
   } catch {}
 
   try {
-    console.log(`[music:select] Sending play command for track: ${track.title || track.uri} to agent ${sess.agent?.agentId}`);
+    botLogger.debug(`[music:select] Sending play command for track: ${track.title || track.uri} to agent ${sess.agent?.agentId}`);
     const result = await sendAgentCommand(sess.agent, "play", {
       guildId: entry.guildId,
       voiceChannelId: entry.voiceChannelId,
@@ -5036,7 +5037,7 @@ export async function handleSelect(interaction) {
       fallbackProviders: config?.fallbackProviders,
       requester: buildRequester(interaction.user)
     });
-    console.log(`[music:select] Play command result:`, result);
+    botLogger.debug(`[music:select] Play command result:`, result);
     const playedTrack = result?.track ?? track;
     const action = String(result?.action ?? "queued");
     await interaction.editReply({
@@ -5044,7 +5045,7 @@ export async function handleSelect(interaction) {
       components: []
     }).catch(() => {});
   } catch (err) {
-    console.error(`[music:select] Error sending play command:`, err?.stack ?? err?.message ?? err);
+    botLogger.error(`[music:select] Error sending play command:`, err?.stack ?? err?.message ?? err);
     await interaction.editReply({
       embeds: [makeEmbed("Music Error", formatMusicError(err), [], null, null, 0xFF0000)],
       components: []
