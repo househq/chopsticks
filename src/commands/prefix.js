@@ -5,7 +5,8 @@ import { normalizePrefixValue } from "../prefix/hardening.js";
 export const meta = {
   category: "admin",
   guildOnly: true,
-  userPerms: [PermissionFlagsBits.ManageGuild]
+  userPerms: [PermissionFlagsBits.ManageGuild],
+  deployGlobal: false
 };
 
 export const data = new SlashCommandBuilder()

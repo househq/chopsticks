@@ -28,6 +28,7 @@ export const meta = {
   category: "admin",
   description: "Configure the voice AI model provider for this server.",
   keywords: ["voice", "ai", "model", "llm", "provider", "api key", "anthropic", "openai", "ollama"],
+  deployGlobal: false
 };
 
 const PROVIDER_LABELS = {

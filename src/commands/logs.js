@@ -5,7 +5,8 @@ import { listCommandLogs } from "../utils/commandlog.js";
 export const meta = {
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageGuild],
-  category: "admin"
+  category: "admin",
+  deployGlobal: false
 };
 
 export const data = new SlashCommandBuilder()

@@ -12,14 +12,19 @@ describe("ping command", function () {
   });
 });
 
-// ── Botinfo ───────────────────────────────────────────────────────────────────
-import { data as botinfoData, execute as botinfoExecute } from "../../src/commands/botinfo.js";
-describe("botinfo command", function () {
-  it("is named 'botinfo'", function () {
-    assert.equal(botinfoData.toJSON().name, "botinfo");
+// ── Serverinfo (consolidated: server/bot/role) ────────────────────────────────
+import { data as serverinfoData, execute as serverinfoExecute } from "../../src/commands/serverinfo.js";
+describe("serverinfo command", function () {
+  it("is named 'serverinfo' with server/bot/role subcommands", function () {
+    const json = serverinfoData.toJSON();
+    assert.equal(json.name, "serverinfo");
+    const subNames = new Set((json.options || []).map(o => o.name));
+    assert.ok(subNames.has("server"), "missing 'server' subcommand");
+    assert.ok(subNames.has("bot"), "missing 'bot' subcommand");
+    assert.ok(subNames.has("role"), "missing 'role' subcommand");
   });
   it("exports execute as a function", function () {
-    assert.equal(typeof botinfoExecute, "function");
+    assert.equal(typeof serverinfoExecute, "function");
   });
 });
 
