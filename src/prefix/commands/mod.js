@@ -6,6 +6,7 @@ export default [
   {
     name: "purge",
     guildOnly: true,
+    rateLimit: 5000,
     userPerms: [PermissionsBitField.Flags.ManageMessages],
     async execute(message, args) {
       const count = parseIntSafe(args[0], 1, 100);
@@ -17,6 +18,7 @@ export default [
   {
     name: "slowmode",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.ManageChannels],
     async execute(message, args) {
       const seconds = parseIntSafe(args[0], 0, 21600);
@@ -28,6 +30,7 @@ export default [
   {
     name: "kick",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.KickMembers],
     async execute(message, args) {
       const id = args[0]?.replace(/[<@!>]/g, "");
@@ -41,6 +44,7 @@ export default [
   {
     name: "ban",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.BanMembers],
     async execute(message, args) {
       const id = args[0]?.replace(/[<@!>]/g, "");
@@ -52,6 +56,7 @@ export default [
   {
     name: "unban",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.BanMembers],
     async execute(message, args) {
       const id = args[0];
@@ -63,6 +68,7 @@ export default [
   {
     name: "timeout",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.ModerateMembers],
     async execute(message, args) {
       const id = args[0]?.replace(/[<@!>]/g, "");
@@ -78,6 +84,7 @@ export default [
   {
     name: "warn",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.ModerateMembers],
     async execute(message, args) {
       const id = args[0]?.replace(/[<@!>]/g, "");
@@ -89,6 +96,7 @@ export default [
   {
     name: "warnings",
     guildOnly: true,
+    rateLimit: 5000,
     userPerms: [PermissionsBitField.Flags.ModerateMembers],
     async execute(message, args) {
       const id = args[0]?.replace(/[<@!>]/g, "");
@@ -102,6 +110,7 @@ export default [
   {
     name: "clearwarns",
     guildOnly: true,
+    rateLimit: 5000,
     userPerms: [PermissionsBitField.Flags.ModerateMembers],
     async execute(message, args) {
       const id = args[0]?.replace(/[<@!>]/g, "");
@@ -113,6 +122,7 @@ export default [
   {
     name: "lock",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.ManageChannels],
     async execute(message) {
       await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: false });
@@ -122,6 +132,7 @@ export default [
   {
     name: "unlock",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.ManageChannels],
     async execute(message) {
       await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: null });
@@ -131,6 +142,7 @@ export default [
   {
     name: "nick",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.ManageNicknames],
     async execute(message, args) {
       const id = args[0]?.replace(/[<@!>]/g, "");
@@ -145,6 +157,7 @@ export default [
   {
     name: "softban",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.BanMembers],
     async execute(message, args) {
       const id = args[0]?.replace(/[<@!>]/g, "");
@@ -157,6 +170,7 @@ export default [
   {
     name: "role",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.ManageRoles],
     async execute(message, args) {
       const action = args[0];

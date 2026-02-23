@@ -63,6 +63,7 @@ import {
 import { flushCommandStats, flushCommandStatsDaily } from "./utils/audit.js";
 import { checkRateLimit } from "./utils/ratelimit.js";
 import { getRateLimitForCommand } from "./utils/rateLimitConfig.js";
+import { sanitizeString } from "./utils/validation.js";
 import { canRunCommand, canRunPrefixCommand } from "./utils/permissions.js";
 import { getPrefixCommands } from "./prefix/registry.js";
 import { checkMetaPerms } from "./prefix/applyMetaPerms.js";
@@ -910,6 +911,18 @@ client.on(Events.MessageCreate, async message => {
     return;
   }
 
+  // Per-command cooldown (in addition to global rate limit)
+  if (cmd?.rateLimit) {
+    try {
+      const cmdRl = await checkRateLimit(`pfx:cd:${message.author.id}:${name}`, 1, cmd.rateLimit / 1000);
+      if (!cmdRl.ok) {
+        const cooldownSec = Math.ceil(cmd.rateLimit / 1000);
+        await message.reply(`⏳ Slow down! \`${prefix}${name}\` has a ${cooldownSec}s cooldown.`).catch(() => {});
+        return;
+      }
+    } catch {}
+  }
+
   const gate = await canRunPrefixCommand(message, cmd.name, cmd);
   if (!gate.ok) return;
 
@@ -922,7 +935,8 @@ client.on(Events.MessageCreate, async message => {
 
   const prefixStartedAt = Date.now();
   try {
-    await cmd.execute(message, parts, { prefix, commands: prefixCommands });
+    const sanitizedArgs = parts.map(a => (typeof a === "string" ? sanitizeString(a) : a));
+    await cmd.execute(message, sanitizedArgs, { prefix, commands: prefixCommands });
     const duration = Date.now() - prefixStartedAt;
     trackCommandInvocation(cmd.name, "prefix");
     void recordUserCommandStat({

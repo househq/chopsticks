@@ -41,6 +41,7 @@ export default [
   {
     name: "aliases",
     guildOnly: true,
+    rateLimit: 3000,
     userPerms: [PermissionsBitField.Flags.ManageGuild],
     async execute(message, args) {
       const sub = args[0];
@@ -104,6 +105,7 @@ export default [
   {
     name: "agents",
     guildOnly: true,
+    rateLimit: 5000,
     userPerms: [PermissionsBitField.Flags.ManageGuild],
     async execute(message, args) {
       const sub = (args[0] || "status").toLowerCase();
