@@ -12,6 +12,7 @@ import infoCommands from "./commands/info.js";
 import modCommands from "./commands/mod.js";
 import serverCommands from "./commands/server.js";
 import mediaCommands from "./commands/media.js";
+import economyCommands from "./commands/economy.js";
 
 export async function getPrefixCommands() {
   const map = new Map();
@@ -23,6 +24,7 @@ export async function getPrefixCommands() {
     ...modCommands,
     ...serverCommands,
     ...mediaCommands,
+    ...economyCommands,
   ];
   for (const cmdDef of allCommands) {
     map.set(cmdDef.name, cmdDef);
