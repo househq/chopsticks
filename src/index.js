@@ -734,6 +734,18 @@ client.on(Events.MessageCreate, async message => {
     }
   }
 
+  // ── Per-guild message XP + stats ────────────────────────────────────────
+  if (message.guildId && !message.author.bot) {
+    void (async () => {
+      try {
+        const { addStat } = await import('./game/activityStats.js');
+        const { addGuildXp } = await import('./game/guildXp.js');
+        addStat(message.author.id, message.guildId, 'messages_sent', 1);
+        await addGuildXp(message.author.id, message.guildId, 'message', { client }).catch(() => {});
+      } catch {}
+    })();
+  }
+
   let prefix = "!";
   let aliases = {};
   let guildData = null;
