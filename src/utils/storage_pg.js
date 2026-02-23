@@ -4,6 +4,7 @@ import retry from "async-retry";
 import { logger } from "./logger.js";
 import { levelFromXp } from "../game/progression.js";
 import { getRedis } from "./cache.js";
+import { trace, SpanStatusCode } from "@opentelemetry/api";
 
 let pool = null;
 
@@ -41,6 +42,26 @@ export function getPool() {
     pool.on("error", (err) => {
       logger.error("PostgreSQL pool error (from event listener):", { error: err.message });
     });
+    // Auto-instrument every pool.query call with an OTel span
+    const tracer = trace.getTracer("chopsticks-db");
+    const _origQuery = pool.query.bind(pool);
+    pool.query = function tracedQuery(textOrConfig, values) {
+      const sql = typeof textOrConfig === "string" ? textOrConfig : (textOrConfig?.text ?? "");
+      const opName = sql.trimStart().split(/\s+/, 1)[0].toUpperCase() || "QUERY";
+      return tracer.startActiveSpan(`db.${opName}`, { attributes: { "db.statement": sql.slice(0, 200) } }, async (span) => {
+        try {
+          const result = await _origQuery(textOrConfig, values);
+          span.setStatus({ code: SpanStatusCode.OK });
+          return result;
+        } catch (err) {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
+          span.recordException(err);
+          throw err;
+        } finally {
+          span.end();
+        }
+      });
+    };
     logger.info("PostgreSQL connection pool initialized.");
   } catch (err) {
     logger.error("Error initializing PostgreSQL connection pool:", { error: err.message });
