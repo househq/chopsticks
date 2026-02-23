@@ -1,19 +1,35 @@
 import { SlashCommandBuilder, PermissionFlagsBits, ButtonBuilder, ButtonStyle, ActionRowBuilder } from "discord.js";
 import jwt from "jsonwebtoken";
 import { createClient } from "redis";
+import { createHash } from "node:crypto";
 
 const CONSOLE_TOKEN_TTL = 10 * 60; // 10 minutes
 
 function getDashboardUrl() {
-  return String(process.env.DASHBOARD_BASE_URL || "").replace(/\/$/, "");
+  const explicit = String(process.env.DASHBOARD_BASE_URL || "").replace(/\/+$/g, "");
+  if (explicit) return explicit;
+
+  // Mirror the server-side auto-detection so the bot generates the right link
+  if (process.env.RAILWAY_STATIC_URL) return `https://${process.env.RAILWAY_STATIC_URL}`;
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.replace(/\/+$/g, "");
+  if (process.env.FLY_APP_NAME) return `https://${process.env.FLY_APP_NAME}.fly.dev`;
+  if (process.env.HEROKU_APP_NAME) return `https://${process.env.HEROKU_APP_NAME}.herokuapp.com`;
+  if (process.env.KOYEB_PUBLIC_DOMAIN) return `https://${process.env.KOYEB_PUBLIC_DOMAIN}`;
+  if (process.env.PUBLIC_URL) return String(process.env.PUBLIC_URL).replace(/\/+$/g, "");
+
+  const port = process.env.DASHBOARD_PORT || 8788;
+  return `http://localhost:${port}`;
 }
 
 function getJwtSecret() {
-  const secret = String(
-    process.env.DASHBOARD_SECRET || process.env.DASHBOARD_SESSION_SECRET || ""
-  ).trim();
-  if (!secret) throw new Error("DASHBOARD_SECRET is not configured.");
-  return secret;
+  const explicit = String(process.env.DASHBOARD_SECRET || "").trim();
+  if (explicit) return explicit;
+
+  const botToken = String(process.env.DISCORD_TOKEN || "").trim();
+  if (botToken) {
+    return createHash("sha256").update(botToken + "chopsticks-console-v1").digest("hex").slice(0, 32);
+  }
+  throw new Error("DISCORD_TOKEN is not set — cannot derive console secret.");
 }
 
 async function markTokenUsed(tokenId) {
@@ -25,27 +41,6 @@ async function markTokenUsed(tokenId) {
   await client.quit().catch(() => null);
 }
 
-export async function isTokenConsumed(tokenId) {
-  const redisUrl = process.env.REDIS_URL;
-  if (!redisUrl) return false;
-  const client = createClient({ url: redisUrl });
-  await client.connect().catch(() => null);
-  const val = await client.get(`console_token:${tokenId}`).catch(() => null);
-  await client.quit().catch(() => null);
-  return val === "used";
-}
-
-export async function consumeToken(tokenId) {
-  const redisUrl = process.env.REDIS_URL;
-  if (!redisUrl) return true; // allow if no Redis
-  const client = createClient({ url: redisUrl });
-  await client.connect().catch(() => null);
-  // nx = set only if not exists; returns null if already set
-  const set = await client.set(`console_token:${tokenId}`, "used", { EX: CONSOLE_TOKEN_TTL, NX: true }).catch(() => null);
-  await client.quit().catch(() => null);
-  return set !== null; // true = first time (ok), false = already consumed
-}
-
 export const meta = { category: "utility" };
 
 export const data = new SlashCommandBuilder()
@@ -55,21 +50,13 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const baseUrl = getDashboardUrl();
-  if (!baseUrl) {
-    return interaction.reply({
-      content:
-        "❌ The dashboard URL is not configured. Set `DASHBOARD_BASE_URL` in the bot's environment.",
-      ephemeral: true,
-    });
-  }
 
   let secret;
   try {
     secret = getJwtSecret();
-  } catch {
+  } catch (err) {
     return interaction.reply({
-      content:
-        "❌ Dashboard secret is not configured. Set `DASHBOARD_SECRET` in the bot's environment.",
+      content: `❌ ${err.message}`,
       ephemeral: true,
     });
   }
@@ -111,3 +98,4 @@ export async function execute(interaction) {
     ephemeral: true,
   });
 }
+

@@ -484,6 +484,14 @@ client.once(Events.ClientReady, async () => {
     }
   }, flushMs);
 
+  // Auto-start dashboard server (zero-config: guild admins just run /console)
+  try {
+    const { startDashboard } = await import("./dashboard/server.js");
+    startDashboard();
+  } catch (err) {
+    console.warn("⚠️  Dashboard server failed to start:", err?.message ?? err);
+  }
+
   const shutdown = async () => {
     clearInterval(flushTimer);
 

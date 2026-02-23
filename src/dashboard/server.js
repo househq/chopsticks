@@ -5,7 +5,7 @@ import { createClient } from "redis";
 import { RedisStore } from "connect-redis";
 import { request } from "undici";
 import { createRequire } from "node:module";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -78,8 +78,46 @@ app.get("/metrics", metricsHandler);
 app.get("/health", healthHandler);
 
 const DASHBOARD_PORT = Number(process.env.DASHBOARD_PORT || 8788);
-const DASHBOARD_BASE_URL = String(process.env.DASHBOARD_BASE_URL || "").trim();
 const DISCORD_CLIENT_ID = String(process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID || "").trim();
+
+// Auto-detect the public base URL from common hosting platforms.
+// Bot owners can override with DASHBOARD_BASE_URL for custom domains / reverse proxies.
+function detectBaseUrl() {
+  const explicit = String(process.env.DASHBOARD_BASE_URL || "").trim();
+  if (explicit) return explicit.replace(/\/+$/, "");
+
+  // Railway
+  if (process.env.RAILWAY_STATIC_URL) return `https://${process.env.RAILWAY_STATIC_URL}`;
+  // Render
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.replace(/\/+$/, "");
+  // Fly.io
+  if (process.env.FLY_APP_NAME) return `https://${process.env.FLY_APP_NAME}.fly.dev`;
+  // Heroku
+  if (process.env.HEROKU_APP_NAME) return `https://${process.env.HEROKU_APP_NAME}.herokuapp.com`;
+  // Koyeb
+  if (process.env.KOYEB_PUBLIC_DOMAIN) return `https://${process.env.KOYEB_PUBLIC_DOMAIN}`;
+  // Generic PUBLIC_URL (some VPS/PaaS setups)
+  if (process.env.PUBLIC_URL) return String(process.env.PUBLIC_URL).replace(/\/+$/, "");
+
+  // Dev / local fallback
+  return `http://localhost:${DASHBOARD_PORT}`;
+}
+
+// Auto-derive a stable JWT secret from the bot token so no extra env var is needed.
+// Bot owners can override with DASHBOARD_SECRET for explicit control.
+function deriveJwtSecret() {
+  const explicit = String(process.env.DASHBOARD_SECRET || "").trim();
+  if (explicit) return explicit;
+
+  const botToken = String(process.env.DISCORD_TOKEN || "").trim();
+  if (botToken) {
+    return createHash("sha256").update(botToken + "chopsticks-console-v1").digest("hex").slice(0, 32);
+  }
+  // Last resort: ephemeral (sessions won't survive restarts)
+  return randomBytes(32).toString("hex");
+}
+
+const DASHBOARD_BASE_URL = detectBaseUrl();
 const DISCORD_CLIENT_SECRET = String(process.env.DISCORD_CLIENT_SECRET || "").trim();
 const DISCORD_REDIRECT_URI = String(process.env.DISCORD_REDIRECT_URI || "").trim();
 const DISCORD_TOKEN = String(process.env.DISCORD_TOKEN || "").trim();
@@ -133,8 +171,7 @@ app.use(
 
 function oauthRedirectUri() {
   if (DISCORD_REDIRECT_URI) return DISCORD_REDIRECT_URI;
-  if (!DASHBOARD_BASE_URL) return "";
-  return `${DASHBOARD_BASE_URL.replace(/\/$/, "")}/oauth/callback`;
+  return `${DASHBOARD_BASE_URL.replace(/\/+$/, "")}/oauth/callback`;
 }
 
 function oauthAuthorizeUrl() {
@@ -322,9 +359,7 @@ function requireGuildAdminOrOwner(guildId) {
 }
 
 function getJwtSecret() {
-  return String(
-    process.env.DASHBOARD_SECRET || process.env.DASHBOARD_SESSION_SECRET || ""
-  ).trim();
+  return deriveJwtSecret();
 }
 
 function parsePeers() {
@@ -539,7 +574,7 @@ async function getInstancesStatus() {
   const out = [self];
   for (const p of peers) {
     try {
-      const res = await request(`${p.url.replace(/\/$/, "")}/api/internal/status`, {
+      const res = await request(`${p.url.replace(//+$/, "")}/api/internal/status`, {
         headers: { "x-admin-token": token }
       });
       if (res.statusCode >= 400) {
@@ -2838,6 +2873,23 @@ app.post("/api/guild/:id/commands/toggle", requireAuth, rateLimitDashboard, requ
   res.json({ ok: true });
 });
 
-app.listen(DASHBOARD_PORT, () => {
-  console.log(`[dashboard] listening on :${DASHBOARD_PORT}`);
 });
+
+let _server = null;
+
+export function startDashboard() {
+  if (_server) return _server; // already running
+  _server = app.listen(DASHBOARD_PORT, () => {
+    const url = DASHBOARD_BASE_URL.startsWith("http://localhost")
+      ? DASHBOARD_BASE_URL
+      : DASHBOARD_BASE_URL;
+    console.log(`[dashboard] 🖥️  Console ready → ${url}/guild/<server-id>`);
+    console.log(`[dashboard] listening on :${DASHBOARD_PORT}`);
+  });
+  return _server;
+}
+
+// When run directly (npm run dashboard), start automatically
+if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
+  startDashboard();
+}
