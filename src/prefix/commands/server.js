@@ -7,6 +7,7 @@ import { normalizePrefixValue } from "../hardening.js";
 export default [
   {
     name: "poll",
+    rateLimit: 10000,
     async execute(message, args) {
       const text = args.join(" ");
       const [q, opts] = text.split("|").map(s => s.trim());
@@ -22,6 +23,7 @@ export default [
   {
     name: "giveaway",
     guildOnly: true,
+    rateLimit: 10000,
     userPerms: [PermissionsBitField.Flags.ManageGuild],
     async execute(message, args) {
       const mins = parseIntSafe(args[0], 1, 10080);
@@ -47,6 +49,7 @@ export default [
   },
   {
     name: "remind",
+    rateLimit: 5000,
     async execute(message, args) {
       const mins = parseIntSafe(args[0], 1, 10080);
       const text = args.slice(1).join(" ");
@@ -60,6 +63,7 @@ export default [
   {
     name: "welcome",
     guildOnly: true,
+    rateLimit: 5000,
     userPerms: [PermissionsBitField.Flags.ManageGuild],
     async execute(message, args) {
       const sub = args[0];
@@ -91,6 +95,7 @@ export default [
   {
     name: "autorole",
     guildOnly: true,
+    rateLimit: 5000,
     userPerms: [PermissionsBitField.Flags.ManageGuild],
     async execute(message, args) {
       const sub = args[0];
@@ -115,6 +120,7 @@ export default [
   {
     name: "prefix",
     guildOnly: true,
+    rateLimit: 5000,
     userPerms: [PermissionsBitField.Flags.ManageGuild],
     async execute(message, args) {
       const sub = args[0];

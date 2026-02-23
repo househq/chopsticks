@@ -5,6 +5,7 @@ export default [
   {
     name: "ping",
     description: "Ping",
+    rateLimit: 5000,
     async execute(message) {
       await reply(message, `Pong! ${Math.round(message.client.ws.ping)}ms`);
     }
@@ -12,6 +13,7 @@ export default [
   {
     name: "uptime",
     description: "Uptime",
+    rateLimit: 5000,
     async execute(message) {
       await reply(message, `Uptime: ${Math.floor(process.uptime())}s`);
     }
@@ -19,6 +21,7 @@ export default [
   {
     name: "help",
     description: "List prefix commands",
+    rateLimit: 3000,
     async execute(message, _args, ctx) {
       const names = Array.from(ctx.commands.keys()).sort();
       await reply(message, names.map(n => ctx.prefix + n).join("\n").slice(0, 1900));
@@ -27,6 +30,7 @@ export default [
   {
     name: "echo",
     description: "Echo text",
+    rateLimit: 2000,
     async execute(message, args) {
       await reply(message, args.join(" ") || "(empty)");
     }
@@ -34,6 +38,7 @@ export default [
   {
     name: "choose",
     description: "Pick one",
+    rateLimit: 2000,
     async execute(message, args) {
       const items = args.join(" ").split(",").map(s => s.trim()).filter(Boolean);
       if (!items.length) return reply(message, "No options.");
@@ -43,6 +48,7 @@ export default [
   },
   {
     name: "invite",
+    rateLimit: 10000,
     async execute(message) {
       const perms = new PermissionsBitField([
         PermissionsBitField.Flags.ViewChannel,

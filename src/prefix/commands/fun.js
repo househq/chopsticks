@@ -30,6 +30,7 @@ export default [
   {
     name: "roll",
     description: "Roll a die",
+    rateLimit: 2000,
     async execute(message, args) {
       const sides = parseIntSafe(args[0] || "6", 2, 100) || 6;
       const roll = Math.floor(Math.random() * sides) + 1;
@@ -39,6 +40,7 @@ export default [
   {
     name: "coinflip",
     description: "Flip a coin",
+    rateLimit: 2000,
     async execute(message) {
       await reply(message, Math.random() < 0.5 ? "Heads" : "Tails");
     }
@@ -46,6 +48,7 @@ export default [
   {
     name: "8ball",
     description: "Magic 8-ball",
+    rateLimit: 3000,
     async execute(message) {
       const answers = ["Yes.", "No.", "Maybe.", "Ask again later.", "Definitely.", "Unlikely."];
       await reply(message, `🎱 ${answers[Math.floor(Math.random() * answers.length)]}`);
@@ -54,6 +57,7 @@ export default [
   {
     name: "fun",
     description: "Run fun variants (220 total)",
+    rateLimit: 5000,
     async execute(message, args) {
       const { intensity, args: normalizedArgs } = parseFunIntensity(args);
       const sub = (normalizedArgs[0] || "random").toLowerCase();
