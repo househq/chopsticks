@@ -324,6 +324,7 @@ export const data = new SlashCommandBuilder()
   );
 export const meta = {
   guildOnly: true,
+  deployGlobal: false,
   category: "assistant"
 };
 

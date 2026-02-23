@@ -3,6 +3,7 @@ import { loadGuildData, saveGuildData } from "../utils/storage.js";
 
 export const meta = {
   guildOnly: true,
+  deployGlobal: false,
   userPerms: [PermissionFlagsBits.ManageGuild],
   category: "admin"
 };
