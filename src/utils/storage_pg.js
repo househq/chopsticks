@@ -478,6 +478,27 @@ export async function ensureSchema() {
     logger.error("Error adding capabilities to agent_bots:", { error: err.message });
   }
 
+  // C3c: Pool reviews table
+  try {
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS pool_reviews (
+        id BIGSERIAL PRIMARY KEY,
+        pool_id TEXT NOT NULL REFERENCES agent_pools(pool_id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL,
+        guild_id TEXT,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        comment TEXT,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL,
+        UNIQUE (pool_id, user_id)
+      )
+    `);
+    await p.query('CREATE INDEX IF NOT EXISTS idx_pool_reviews_pool ON pool_reviews(pool_id)');
+    logger.debug("pool_reviews table ensured.");
+  } catch (err) {
+    logger.error("Error creating pool_reviews table:", { error: err.message });
+  }
+
   logger.info("ensureSchema: complete");
 }
 
@@ -2019,4 +2040,85 @@ export async function approveAllContributions(poolId, reviewerUserId) {
     try { results.push(await approveContribution(c.contribution_id, reviewerUserId)); } catch {}
   }
   return results;
+}
+
+// ── Pool Reviews (C3c) ──────────────────────────────────────────────────────
+
+/** Upsert a pool review (one review per user per pool). */
+export async function upsertPoolReview(poolId, userId, rating, comment, guildId) {
+  const p = getPool();
+  const now = Date.now();
+  const res = await p.query(
+    `INSERT INTO pool_reviews (pool_id, user_id, guild_id, rating, comment, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $6)
+     ON CONFLICT (pool_id, user_id) DO UPDATE
+       SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, updated_at = EXCLUDED.updated_at
+     RETURNING *`,
+    [poolId, userId, guildId || null, rating, comment || null, now]
+  );
+  return res.rows[0];
+}
+
+/** Fetch all reviews for a pool, newest first. */
+export async function fetchPoolReviews(poolId, limit = 10) {
+  const p = getPool();
+  const res = await p.query(
+    "SELECT * FROM pool_reviews WHERE pool_id = $1 ORDER BY updated_at DESC LIMIT $2",
+    [poolId, limit]
+  );
+  return res.rows;
+}
+
+/** Compute average rating and total count for a pool. */
+export async function fetchPoolRatingSummary(poolId) {
+  const p = getPool();
+  const res = await p.query(
+    "SELECT COUNT(*)::int as count, AVG(rating)::numeric(3,2) as avg FROM pool_reviews WHERE pool_id = $1",
+    [poolId]
+  );
+  return { count: res.rows[0]?.count ?? 0, avg: parseFloat(res.rows[0]?.avg ?? 0) };
+}
+
+/** Delete a user's review for a pool. */
+export async function deletePoolReview(poolId, userId) {
+  const p = getPool();
+  const res = await p.query(
+    "DELETE FROM pool_reviews WHERE pool_id = $1 AND user_id = $2 RETURNING id",
+    [poolId, userId]
+  );
+  return res.rowCount > 0;
+}
+
+// ── Contributor Spotlight (C3f) ─────────────────────────────────────────────
+
+/** Fetch top contributors across all pools by active agent count. */
+export async function fetchTopContributors(limit = 5) {
+  const p = getPool();
+  const res = await p.query(
+    `SELECT contributed_by as user_id, COUNT(*) as agent_count,
+            COUNT(*) FILTER (WHERE status = 'active') as active_count
+     FROM agent_bots
+     WHERE contributed_by IS NOT NULL
+     GROUP BY contributed_by
+     ORDER BY active_count DESC, agent_count DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return res.rows;
+}
+
+/** Fetch top contributors for a specific pool. */
+export async function fetchPoolTopContributors(poolId, limit = 5) {
+  const p = getPool();
+  const res = await p.query(
+    `SELECT contributed_by as user_id, COUNT(*) as agent_count,
+            COUNT(*) FILTER (WHERE status = 'active') as active_count
+     FROM agent_bots
+     WHERE pool_id = $1 AND contributed_by IS NOT NULL
+     GROUP BY contributed_by
+     ORDER BY active_count DESC, agent_count DESC
+     LIMIT $2`,
+    [poolId, limit]
+  );
+  return res.rows;
 }

@@ -302,6 +302,19 @@ export const data = new SlashCommandBuilder()
       sub
         .setName('help')
         .setDescription('Show help for the agent pool system — workflows, security promises, and quick-start guide')
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('review')
+        .setDescription('Leave a star rating and review for a pool')
+        .addStringOption(o => o.setName('pool').setDescription('Pool ID to review').setRequired(true).setAutocomplete(true))
+        .addIntegerOption(o => o.setName('stars').setDescription('Rating 1-5 stars').setRequired(true).setMinValue(1).setMaxValue(5))
+        .addStringOption(o => o.setName('comment').setDescription('Optional comment (max 300 chars)').setMaxLength(300))
+        .addStringOption(o => o.setName('action').setDescription('Action').addChoices(
+          { name: '⭐ Submit review', value: 'submit' },
+          { name: '🗑️ Delete my review', value: 'delete' },
+          { name: '📋 View reviews', value: 'view' },
+        ))
     );
 
 export async function execute(interaction) {
@@ -380,6 +393,9 @@ export async function execute(interaction) {
           break;
         case 'help':
           await handleHelp(interaction);
+          break;
+        case 'review':
+          await handleReview(interaction);
           break;
         default:
           await interaction.reply({
@@ -1341,6 +1357,15 @@ async function handleView(interaction) {
       });
     }
   }
+
+  // C3c: Show rating summary in pool view
+  try {
+    const ratingSummary = await storageLayer.fetchPoolRatingSummary(poolId);
+    if (ratingSummary.count > 0) {
+      const { count, avg } = ratingSummary;
+      embed.addFields({ name: '⭐ Rating', value: `${'⭐'.repeat(Math.round(avg))} **${Number(avg).toFixed(1)}/5** (${count} review${count !== 1 ? 's' : ''})  ·  \`/pools review pool:${poolId} action:view\``, inline: false });
+    }
+  } catch {}
 
   await interaction.editReply({
     embeds: [embed],
@@ -2732,6 +2757,25 @@ async function handleStats(interaction) {
   const tier = computePoolTier(activeCount);
   card.addFields({ name: '🏅 Tier', value: tier.label, inline: true });
 
+  // C3f: Contributor spotlight
+  try {
+    const [topContribs, ratingSummary] = await Promise.all([
+      storageLayer.fetchPoolTopContributors(poolId, 5),
+      storageLayer.fetchPoolRatingSummary(poolId),
+    ]);
+    if (topContribs.length > 0) {
+      const lines = topContribs.map((c, i) => {
+        const medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i] || `${i + 1}.`;
+        return `${medal} <@${c.user_id}> — ${c.active_count} active / ${c.agent_count} total`;
+      });
+      card.addFields({ name: '🌟 Top Contributors', value: lines.join('\n'), inline: false });
+    }
+    if (ratingSummary.count > 0) {
+      const { count, avg } = ratingSummary;
+      card.addFields({ name: '⭐ Reviews', value: `${'⭐'.repeat(Math.round(avg))} **${Number(avg).toFixed(1)}** / 5 (${count} review${count !== 1 ? 's' : ''})  ·  \`/pools review pool:${poolId} action:view\``, inline: false });
+    }
+  } catch { /* non-critical */ }
+
   await interaction.editReply({ embeds: [card] });
 }
 
@@ -3191,4 +3235,82 @@ async function handleHelp(interaction) {
 
   // Send all 3 pages as separate embeds in one reply
   await interaction.reply({ embeds: pages, flags: MessageFlags.Ephemeral });
+}
+
+// ── Pool Reviews (C3c) ──────────────────────────────────────────────────────
+
+function starsDisplay(avg) {
+  const full = Math.round(avg);
+  return '⭐'.repeat(Math.min(5, full)) + '☆'.repeat(Math.max(0, 5 - full)) + ` (${Number(avg).toFixed(1)})`;
+}
+
+async function handleReview(interaction) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const poolId = interaction.options.getString('pool', true);
+  const action = interaction.options.getString('action') || 'submit';
+  const userId = interaction.user.id;
+
+  const pool = await storageLayer.fetchPool(poolId).catch(() => null);
+  if (!pool) {
+    return interaction.editReply({ embeds: [buildPoolEmbed('Pool Not Found', `Pool \`${poolId}\` does not exist.`, Colors.ERROR)] });
+  }
+
+  // VIEW
+  if (action === 'view') {
+    const [reviews, summary] = await Promise.all([
+      storageLayer.fetchPoolReviews(poolId, 8),
+      storageLayer.fetchPoolRatingSummary(poolId),
+    ]);
+    const embed = new EmbedBuilder()
+      .setTitle(`⭐ Reviews — ${pool.name}`)
+      .setColor(Colors.INFO)
+      .setTimestamp();
+
+    if (summary.count === 0) {
+      embed.setDescription('No reviews yet. Be the first to review this pool!');
+    } else {
+      embed.setDescription(`**${starsDisplay(summary.avg)}** · ${summary.count} review${summary.count !== 1 ? 's' : ''}`);
+      for (const r of reviews) {
+        const stars = '⭐'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+        embed.addFields({
+          name: `${stars} — <@${r.user_id}>`,
+          value: r.comment || '*No comment*',
+          inline: false,
+        });
+      }
+    }
+    return interaction.editReply({ embeds: [embed] });
+  }
+
+  // DELETE
+  if (action === 'delete') {
+    const deleted = await storageLayer.deletePoolReview(poolId, userId);
+    return interaction.editReply({
+      embeds: [buildPoolEmbed(deleted ? 'Review Deleted' : 'No Review Found',
+        deleted ? 'Your review has been removed.' : "You haven't reviewed this pool.",
+        deleted ? Colors.SUCCESS : Colors.WARNING)]
+    });
+  }
+
+  // SUBMIT
+  const stars = interaction.options.getInteger('stars', true);
+  const comment = interaction.options.getString('comment', false) || null;
+
+  // Don't let pool owners review their own pool
+  if (pool.owner_user_id === userId) {
+    return interaction.editReply({ embeds: [buildPoolEmbed('Cannot Review', 'Pool owners cannot review their own pool.', Colors.WARNING)] });
+  }
+
+  await storageLayer.upsertPoolReview(poolId, userId, stars, comment, interaction.guildId);
+  const summary = await storageLayer.fetchPoolRatingSummary(poolId);
+
+  return interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle('✅ Review Submitted')
+        .setColor(Colors.SUCCESS)
+        .setDescription(`You rated **${pool.name}** ${'⭐'.repeat(stars)}${'☆'.repeat(5 - stars)}\n\nPool average: **${starsDisplay(summary.avg)}** (${summary.count} reviews)`)
+        .setTimestamp()
+    ]
+  });
 }

@@ -867,3 +867,31 @@ export async function seedAchievements(defs) {
   const pg = await getPg();
   return pg.seedAchievements(defs);
 }
+
+// Pool reviews (C3c)
+export async function upsertPoolReview(poolId, userId, rating, comment, guildId) {
+  const pg = await getPg();
+  return pg.upsertPoolReview(poolId, userId, rating, comment, guildId);
+}
+export async function fetchPoolReviews(poolId, limit) {
+  const pg = await getPg();
+  return pg.fetchPoolReviews(poolId, limit);
+}
+export async function fetchPoolRatingSummary(poolId) {
+  const pg = await getPg();
+  return pg.fetchPoolRatingSummary(poolId);
+}
+export async function deletePoolReview(poolId, userId) {
+  const pg = await getPg();
+  return pg.deletePoolReview(poolId, userId);
+}
+
+// Contributor spotlight (C3f)
+export async function fetchTopContributors(limit) {
+  const pg = await getPg();
+  return pg.fetchTopContributors(limit);
+}
+export async function fetchPoolTopContributors(poolId, limit) {
+  const pg = await getPg();
+  return pg.fetchPoolTopContributors(poolId, limit);
+}
