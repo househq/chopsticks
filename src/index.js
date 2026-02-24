@@ -401,6 +401,15 @@ client.once(Events.ClientReady, async () => {
   botLogger.info(`✅ Ready as ${client.user.tag}`);
   botLogger.info(`📊 Serving ${client.guilds.cache.size} guilds`);
   
+  // Give agentManager a reference to the Discord client for notifications (C3h)
+  if (global.agentManager) global.agentManager.discordClient = client;
+
+  // Seed achievement definitions into DB (idempotent)
+  try {
+    const { ensureAchievementsSeed } = await import('./game/achievements.js');
+    await ensureAchievementsSeed();
+  } catch {}
+  
   // Auto-register all commands in help registry
   try {
     await registerAllCommands();
@@ -869,7 +878,15 @@ client.on(Events.MessageCreate, async message => {
   }
   const name = aliasResolution.commandName;
 
-  // prefix rate limit
+  // Global prefix burst guard — 5 requests per 3s across ALL commands (silent drop, !help exempt)
+  if (name !== "help") {
+    try {
+      const burstRl = await checkRateLimit(`pfx:burst:${message.author.id}`, 5, 3);
+      if (!burstRl.ok) return; // Silent drop — no reply to avoid spam embeds in chat
+    } catch {}
+  }
+
+  // prefix rate limit (per-command)
   try {
     const rl = await checkRateLimit(`pfx:${message.author.id}:${name}`, 5, 10);
     if (!rl.ok) return;

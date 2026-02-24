@@ -173,6 +173,16 @@ export async function execute(interaction) {
       trades[idx].status = 'accepted';
       await persistTrades(guildId, trades);
 
+      void (async () => {
+        try {
+          const { addStat } = await import('../game/activityStats.js');
+          addStat(trade.to_user, guildId, 'trades_completed', 1);
+          addStat(trade.from_user, guildId, 'trades_completed', 1);
+          addStat(trade.to_user, guildId, 'credits_earned', trade.amount);
+          addStat(trade.from_user, guildId, 'credits_spent', trade.amount);
+        } catch {}
+      })();
+
       return interaction.reply({
         embeds: [makeEmbed(
           '✅ Trade Accepted',

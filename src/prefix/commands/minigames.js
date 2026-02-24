@@ -7,11 +7,20 @@ import { addCredits } from "../../economy/wallet.js";
 import { addGameXp } from "../../game/profile.js";
 import { recordQuestEvent } from "../../game/quests.js";
 import { eventBus, Events } from "../../utils/eventBus.js";
+import COLORS from "../../utils/colors.js";
 
 const FISH_COOLDOWN_MS = 45_000;  // 45 seconds
 const MINE_COOLDOWN_MS = 60_000;  // 60 seconds
 const fishCooldowns = new Map(); // userId → timestamp
 const mineCooldowns = new Map();
+
+// Auto-purge cooldown entries after 24h to prevent memory leaks
+const MAP_TTL_MS = 24 * 60 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, ts] of fishCooldowns) if (now - ts > MAP_TTL_MS) fishCooldowns.delete(k);
+  for (const [k, ts] of mineCooldowns) if (now - ts > MAP_TTL_MS) mineCooldowns.delete(k);
+}, MAP_TTL_MS).unref?.();
 
 function cooldownRemaining(map, userId, ms) {
   const last = map.get(userId) || 0;

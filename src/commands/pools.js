@@ -121,6 +121,12 @@ export const data = new SlashCommandBuilder()
             .setAutocomplete(true)
             .setRequired(true)
         )
+        .addChannelOption((opt) =>
+          opt
+            .setName('notify_channel')
+            .setDescription('Channel to notify when pool agents change (optional)')
+            .setRequired(false)
+        )
     )
     .addSubcommand((sub) =>
       sub
@@ -296,6 +302,19 @@ export const data = new SlashCommandBuilder()
       sub
         .setName('help')
         .setDescription('Show help for the agent pool system — workflows, security promises, and quick-start guide')
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('review')
+        .setDescription('Leave a star rating and review for a pool')
+        .addStringOption(o => o.setName('pool').setDescription('Pool ID to review').setRequired(true).setAutocomplete(true))
+        .addIntegerOption(o => o.setName('stars').setDescription('Rating 1-5 stars').setRequired(true).setMinValue(1).setMaxValue(5))
+        .addStringOption(o => o.setName('comment').setDescription('Optional comment (max 300 chars)').setMaxLength(300))
+        .addStringOption(o => o.setName('action').setDescription('Action').addChoices(
+          { name: '⭐ Submit review', value: 'submit' },
+          { name: '🗑️ Delete my review', value: 'delete' },
+          { name: '📋 View reviews', value: 'view' },
+        ))
     );
 
 export async function execute(interaction) {
@@ -375,6 +394,9 @@ export async function execute(interaction) {
         case 'help':
           await handleHelp(interaction);
           break;
+        case 'review':
+          await handleReview(interaction);
+          break;
         default:
           await interaction.reply({
             embeds: [buildPoolEmbed('Unknown Subcommand', 'This pool action is not recognized.', Colors.ERROR)],
@@ -392,6 +414,18 @@ export async function execute(interaction) {
 }
 
 // ========== HELPERS ==========
+
+/**
+ * C3a: Compute pool tier based on active agent count.
+ * Bronze → Silver → Gold → Platinum
+ */
+function computePoolTier(activeAgentCount) {
+  if (activeAgentCount >= 20) return { label: '🏆 Platinum', color: 0xe5e4e2 };
+  if (activeAgentCount >= 10) return { label: '🥇 Gold', color: 0xffd700 };
+  if (activeAgentCount >= 5)  return { label: '🥈 Silver', color: 0xc0c0c0 };
+  if (activeAgentCount >= 1)  return { label: '🥉 Bronze', color: 0xcd7f32 };
+  return { label: '⚪ Unranked', color: 0x95a5a6 };
+}
 
 function isMaster(userId) {
   return isBotOwner(userId);
@@ -1000,6 +1034,8 @@ async function handleList(interaction) {
     const pool = visiblePools[i];
     const agents = allAgents[i];
     const totalAgents = agents ? agents.length : 0;
+    const activeAgents = agents ? agents.filter(a => a.status === 'active') : [];
+    const tier = computePoolTier(activeAgents.length);
     
     // Owner display
     const owner = `<@${pool.owner_user_id}>`;
@@ -1009,9 +1045,7 @@ async function handleList(interaction) {
     if (totalAgents === 0) {
       agentStatus = '**0 agents** ⚠️';
     } else {
-      const activeAgents = agents.filter(a => a.status === 'active');
       const inactiveAgents = totalAgents - activeAgents.length;
-      
       if (activeAgents.length === 0) {
         agentStatus = `**${totalAgents} agents** (⚠️ all inactive)`;
       } else if (inactiveAgents === 0) {
@@ -1021,8 +1055,8 @@ async function handleList(interaction) {
       }
     }
     
-    let fieldValue = `${pool.visibility === 'public' ? '**Public**' : '**Private**'} | Owner: ${owner}\n`;
-    fieldValue += `${agentStatus}`;
+    let fieldValue = `${tier.label} | ${pool.visibility === 'public' ? '**Public**' : '**Private**'} | Owner: ${owner}\n`;
+    fieldValue += agentStatus;
     
     embed.addFields({
       name: `${pool.name} \`${pool.pool_id}\``,
@@ -1264,6 +1298,7 @@ async function handleView(interaction) {
   const agents = await storageLayer.fetchPoolAgents(poolId);
   const agentCount = agents ? agents.length : 0;
   const activeAgents = agents ? agents.filter(a => a.status === 'active') : [];
+  const tier = computePoolTier(activeAgents.length);
   const meta = pool.meta || {};
   const tags = meta.tags ? meta.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
   const { label: completenessLabel, score, missing } = renderCompleteness(pool);
@@ -1281,6 +1316,7 @@ async function handleView(interaction) {
     .addFields(
       { name: 'Owner',       value: `<@${pool.owner_user_id}>`,                    inline: true },
       { name: 'Visibility',  value: pool.visibility === 'public' ? '🌐 Public' : '🔒 Private', inline: true },
+      { name: 'Tier',        value: tier.label,                                    inline: true },
       { name: 'Profile',     value: completenessLabel,                             inline: true },
       { name: 'Total Agents', value: `${agentCount}`,                              inline: true },
       { name: 'Active Agents', value: `${activeAgents.length}`,                   inline: true },
@@ -1304,8 +1340,9 @@ async function handleView(interaction) {
       const agentList = agents
         .slice(0, 10)
         .map((a) => {
-          const statusText = a.status === 'active' ? 'active' : 'inactive';
-          return `• ${a.tag} (\`${a.agent_id}\`) - ${statusText}`;
+          const statusText = a.status === 'active' ? '✅' : '⚠️';
+          const caps = Array.isArray(a.capabilities) && a.capabilities.length ? ` [${a.capabilities.join(', ')}]` : '';
+          return `${statusText} ${a.tag} (\`${a.agent_id}\`)${caps}`;
         })
         .join('\n');
       
@@ -1320,6 +1357,15 @@ async function handleView(interaction) {
       });
     }
   }
+
+  // C3c: Show rating summary in pool view
+  try {
+    const ratingSummary = await storageLayer.fetchPoolRatingSummary(poolId);
+    if (ratingSummary.count > 0) {
+      const { count, avg } = ratingSummary;
+      embed.addFields({ name: '⭐ Rating', value: `${'⭐'.repeat(Math.round(avg))} **${Number(avg).toFixed(1)}/5** (${count} review${count !== 1 ? 's' : ''})  ·  \`/pools review pool:${poolId} action:view\``, inline: false });
+    }
+  } catch {}
 
   await interaction.editReply({
     embeds: [embed],
@@ -1379,6 +1425,16 @@ async function handleSelectPool(interaction) {
   // Set guild's selected pool
   await storageLayer.setGuildSelectedPool(guildId, poolId);
 
+  // C3h: Save optional notify_channel to guild data
+  const notifyChannel = interaction.options.getChannel('notify_channel', false);
+  if (notifyChannel) {
+    try {
+      const guildData = await storageLayer.loadGuildData(guildId) || {};
+      guildData.poolNotifyChannelId = notifyChannel.id;
+      await storageLayer.saveGuildData(guildId, guildData);
+    } catch { /* ignore — non-critical */ }
+  }
+
   const poolAgents = await storageLayer.fetchPoolAgents(poolId);
   const totalAgents = Array.isArray(poolAgents) ? poolAgents.length : 0;
   const activeAgents = Array.isArray(poolAgents)
@@ -1421,6 +1477,10 @@ async function handleSelectPool(interaction) {
       ? 'Use /agents deploy to deploy agents from this pool'
       : 'This pool has no active agents yet. Ask the pool owner to add agents with /agents add_token.'
   });
+
+  if (notifyChannel) {
+    embed.addFields({ name: '🔔 Notifications', value: `Pool change alerts will be sent to <#${notifyChannel.id}>.`, inline: false });
+  }
 
   await interaction.editReply({ embeds: [embed] });
 }
@@ -1684,19 +1744,29 @@ async function handleApprove(interaction) {
     await storageLayer.updateAgentBotStatus(agentId, 'active', userId);
     await evaluatePoolBadges(pool.pool_id).catch(() => {});
 
-    await interaction.editReply({ embeds: [
-      new EmbedBuilder()
-        .setTitle('✅ Contribution Approved')
-        .setColor(Colors.SUCCESS)
-        .setDescription(`**${agent.tag}** is now active in **${pool.name}**.`)
-        .addFields(
-          { name: 'Agent ID', value: `\`${agentId}\``, inline: true },
-          { name: 'Pool', value: `\`${agent.pool_id}\``, inline: true },
-          { name: 'Status', value: '🟢 Active', inline: true }
-        )
-        .setFooter({ text: 'AgentRunner will start this agent automatically' })
-        .setTimestamp()
-    ] });
+    const inviteUrl = `https://discord.com/api/oauth2/authorize?client_id=${agent.client_id}&permissions=277293639680&scope=bot%20applications.commands`;
+    const inviteBtn = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setStyle(ButtonStyle.Link)
+        .setLabel(`➕ Add ${agent.tag} to your server`)
+        .setURL(inviteUrl)
+    );
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle('✅ Contribution Approved')
+          .setColor(Colors.SUCCESS)
+          .setDescription(`**${agent.tag}** is now active in **${pool.name}**.\n\n> **Next step:** Click below to invite the agent to your server.`)
+          .addFields(
+            { name: 'Agent ID', value: `\`${agentId}\``, inline: true },
+            { name: 'Pool', value: `\`${agent.pool_id}\``, inline: true },
+            { name: 'Status', value: '🟢 Active', inline: true }
+          )
+          .setFooter({ text: 'AgentRunner starts the bot — invite it to go live' })
+          .setTimestamp()
+      ],
+      components: [inviteBtn]
+    });
   } catch (err) {
     return interaction.editReply({ embeds: [buildPoolEmbed('Approve Failed', err.message || 'Unexpected error.', Colors.ERROR)] });
   }
@@ -2679,6 +2749,33 @@ async function handleStats(interaction) {
   const statusLine = Object.entries(byStatus).map(([s, n]) => `${s}: **${n}**`).join('  ·  ') || 'No agents';
   card.addFields({ name: 'Agent Breakdown', value: statusLine, inline: false });
 
+  // C3e: Capacity alert
+  const maxAgents = pool.max_agents || 49;
+  const activeCount = agents.filter(a => a.status === 'active').length;
+  const capacityPct = Math.round((activeCount / maxAgents) * 100);
+  card.addFields({ name: '📊 Capacity', value: `${activeCount} / ${maxAgents} (${capacityPct}%)${capacityPct >= 90 ? ' 🔴 Near limit' : capacityPct >= 75 ? ' 🟡 Filling up' : ' 🟢 OK'}`, inline: false });
+  const tier = computePoolTier(activeCount);
+  card.addFields({ name: '🏅 Tier', value: tier.label, inline: true });
+
+  // C3f: Contributor spotlight
+  try {
+    const [topContribs, ratingSummary] = await Promise.all([
+      storageLayer.fetchPoolTopContributors(poolId, 5),
+      storageLayer.fetchPoolRatingSummary(poolId),
+    ]);
+    if (topContribs.length > 0) {
+      const lines = topContribs.map((c, i) => {
+        const medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i] || `${i + 1}.`;
+        return `${medal} <@${c.user_id}> — ${c.active_count} active / ${c.agent_count} total`;
+      });
+      card.addFields({ name: '🌟 Top Contributors', value: lines.join('\n'), inline: false });
+    }
+    if (ratingSummary.count > 0) {
+      const { count, avg } = ratingSummary;
+      card.addFields({ name: '⭐ Reviews', value: `${'⭐'.repeat(Math.round(avg))} **${Number(avg).toFixed(1)}** / 5 (${count} review${count !== 1 ? 's' : ''})  ·  \`/pools review pool:${poolId} action:view\``, inline: false });
+    }
+  } catch { /* non-critical */ }
+
   await interaction.editReply({ embeds: [card] });
 }
 
@@ -3138,4 +3235,82 @@ async function handleHelp(interaction) {
 
   // Send all 3 pages as separate embeds in one reply
   await interaction.reply({ embeds: pages, flags: MessageFlags.Ephemeral });
+}
+
+// ── Pool Reviews (C3c) ──────────────────────────────────────────────────────
+
+function starsDisplay(avg) {
+  const full = Math.round(avg);
+  return '⭐'.repeat(Math.min(5, full)) + '☆'.repeat(Math.max(0, 5 - full)) + ` (${Number(avg).toFixed(1)})`;
+}
+
+async function handleReview(interaction) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const poolId = interaction.options.getString('pool', true);
+  const action = interaction.options.getString('action') || 'submit';
+  const userId = interaction.user.id;
+
+  const pool = await storageLayer.fetchPool(poolId).catch(() => null);
+  if (!pool) {
+    return interaction.editReply({ embeds: [buildPoolEmbed('Pool Not Found', `Pool \`${poolId}\` does not exist.`, Colors.ERROR)] });
+  }
+
+  // VIEW
+  if (action === 'view') {
+    const [reviews, summary] = await Promise.all([
+      storageLayer.fetchPoolReviews(poolId, 8),
+      storageLayer.fetchPoolRatingSummary(poolId),
+    ]);
+    const embed = new EmbedBuilder()
+      .setTitle(`⭐ Reviews — ${pool.name}`)
+      .setColor(Colors.INFO)
+      .setTimestamp();
+
+    if (summary.count === 0) {
+      embed.setDescription('No reviews yet. Be the first to review this pool!');
+    } else {
+      embed.setDescription(`**${starsDisplay(summary.avg)}** · ${summary.count} review${summary.count !== 1 ? 's' : ''}`);
+      for (const r of reviews) {
+        const stars = '⭐'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+        embed.addFields({
+          name: `${stars} — <@${r.user_id}>`,
+          value: r.comment || '*No comment*',
+          inline: false,
+        });
+      }
+    }
+    return interaction.editReply({ embeds: [embed] });
+  }
+
+  // DELETE
+  if (action === 'delete') {
+    const deleted = await storageLayer.deletePoolReview(poolId, userId);
+    return interaction.editReply({
+      embeds: [buildPoolEmbed(deleted ? 'Review Deleted' : 'No Review Found',
+        deleted ? 'Your review has been removed.' : "You haven't reviewed this pool.",
+        deleted ? Colors.SUCCESS : Colors.WARNING)]
+    });
+  }
+
+  // SUBMIT
+  const stars = interaction.options.getInteger('stars', true);
+  const comment = interaction.options.getString('comment', false) || null;
+
+  // Don't let pool owners review their own pool
+  if (pool.owner_user_id === userId) {
+    return interaction.editReply({ embeds: [buildPoolEmbed('Cannot Review', 'Pool owners cannot review their own pool.', Colors.WARNING)] });
+  }
+
+  await storageLayer.upsertPoolReview(poolId, userId, stars, comment, interaction.guildId);
+  const summary = await storageLayer.fetchPoolRatingSummary(poolId);
+
+  return interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle('✅ Review Submitted')
+        .setColor(Colors.SUCCESS)
+        .setDescription(`You rated **${pool.name}** ${'⭐'.repeat(stars)}${'☆'.repeat(5 - stars)}\n\nPool average: **${starsDisplay(summary.avg)}** (${summary.count} reviews)`)
+        .setTimestamp()
+    ]
+  });
 }

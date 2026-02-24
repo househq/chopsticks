@@ -28,7 +28,18 @@ import {
   fetchPoolsByOwner,
   createPool,
   loadGuildData,
-  saveGuildData
+  saveGuildData,
+  fetchAgentBots,
+  fetchAgentToken,
+  updateAgentBotStatus,
+  deletePool,
+  fetchPool,
+  deletePoolWithReassignment,
+  fetchPoolContributions,
+  approveContribution,
+  rejectContribution,
+  approveAllContributions,
+  fetchPoolEvents,
 } from "../utils/storage.js";
 import { applySecurityMiddleware, requireAdmin as modernRequireAdmin, auditLog as modernAudit } from "./securityMiddleware.js";
 import { dashboardLogger } from "../utils/modernLogger.js";
@@ -40,6 +51,12 @@ import { generateCorrelationId } from "../utils/logger.js";
 import { installProcessSafety } from "../utils/processSafety.js";
 import { createRequire as _cjsRequire } from "node:module";
 import compression from "compression";
+import {
+  getGuildLeaderboard,
+  getGuildXpConfig,
+  upsertGuildXpConfig,
+  getUserAchievements,
+} from "../utils/storage.js";
 const _require = _cjsRequire(import.meta.url);
 const jwt = _require("jsonwebtoken");
 
@@ -1952,6 +1969,145 @@ app.get("/api/agents", requireAuth, rateLimitDashboard, requireAdmin, async (req
   res.json(data);
 });
 
+// ── I1: Agent Diagnose ────────────────────────────────────────────────────
+app.get("/api/agents/diagnose", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
+  try {
+    const mgr = global.agentManager;
+    const liveAgents = mgr ? Object.fromEntries(mgr.liveAgents || new Map()) : {};
+    const dbAgents = await fetchAgentBots();
+    const results = await Promise.all(dbAgents.map(async (a) => {
+      const isLive = !!liveAgents[a.agent_id];
+      const live = liveAgents[a.agent_id] || {};
+      let decryptOk = false;
+      let decryptError = null;
+      try {
+        const tok = await fetchAgentToken(a.agent_id);
+        decryptOk = !!tok;
+      } catch (err) {
+        decryptError = err?.message || String(err);
+      }
+      let reason = 'unknown';
+      if (a.status === 'corrupt')    reason = 'token_decrypt_failed';
+      else if (a.status === 'failed') reason = 'runner_start_error';
+      else if (a.status === 'pending') reason = 'pending_review';
+      else if (a.status === 'inactive' || a.status === 'suspended') reason = `status_${a.status}`;
+      else if (a.status === 'active' && !isLive) reason = 'ws_not_connected';
+      else if (isLive) reason = 'online';
+      return {
+        agent_id:       a.agent_id,
+        tag:            a.tag,
+        status:         a.status,
+        pool_id:        a.pool_id,
+        isLive,
+        health:         live.health ?? null,
+        lastHeartbeat:  live.lastHeartbeat ?? null,
+        decryptOk,
+        decryptError,
+        reason,
+      };
+    }));
+    res.json({ ok: true, agents: results });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+app.get("/api/agents/runner-status", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
+  try {
+    const mgr = global.agentManager;
+    const runnerMeta = mgr?._runnerMeta ?? null;
+    res.json({ ok: true, runnerMeta, agentCount: mgr?.liveAgents?.size ?? 0 });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+// ── I2: Admin Pool Delete ─────────────────────────────────────────────────
+app.delete("/api/admin/pools/:poolId", requireAuth, rateLimitDashboard, requireCsrf, requireAdmin, async (req, res) => {
+  const { poolId } = req.params;
+  if (poolId === 'pool_goot27') {
+    return res.status(400).json({ ok: false, error: 'Cannot delete the default pool.' });
+  }
+  try {
+    const result = await deletePoolWithReassignment(poolId, 'pool_goot27', req.session.userId);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+// ── I3: Pool Contribution Review Routes ──────────────────────────────────
+app.get("/api/pools/:id/contributions", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
+  try {
+    const { status, q } = req.query;
+    let contribs = await fetchPoolContributions(req.params.id, status || null);
+    if (q) contribs = contribs.filter(c => c.contributed_by?.toLowerCase().includes(q.toLowerCase()));
+    res.json({ ok: true, contributions: contribs });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+app.post("/api/pools/:id/contributions/:cid/approve", requireAuth, rateLimitDashboard, requireCsrf, requireAdmin, async (req, res) => {
+  try {
+    const result = await approveContribution(req.params.cid, req.session.userId);
+    res.json({ ok: true, contribution: result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+app.post("/api/pools/:id/contributions/:cid/reject", requireAuth, rateLimitDashboard, requireCsrf, requireAdmin, async (req, res) => {
+  try {
+    const { notes } = req.body || {};
+    const result = await rejectContribution(req.params.cid, req.session.userId, notes || '');
+    res.json({ ok: true, contribution: result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+app.post("/api/pools/:id/contributions/approve-all", requireAuth, rateLimitDashboard, requireCsrf, requireAdmin, async (req, res) => {
+  try {
+    const results = await approveAllContributions(req.params.id, req.session.userId);
+    res.json({ ok: true, approved: results.length, contributions: results });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+// ── I4: Pool Audit ────────────────────────────────────────────────────────
+app.get("/api/pools/:id/audit", requireAuth, rateLimitDashboard, requireAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const events = await fetchPoolEvents(req.params.id, limit);
+    res.json({ ok: true, events });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
+// ── I5: Fix Pending Agents ────────────────────────────────────────────────
+app.post("/api/admin/agents/fix-pending", requireAuth, rateLimitDashboard, requireCsrf, requireAdmin, async (req, res) => {
+  try {
+    const dbAgents = await fetchAgentBots();
+    const userId = req.session.userId;
+    const isBotOwner = userId === process.env.BOT_OWNER_ID;
+    const toFix = dbAgents.filter(a => a.status === 'pending');
+    let fixed = 0;
+    for (const a of toFix) {
+      const pool = await fetchPool(a.pool_id).catch(() => null);
+      if (!pool) continue;
+      if (!isBotOwner && pool.owner_user_id !== userId) continue;
+      await updateAgentBotStatus(a.agent_id, 'active', userId);
+      fixed++;
+    }
+    res.json({ ok: true, fixed });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
+});
+
 // ── U3: Operator Monitoring Panel endpoints ───────────────────────────────
 
 /**
@@ -2900,6 +3056,106 @@ app.post("/api/guild/:id/commands/toggle", requireAuth, rateLimitDashboard, requ
   const { guild } = guildAccess;
   await setCommandEnabled(guildId, command, Boolean(enabled));
   res.json({ ok: true });
+});
+
+// ── Stats / Leaderboard API ───────────────────────────────────────────────────
+
+app.get("/api/guild/:id/stats/leaderboard", requireAuth, rateLimitDashboard, requireGuildAdminOrOwner(), async (req, res) => {
+  const guildId = String(req.params.id || "");
+  const metric = String(req.query.metric || "messages_sent");
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
+  const VALID = ['vc_minutes','messages_sent','credits_earned','credits_spent','work_runs','gather_runs',
+    'fight_wins','trivia_wins','trivia_runs','heist_runs','casino_wins','agent_actions_used','commands_used'];
+  if (!VALID.includes(metric)) return res.status(400).json({ ok: false, error: 'invalid-metric' });
+  const rows = await getGuildLeaderboard(guildId, metric, limit).catch(() => []);
+  res.json({ ok: true, rows, metric });
+});
+
+app.get("/api/guild/:id/xp/config", requireAuth, rateLimitDashboard, requireGuildAdminOrOwner(), async (req, res) => {
+  const guildId = String(req.params.id || "");
+  const cfg = await getGuildXpConfig(guildId).catch(() => null);
+  res.json({ ok: true, config: cfg || {} });
+});
+
+app.post("/api/guild/:id/xp/config", requireAuth, rateLimitDashboard, requireCsrf, requireGuildAdminOrOwner(), async (req, res) => {
+  const guildId = String(req.params.id || "");
+  const allowed = ['enabled','xp_multiplier','xp_per_message','xp_per_vc_minute','xp_per_work','xp_per_gather',
+    'xp_per_fight_win','xp_per_trivia_win','xp_per_daily','xp_per_command','xp_per_agent_action',
+    'message_xp_cooldown_s','levelup_channel_id','levelup_message','sync_global_xp'];
+  const fields = {};
+  for (const k of allowed) {
+    if (req.body[k] !== undefined) fields[k] = req.body[k];
+  }
+  if (!Object.keys(fields).length) return res.status(400).json({ ok: false, error: 'no-fields' });
+  await upsertGuildXpConfig(guildId, fields);
+  res.json({ ok: true });
+});
+
+app.get("/api/guild/:id/actions", requireAuth, rateLimitDashboard, requireGuildAdminOrOwner(), async (req, res) => {
+  const guildId = String(req.params.id || "");
+  try {
+    const { getPool } = await import("../utils/storage_pg.js");
+    const p = getPool();
+    const rows = await p.query(
+      `SELECT * FROM guild_agent_actions WHERE guild_id = $1 ORDER BY action_type`,
+      [guildId]
+    );
+    res.json({ ok: true, actions: rows.rows });
+  } catch (e) {
+    res.json({ ok: true, actions: [] });
+  }
+});
+
+app.post("/api/guild/:id/actions/:type/cost", requireAuth, rateLimitDashboard, requireCsrf, requireGuildAdminOrOwner(), async (req, res) => {
+  const guildId = String(req.params.id || "");
+  const actionType = String(req.params.type || "");
+  const cost = Number(req.body.cost);
+  if (!Number.isInteger(cost) || cost < 0) return res.status(400).json({ ok: false, error: 'invalid-cost' });
+  try {
+    const { getPool } = await import("../utils/storage_pg.js");
+    const p = getPool();
+    await p.query(
+      `UPDATE guild_agent_actions SET cost = $1 WHERE guild_id = $2 AND action_type = $3`,
+      [cost, guildId, actionType]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post("/api/guild/:id/actions/:type/toggle", requireAuth, rateLimitDashboard, requireCsrf, requireGuildAdminOrOwner(), async (req, res) => {
+  const guildId = String(req.params.id || "");
+  const actionType = String(req.params.type || "");
+  const enabled = Boolean(req.body.enabled);
+  try {
+    const { getPool } = await import("../utils/storage_pg.js");
+    const p = getPool();
+    await p.query(
+      `UPDATE guild_agent_actions SET enabled = $1 WHERE guild_id = $2 AND action_type = $3`,
+      [enabled, guildId, actionType]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.get("/api/guild/:id/actions/usage", requireAuth, rateLimitDashboard, requireGuildAdminOrOwner(), async (req, res) => {
+  const guildId = String(req.params.id || "");
+  try {
+    const { getPool } = await import("../utils/storage_pg.js");
+    const p = getPool();
+    const rows = await p.query(
+      `SELECT action_type, COUNT(*) as uses, SUM(cost_paid) as total_spent, MAX(used_at) as last_used
+       FROM agent_action_uses WHERE guild_id = $1
+       GROUP BY action_type ORDER BY uses DESC`,
+      [guildId]
+    );
+    res.json({ ok: true, usage: rows.rows });
+  } catch (e) {
+    res.json({ ok: true, usage: [] });
+  }
 });
 
 let _server = null;

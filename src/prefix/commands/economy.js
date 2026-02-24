@@ -16,6 +16,7 @@ import { sanitizeString } from "../../utils/validation.js";
 import { botLogger } from "../../utils/modernLogger.js";
 import { generateText } from "../../utils/textLlm.js";
 import { httpRequest } from "../../utils/httpFetch.js";
+import COLORS from "../../utils/colors.js";
 
 // G5: Prestige title helper
 function getPrestigeTitle(prestige) {
@@ -51,14 +52,14 @@ const balanceCmd = {
       const wallet = await getWallet(targetUser.id);
       const embed = new EmbedBuilder()
         .setTitle("💰 Balance")
-        .setColor(0xffd700)
+        .setColor(0xFFD700)
         .setAuthor({ name: targetUser.username })
         .addFields(
           { name: "Wallet", value: String(wallet?.balance ?? 0), inline: true },
           { name: "Bank", value: String(wallet?.bank ?? 0), inline: true },
           { name: "Bank Cap", value: String(wallet?.bank_capacity ?? wallet?.bankCapacity ?? 5000), inline: true }
         );
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:balance error");
       await message.reply("Couldn't fetch balance right now.").catch(() => {});
@@ -81,19 +82,19 @@ const dailyCmd = {
         const remaining = (claim.nextClaim ?? Date.now()) - Date.now();
         const embed = new EmbedBuilder()
           .setTitle("⏰ Already Claimed!")
-          .setColor(0xff6b6b)
+          .setColor(0xFF6B6B)
           .setDescription(`Come back in **${formatCooldown(remaining)}**`);
-        return await message.reply({ embeds: [embed] });
+        return await message.reply({ embeds: [embed] }).catch(() => {});
       }
       await addCredits(message.author.id, claim.totalReward, "daily");
       await addGameXp(message.author.id, 50, { reason: "daily" }).catch(() => {});
       const embed = new EmbedBuilder()
         .setTitle("🎁 Daily Reward")
-        .setColor(0x57f287)
+        .setColor(COLORS.SUCCESS)
         .setDescription(
           `You claimed **${claim.totalReward}** credits!\nStreak: **${claim.streak}** day${claim.streak === 1 ? "" : "s"}`
         );
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:daily error");
       await message.reply("Couldn't process your daily reward right now.").catch(() => {});
@@ -133,9 +134,9 @@ const workCmd = {
       const job = JOB_TITLES[Math.floor(Math.random() * JOB_TITLES.length)];
       const embed = new EmbedBuilder()
         .setTitle("💼 Work Complete")
-        .setColor(0x57f287)
+        .setColor(COLORS.SUCCESS)
         .setDescription(`You worked as a **${job}** and earned **${amount}** credits!`);
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:work error");
       await message.reply("Couldn't process work right now.").catch(() => {});
@@ -173,10 +174,10 @@ const shopCmd = {
         }).join("\n");
         const embed = new EmbedBuilder()
           .setTitle("🏪 Chopsticks Shop")
-          .setColor(0x5865F2)
+          .setColor(COLORS.INFO)
           .setDescription(lines + "\n\n💡 Use `!buy <item name>` to purchase an item.")
           .setFooter({ text: "!shop <category> [page] to browse" });
-        return await message.reply({ embeds: [embed] });
+        return await message.reply({ embeds: [embed] }).catch(() => {});
       }
 
       const items = Object.values(itemsData[category] || {});
@@ -188,7 +189,7 @@ const shopCmd = {
 
       const embed = new EmbedBuilder()
         .setTitle(`${em} Shop — ${category.charAt(0).toUpperCase() + category.slice(1)}`)
-        .setColor(0x5865F2)
+        .setColor(COLORS.INFO)
         .setDescription(
           slice.map(i => {
             const price = i.price > 0 ? `💰 ${i.price.toLocaleString()} cr` : "🎁 Non-purchasable";
@@ -197,7 +198,7 @@ const shopCmd = {
           }).join("\n\n")
         )
         .setFooter({ text: `Page ${page}/${totalPages} • !shop ${category} ${page + 1 <= totalPages ? page + 1 : 1} for more` });
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:shop error");
       await message.reply("Couldn't load the shop right now.").catch(() => {});
@@ -253,11 +254,11 @@ const inventoryCmd = {
       const totalItems = rows.reduce((s, r) => s + (r.quantity ?? 1), 0);
       const embed = new EmbedBuilder()
         .setTitle(`📦 ${targetUser.username}'s Inventory`)
-        .setColor(0x9B59B6)
+        .setColor(COLORS.KNOWLEDGE)
         .setDescription(sections.slice(0, 3900) || "Empty")
         .setFooter({ text: `${totalItems} total item${totalItems !== 1 ? "s" : ""} • !use <item> to use` })
         .setThumbnail(targetUser.displayAvatarURL?.() ?? null);
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:inventory error");
       await message.reply("Couldn't fetch inventory right now.").catch(() => {});
@@ -275,7 +276,7 @@ const leaderboardCmd = {
   guildOnly: true,
   async execute(message) {
     // No getTopWallets utility exists; redirect gracefully.
-    await message.reply("📊 Leaderboard is available via `/leaderboard`");
+    await message.reply("📊 Leaderboard is available via `/leaderboard`").catch(() => {});
   },
 };
 
@@ -296,7 +297,7 @@ const profileCmd = {
       ]);
       const embed = new EmbedBuilder()
         .setTitle(`${targetUser.username}'s Profile`)
-        .setColor(0x5865f2)
+        .setColor(COLORS.INFO)
         .setThumbnail(targetUser.displayAvatarURL({ size: 64 }))
         .addFields(
           { name: "Level", value: String(profile?.level ?? 1), inline: true },
@@ -304,7 +305,7 @@ const profileCmd = {
           { name: "Credits", value: String(wallet?.balance ?? 0), inline: true },
           { name: "Bank", value: String(wallet?.bank ?? 0), inline: true }
         );
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:profile error");
       await message.reply("Couldn't fetch profile right now.").catch(() => {});
@@ -332,7 +333,7 @@ const xpCmd = {
       const progress = "█".repeat(filled) + "░".repeat(10 - filled);
       const embed = new EmbedBuilder()
         .setTitle("⭐ XP Progress")
-        .setColor(0xf39c12)
+        .setColor(0xF39C12)
         .setAuthor({ name: targetUser.username })
         .addFields(
           { name: "Level", value: String(profile.level ?? 1), inline: true },
@@ -340,7 +341,7 @@ const xpCmd = {
           { name: "Title", value: profile.title ?? "Member", inline: true },
           { name: "Progress", value: progress, inline: false }
         );
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:xp error");
       await message.reply("Couldn't fetch XP data right now.").catch(() => {});
@@ -365,7 +366,7 @@ const questsCmd = {
       }
       const embed = new EmbedBuilder()
         .setTitle("📋 Active Quests")
-        .setColor(0xe74c3c)
+        .setColor(0xE74C3C)
         .addFields(
           quests.slice(0, 10).map(q => ({
             name: q.name ?? q.quest_id ?? "Quest",
@@ -373,7 +374,7 @@ const questsCmd = {
             inline: false,
           }))
         );
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:quests error");
       await message.reply("Use `/quests` for your quest overview.").catch(() => {});
@@ -412,17 +413,17 @@ const complimentCmd = {
       }
       const embed = new EmbedBuilder()
         .setTitle("✨ Compliment")
-        .setColor(0x57f287)
+        .setColor(COLORS.SUCCESS)
         .setAuthor({ name: `${message.author.username} compliments ${targetUser.username}` })
         .setDescription(complimentText)
         .setThumbnail(targetUser.displayAvatarURL({ size: 64 }));
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:compliment error");
       const fallback =
         FALLBACK_COMPLIMENTS[Math.floor(Math.random() * FALLBACK_COMPLIMENTS.length)];
       await message
-        .reply({ embeds: [new EmbedBuilder().setTitle("✨ Compliment").setColor(0x57f287).setDescription(fallback)] })
+        .reply({ embeds: [new EmbedBuilder().setTitle("✨ Compliment").setColor(COLORS.SUCCESS).setDescription(fallback)] })
         .catch(() => {});
     }
   },
@@ -464,11 +465,11 @@ const triviaCmd = {
 
       const embed = new EmbedBuilder()
         .setTitle("🎯 Trivia")
-        .setColor(0x9b59b6)
+        .setColor(COLORS.KNOWLEDGE)
         .setDescription(question)
         .addFields(fields)
         .setFooter({ text: "Type A, B, C, or D to answer" });
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:trivia error");
       await message.reply(`🎯 **Trivia**\n${TRIVIA_FALLBACK}`).catch(() => {});
@@ -498,10 +499,10 @@ const riddleCmd = {
       const riddle = RIDDLES[Math.floor(Math.random() * RIDDLES.length)];
       const embed = new EmbedBuilder()
         .setTitle("🧩 Riddle")
-        .setColor(0xe67e22)
+        .setColor(0xE67E22)
         .setDescription(riddle.q)
         .addFields({ name: "Answer (click to reveal)", value: `||${riddle.a}||`, inline: false });
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
       botLogger.warn({ err }, "prefix:riddle error");
       await message.reply("Couldn't load a riddle right now.").catch(() => {});
@@ -616,18 +617,18 @@ export default [
         .setColor(color);
       await msg.edit({ embeds: [stage2] }).catch(() => {});
 
-      // Remove crate from inventory
-      await removeItem(message.author.id, crateId, 1).catch(() => {});
-
-      // Roll loot
+      // Roll loot FIRST (pure, no DB) so nothing is lost if addItem errors
       const { drops } = openCrateRolls(crateId, tier === "mythic" ? 3 : tier === "legendary" ? 2 : 1);
       const countBy = new Map();
       for (const d of drops) countBy.set(d, (countBy.get(d) || 0) + 1);
 
-      // Add items to inventory
+      // Grant items before removing the crate (atomic order: give first, deduct last)
       for (const [id, qty] of countBy.entries()) {
         await addItem(message.author.id, id, qty).catch(() => {});
       }
+
+      // Remove crate from inventory only after loot is safely granted
+      await removeItem(message.author.id, crateId, 1).catch(() => {});
 
       await new Promise(r => setTimeout(r, 900));
 
@@ -693,7 +694,7 @@ export default [
             "",
             `Keep grinding! ${PRESTIGE_LEVEL_REQ - level} more levels to go.`,
           ].join("\n"))
-          .setColor(0xF0B232)
+          .setColor(COLORS.ECONOMY)
           .setFooter({ text: "Chopsticks !prestige" });
         return message.reply({ embeds: [embed] });
       }
@@ -732,10 +733,10 @@ export default [
           "",
           `Your XP and level have been reset. Time to grind again! 💪`,
         ].join("\n"))
-        .setColor(0xF0B232)
+        .setColor(COLORS.ECONOMY)
         .setThumbnail(message.author.displayAvatarURL())
         .setFooter({ text: `Prestige ${newPrestige} • Chopsticks !prestige` });
-      await message.reply({ embeds: [embed] });
+      await message.reply({ embeds: [embed] }).catch(() => {});
     }
   },
 ];

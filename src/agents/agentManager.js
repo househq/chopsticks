@@ -183,6 +183,7 @@ export class AgentManager {
     ws.__remoteAddress = req?.socket?.remoteAddress || null;
     ws.__helloTimer = setTimeout(() => {
       if (!ws.__agentId) {
+        logger.warn({ remoteAddress: ws._socket?.remoteAddress }, "Agent WS connected but no hello received within timeout — closing connection");
         try { ws.close(1008, "hello-required"); } catch {}
       }
     }, handshakeMs);
@@ -364,7 +365,7 @@ export class AgentManager {
     this._updateMetrics();
   }
 
-  handleGuilds(ws, msg) { // Now directly from an agent
+  async handleGuilds(ws, msg) { // Now directly from an agent
     const agentId = ws.__agentId;
     if (!agentId) return;
 
@@ -383,6 +384,26 @@ export class AgentManager {
     
     if (added.length > 0) {
       logger.debug({ agentId, added }, '[GUILDS_UPDATE] Agent joined guilds');
+      // C3h: Notify guilds that subscribed to pool change alerts
+      if (agent.poolId && this.discordClient) {
+        for (const guildId of added) {
+          try {
+            const gData = await loadGuildData(guildId).catch(() => null);
+            const notifyChannelId = gData?.poolNotifyChannelId;
+            if (!notifyChannelId) continue;
+            const channel = await this.discordClient.channels.fetch(notifyChannelId).catch(() => null);
+            if (!channel?.send) continue;
+            await channel.send({
+              embeds: [{
+                title: '🤖 New Agent Online',
+                description: `Agent **${agent.tag || agentId}** from pool \`${agent.poolId}\` has joined this server and is ready.`,
+                color: 0x57f287,
+                timestamp: new Date().toISOString()
+              }]
+            }).catch(() => {});
+          } catch {}
+        }
+      }
     }
     if (removed.length > 0) {
       logger.debug({ agentId, removed }, '[GUILDS_UPDATE] Agent left guilds');

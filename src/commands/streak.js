@@ -59,6 +59,14 @@ export async function execute(interaction) {
     if (result.status !== "already_claimed") {
       guildData.streaks[userId] = { count: result.count, lastDate: result.lastDate };
       await saveGuildData(interaction.guildId, guildData);
+      if (result.status === "incremented" || result.status === "reset") {
+        void (async () => {
+          try {
+            const { addGuildXp } = await import('../game/guildXp.js');
+            await addGuildXp(userId, interaction.guildId, 'daily', { client: interaction.client }).catch(() => {});
+          } catch {}
+        })();
+      }
     }
 
     const statusLine =

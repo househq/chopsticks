@@ -174,6 +174,15 @@ export default {
 
         await addItem(interaction.user.id, it.id, qty);
         try { await recordQuestEvent(interaction.user.id, "shop_purchases", 1); } catch {}
+        void (async () => {
+          try {
+            const { addStat } = await import('../game/activityStats.js');
+            const { addGuildXp } = await import('../game/guildXp.js');
+            addStat(interaction.user.id, interaction.guildId, 'credits_spent', total);
+            addStat(interaction.user.id, interaction.guildId, 'items_sold', 0); // items_sold tracks selling, not buying
+            await addGuildXp(interaction.user.id, interaction.guildId, 'command', { client: interaction.client }).catch(() => {});
+          } catch {}
+        })();
 
         const embed = new EmbedBuilder()
           .setTitle("Purchase Complete")

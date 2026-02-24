@@ -2,13 +2,21 @@
 // Cycle P8 — Knowledge & Utility Pack (all free/no-key APIs)
 
 import { EmbedBuilder } from "discord.js";
+import { httpFetch } from "../../utils/httpFetch.js";
+import COLORS from "../../utils/colors.js";
 
-const USER_AGENT = "Chopsticks-Discord-Bot/1.6";
+const USER_AGENT = "Chopsticks-Discord-Bot/2.0";
 
-async function fetchJson(url) {
-  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(8_000) });
+async function fetchJson(service, url) {
+  const res = await httpFetch(service, url, { headers: { "User-Agent": USER_AGENT } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+async function fetchText(service, url) {
+  const res = await httpFetch(service, url, { headers: { "User-Agent": USER_AGENT } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
 }
 
 export default [
@@ -21,13 +29,13 @@ export default [
       const word = args[0]?.trim();
       if (!word) return message.reply("Usage: `!define <word>` — e.g. `!define serendipity`");
       try {
-        const d = await fetchJson(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+        const d = await fetchJson("dictionaryapi", `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
         const entry = d[0];
         const phonetic = entry.phonetics?.find(p => p.text)?.text || "";
         const meanings = entry.meanings?.slice(0, 2) || [];
         const embed = new EmbedBuilder()
           .setTitle(`📖 ${entry.word}${phonetic ? `  *${phonetic}*` : ""}`)
-          .setColor(0x5865F2);
+          .setColor(COLORS.INFO);
         for (const m of meanings) {
           const defs = m.definitions.slice(0, 2).map((d, i) => {
             let line = `${i + 1}. ${d.definition}`;
@@ -51,11 +59,11 @@ export default [
     rateLimit: 3000,
     async execute(message) {
       try {
-        const d = await fetchJson("https://api.adviceslip.com/advice");
+        const d = await fetchJson("adviceslip", "https://api.adviceslip.com/advice");
         const embed = new EmbedBuilder()
           .setTitle("💡 Advice")
           .setDescription(`*"${d.slip.advice}"*`)
-          .setColor(0xF0B232)
+          .setColor(COLORS.ECONOMY)
           .setFooter({ text: "adviceslip.com • Chopsticks !advice" });
         await message.reply({ embeds: [embed] });
       } catch {
@@ -72,14 +80,11 @@ export default [
     async execute(message, args) {
       const n = parseInt(args[0] || "") || Math.floor(Math.random() * 1000);
       try {
-        const res = await fetch(`http://numbersapi.com/${n}/trivia`, {
-          headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(8_000)
-        });
-        const text = await res.text();
+        const text = await fetchText("numbersapi", `http://numbersapi.com/${n}/trivia`);
         const embed = new EmbedBuilder()
           .setTitle(`🔢 Number ${n}`)
           .setDescription(text)
-          .setColor(0x5865F2)
+          .setColor(COLORS.INFO)
           .setFooter({ text: "numbersapi.com • Chopsticks !number" });
         await message.reply({ embeds: [embed] });
       } catch {
@@ -97,7 +102,7 @@ export default [
       const query = args.join(" ").trim();
       if (!query) return message.reply("Usage: `!country <name>` — e.g. `!country Japan`");
       try {
-        const d = await fetchJson(`https://restcountries.com/v3.1/name/${encodeURIComponent(query)}?fields=name,capital,population,region,subregion,flags,currencies,languages`);
+        const d = await fetchJson("restcountries", `https://restcountries.com/v3.1/name/${encodeURIComponent(query)}?fields=name,capital,population,region,subregion,flags,currencies,languages`);
         const c = d[0];
         const flag = c.flags?.png || c.flags?.svg || "";
         const capital = c.capital?.[0] || "N/A";
@@ -106,7 +111,7 @@ export default [
         const pop = c.population?.toLocaleString() || "N/A";
         const embed = new EmbedBuilder()
           .setTitle(`${c.name.common} — ${c.name.official}`)
-          .setColor(0x57F287)
+          .setColor(COLORS.SUCCESS)
           .addFields(
             { name: "Capital", value: capital, inline: true },
             { name: "Region", value: `${c.region} / ${c.subregion || "N/A"}`, inline: true },
@@ -130,12 +135,12 @@ export default [
     rateLimit: 5000,
     async execute(message) {
       try {
-        const d = await fetchJson("http://api.open-notify.org/iss-now.json");
+        const d = await fetchJson("openNotify", "http://api.open-notify.org/iss-now.json");
         const { latitude, longitude } = d.iss_position;
         const embed = new EmbedBuilder()
           .setTitle("🛸 ISS Current Location")
           .setDescription(`The International Space Station is currently over:\n**Lat:** ${parseFloat(latitude).toFixed(4)}° | **Lon:** ${parseFloat(longitude).toFixed(4)}°`)
-          .setColor(0x5865F2)
+          .setColor(COLORS.INFO)
           .setURL(`https://www.google.com/maps?q=${latitude},${longitude}`)
           .addFields(
             { name: "Altitude", value: "~408 km above Earth", inline: true },
@@ -156,7 +161,7 @@ export default [
     rateLimit: 10000,
     async execute(message) {
       try {
-        const d = await fetchJson("https://api.spacexdata.com/v4/launches/latest");
+        const d = await fetchJson("spacexdata", "https://api.spacexdata.com/v4/launches/latest");
         const date = d.date_utc ? new Date(d.date_utc).toUTCString() : "Unknown";
         const embed = new EmbedBuilder()
           .setTitle(`🚀 SpaceX — ${d.name}`)
@@ -186,15 +191,12 @@ export default [
       const query = args.join(" ").trim();
       if (!query) return message.reply("Usage: `!bible <book chapter:verse>` — e.g. `!bible John 3:16`");
       try {
-        const res = await fetch(`https://bible-api.com/${encodeURIComponent(query)}`, {
-          headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(8_000)
-        });
-        const d = await res.json();
+        const d = await fetchJson("bibleApi", `https://bible-api.com/${encodeURIComponent(query)}`);
         if (d.error) return message.reply(`❌ ${d.error}`);
         const embed = new EmbedBuilder()
           .setTitle(`📖 ${d.reference}`)
           .setDescription(d.text?.trim().slice(0, 2000) || "No text found.")
-          .setColor(0xF0B232)
+          .setColor(COLORS.ECONOMY)
           .setFooter({ text: `${d.translation_name || "WEB"} • Chopsticks !bible` });
         await message.reply({ embeds: [embed] });
       } catch {
@@ -216,7 +218,7 @@ export default [
         .setTitle("📱 QR Code")
         .setDescription(`\`${text.slice(0, 100)}\``)
         .setImage(url)
-        .setColor(0x5865F2)
+        .setColor(COLORS.INFO)
         .setFooter({ text: "qrserver.com • Chopsticks !qr" });
       await message.reply({ embeds: [embed] });
     }
@@ -231,15 +233,12 @@ export default [
       const url = args[0]?.trim();
       if (!url || !url.startsWith("http")) return message.reply("Usage: `!shorten <url>` — e.g. `!shorten https://example.com/long-path`");
       try {
-        const res = await fetch(`https://is.gd/create.php?format=json&url=${encodeURIComponent(url)}`, {
-          headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(8_000)
-        });
-        const d = await res.json();
+        const d = await fetchJson("isGd", `https://is.gd/create.php?format=json&url=${encodeURIComponent(url)}`);
         if (!d.shorturl) throw new Error("no url");
         const embed = new EmbedBuilder()
           .setTitle("🔗 Shortened URL")
           .setDescription(`[${d.shorturl}](${d.shorturl})`)
-          .setColor(0x5865F2)
+          .setColor(COLORS.INFO)
           .addFields({ name: "Original", value: url.slice(0, 200) })
           .setFooter({ text: "is.gd • Chopsticks !shorten" });
         await message.reply({ embeds: [embed] });

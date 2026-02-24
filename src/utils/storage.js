@@ -576,6 +576,11 @@ export async function updateAgentBotProfile(agentId, profile) {
   return pg.updateAgentBotProfile(agentId, profile);
 }
 
+export async function updateAgentCapabilities(agentId, capabilities) {
+  const pg = await getPg();
+  return pg.updateAgentCapabilities(agentId, capabilities);
+}
+
 export async function fetchAgentBotProfile(agentId) {
   const pg = await getPg();
   return pg.fetchAgentBotProfile(agentId);
@@ -625,6 +630,28 @@ export async function updatePool(poolId, updates, actorUserId) {
 export async function deletePool(poolId, actorUserId) {
   const pg = await getPg();
   return pg.deletePool(poolId, actorUserId);
+}
+
+export async function deletePoolWithReassignment(poolId, targetPoolId, actorUserId) {
+  const pg = await getPg();
+  return pg.deletePoolWithReassignment(poolId, targetPoolId, actorUserId);
+}
+
+export async function fetchPoolContributions(poolId, status) {
+  const pg = await getPg();
+  return pg.fetchPoolContributions(poolId, status);
+}
+export async function approveContribution(contributionId, reviewerUserId) {
+  const pg = await getPg();
+  return pg.approveContribution(contributionId, reviewerUserId);
+}
+export async function rejectContribution(contributionId, reviewerUserId, notes) {
+  const pg = await getPg();
+  return pg.rejectContribution(contributionId, reviewerUserId, notes);
+}
+export async function approveAllContributions(poolId, reviewerUserId) {
+  const pg = await getPg();
+  return pg.approveAllContributions(poolId, reviewerUserId);
 }
 
 export async function transferPool(poolId, newOwnerUserId, actorUserId) {
@@ -839,4 +866,32 @@ export async function grantAchievement(userId, guildId, achievementId) {
 export async function seedAchievements(defs) {
   const pg = await getPg();
   return pg.seedAchievements(defs);
+}
+
+// Pool reviews (C3c)
+export async function upsertPoolReview(poolId, userId, rating, comment, guildId) {
+  const pg = await getPg();
+  return pg.upsertPoolReview(poolId, userId, rating, comment, guildId);
+}
+export async function fetchPoolReviews(poolId, limit) {
+  const pg = await getPg();
+  return pg.fetchPoolReviews(poolId, limit);
+}
+export async function fetchPoolRatingSummary(poolId) {
+  const pg = await getPg();
+  return pg.fetchPoolRatingSummary(poolId);
+}
+export async function deletePoolReview(poolId, userId) {
+  const pg = await getPg();
+  return pg.deletePoolReview(poolId, userId);
+}
+
+// Contributor spotlight (C3f)
+export async function fetchTopContributors(limit) {
+  const pg = await getPg();
+  return pg.fetchTopContributors(limit);
+}
+export async function fetchPoolTopContributors(poolId, limit) {
+  const pg = await getPg();
+  return pg.fetchPoolTopContributors(poolId, limit);
 }

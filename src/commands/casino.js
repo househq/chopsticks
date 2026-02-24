@@ -111,6 +111,13 @@ export async function execute(interaction) {
 
       if (payout > 0) {
         await addCredits(userId, payout, 'casino:slots:win');
+        void (async () => {
+          try {
+            const { addStat } = await import('../game/activityStats.js');
+            addStat(userId, interaction.guildId, 'casino_wins', 1);
+            addStat(userId, interaction.guildId, 'credits_earned', payout);
+          } catch {}
+        })();
       }
 
       const net      = payout - bet;

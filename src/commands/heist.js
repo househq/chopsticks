@@ -143,6 +143,15 @@ export async function execute(interaction) {
             }
             resultLines.push(`<@${uid}>`);
           }
+          void (async () => {
+            try {
+              const { addStat } = await import('../game/activityStats.js');
+              for (const uid of current.participants) {
+                addStat(uid, interaction.guildId, 'heist_runs', 1);
+                if (outcome.success) addStat(uid, interaction.guildId, 'credits_earned', outcome.prizeEach);
+              }
+            } catch {}
+          })();
 
           const channel = interaction.channel;
           if (channel?.send) {
