@@ -2,6 +2,44 @@
    Chopsticks Console — SPA Client
    ================================================ */
 
+// ─── SVG Icon System ─────────────────────────────
+
+const ICONS = {
+  flash:    `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+  music:    `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+  cpu:      `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>`,
+  volume:   `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`,
+  barchart: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>`,
+  trending: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
+  sparkles: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`,
+  list:     `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+  settings: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  book:     `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+  alert:    `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  play:     `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
+  pause:    `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`,
+  skip:     `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 4 15 12 5 20 5 4"/><rect x="19" y="5" width="2" height="14"/></svg>`,
+  server:   `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>`,
+};
+
+function icon(name, style = '') {
+  const svg = ICONS[name] || ICONS.alert;
+  return style ? svg.replace('<svg ', `<svg style="${style}" `) : svg;
+}
+
+// Count-up animation for stat values
+function countUp(el, target, duration = 700) {
+  const start = performance.now();
+  function step(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(target * eased).toLocaleString();
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
 // ─── Utilities ──────────────────────────────────
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -149,7 +187,7 @@ function navigate(page) {
       if (state.currentPage === page) body.innerHTML = html;
       postRender(page);
     }).catch(err => {
-      body.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Failed to load</div><div class="empty-state-sub">${esc(err.message)}</div></div>`;
+      body.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${ICONS.alert}</div><div class="empty-state-title">Failed to load</div><div class="empty-state-sub">${esc(err.message)}</div></div>`;
     });
   }
 
@@ -162,6 +200,12 @@ function postRender(page) {
   if (page === 'music')    initMusicHandlers();
   if (page === 'pools')    initPoolsHandlers();
   if (page === 'voice')    initVoiceHandlers();
+
+  // Animate stat value count-up
+  document.querySelectorAll('.stat-value[data-target]').forEach(el => {
+    const target = parseInt(el.dataset.target, 10);
+    if (!isNaN(target)) countUp(el, target);
+  });
 }
 
 // ─── Boot ────────────────────────────────────────
@@ -185,6 +229,9 @@ async function boot() {
   // Refresh button
   $('#refresh-btn')?.addEventListener('click', () => refreshData(true));
 
+  // Init command palette
+  initCommandPalette();
+
   // Load data
   await refreshData(false);
 
@@ -193,6 +240,52 @@ async function boot() {
 
   // Auto-refresh every 30s
   state.refreshTimer = setInterval(() => refreshData(false), 30000);
+}
+
+// ─── Command Palette ─────────────────────────────
+
+function initCommandPalette() {
+  const overlay = document.getElementById('cmd-overlay');
+  const input   = document.getElementById('cmd-input');
+  const results = document.getElementById('cmd-results');
+  const btn     = document.getElementById('cmd-palette-btn');
+
+  if (!overlay || !input || !results) return;
+
+  const commands = Object.entries(PAGES).map(([key, p]) => ({ key, label: p.title, sub: p.sub }));
+
+  function open() {
+    overlay.classList.add('open');
+    input.value = '';
+    input.focus();
+    renderResults('');
+  }
+  function close() { overlay.classList.remove('open'); }
+
+  function renderResults(query) {
+    const q = query.toLowerCase().trim();
+    const filtered = q
+      ? commands.filter(c => c.label.toLowerCase().includes(q) || c.sub.toLowerCase().includes(q))
+      : commands;
+    results.innerHTML = filtered.map((c, i) =>
+      `<button class="cmd-result${i === 0 ? ' active' : ''}" data-page="${esc(c.key)}">
+        <span class="cmd-result-label">${esc(c.label)}</span>
+        <span class="cmd-result-sub">${esc(c.sub)}</span>
+      </button>`
+    ).join('') || `<div class="cmd-empty">No results for "${esc(query)}"</div>`;
+
+    results.querySelectorAll('.cmd-result').forEach(r => {
+      r.addEventListener('click', () => { navigate(r.dataset.page); close(); });
+    });
+  }
+
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); overlay.classList.contains('open') ? close() : open(); }
+    if (e.key === 'Escape' && overlay.classList.contains('open')) close();
+  });
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  input.addEventListener('input', () => renderResults(input.value));
+  btn?.addEventListener('click', open);
 }
 
 async function refreshData(showToast = false) {
@@ -245,7 +338,7 @@ async function refreshData(showToast = false) {
 // ─── Overview ────────────────────────────────────
 
 async function renderOverview(d) {
-  if (!d) return '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">No data</div></div>';
+  if (!d) return `<div class="empty-state"><div class="empty-state-icon">${ICONS.alert}</div><div class="empty-state-title">No data</div></div>`;
 
   const agents = d.agents ?? [];
   const online = agents.filter(a => a.status === 'online' || a.state === 'connected').length;
@@ -257,7 +350,7 @@ async function renderOverview(d) {
   const iconUrl = guildIconUrl(guildId, d.guild?.icon);
   const guildIcon = iconUrl
     ? `<img src="${iconUrl}" style="width:48px;height:48px;border-radius:50%;margin-right:14px;vertical-align:middle;" />`
-    : `<span style="font-size:2.5rem;margin-right:14px">🏰</span>`;
+    : `<span style="width:48px;height:48px;margin-right:14px;display:inline-flex;align-items:center;justify-content:center;background:var(--bg-elevated);border-radius:var(--radius);border:1px solid var(--border)">${ICONS.server}</span>`;
 
   // Recent audit (top 5)
   const recentAudit = (d.audit ?? []).slice(0, 5).map(e => `
@@ -275,31 +368,31 @@ async function renderOverview(d) {
 
   return `
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">🤖</div>
+      <div class="stat-card stat-card--purple">
+        <div class="stat-icon">${icon('cpu')}</div>
         <div class="stat-body">
-          <div class="stat-value">${agents.length}</div>
+          <div class="stat-value" data-target="${agents.length}">0</div>
           <div class="stat-label">Total Agents</div>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">🟢</div>
+      <div class="stat-card stat-card--green">
+        <div class="stat-icon">${icon('flash')}</div>
         <div class="stat-body">
-          <div class="stat-value">${online}</div>
+          <div class="stat-value" data-target="${online}">0</div>
           <div class="stat-label">Online Agents</div>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">🎵</div>
+      <div class="stat-card stat-card--blue">
+        <div class="stat-icon">${icon('music')}</div>
         <div class="stat-body">
-          <div class="stat-value">${sessions}</div>
+          <div class="stat-value" data-target="${sessions}">0</div>
           <div class="stat-label">Active Sessions</div>
         </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon">📋</div>
+      <div class="stat-card stat-card--yellow">
+        <div class="stat-icon">${icon('list')}</div>
         <div class="stat-body">
-          <div class="stat-value">${auditCount}</div>
+          <div class="stat-value" data-target="${auditCount}">0</div>
           <div class="stat-label">Audit Entries</div>
         </div>
       </div>
@@ -312,12 +405,12 @@ async function renderOverview(d) {
             <div class="card-title">${guildIcon}${esc(d.guild?.name ?? 'Server')}</div>
             <div class="card-sub">ID: ${guildId}</div>
           </div>
-          <span class="badge badge-green">● Online</span>
+          <span class="badge badge-green">Online</span>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.78rem;color:var(--text-secondary)">
-          <span>🤖 Agents: <b>${agents.length}</b></span>
-          <span>🎵 Music sessions: <b>${(d.sessions ?? []).length}</b></span>
-          <span>💬 AI sessions: <b>${(d.assistantSessions ?? []).length}</b></span>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;font-size:0.78rem;color:var(--text-secondary)">
+          <span style="display:flex;align-items:center;gap:5px">${icon('cpu', 'width:13px;height:13px;opacity:0.6')} <b style="color:var(--text-primary)">${agents.length}</b> agents</span>
+          <span style="display:flex;align-items:center;gap:5px">${icon('music', 'width:13px;height:13px;opacity:0.6')} <b style="color:var(--text-primary)">${(d.sessions ?? []).length}</b> music</span>
+          <span style="display:flex;align-items:center;gap:5px">${icon('sparkles', 'width:13px;height:13px;opacity:0.6')} <b style="color:var(--text-primary)">${(d.assistantSessions ?? []).length}</b> AI sessions</span>
         </div>
       </div>
 
@@ -343,16 +436,14 @@ async function renderOverview(d) {
 // ─── Music ───────────────────────────────────────
 
 async function renderMusic(d) {
-  if (!d) return renderEmpty('🎵', 'No music data available');
+  if (!d) return renderEmpty('music', 'No music data available');
 
   const sessions = d.sessions ?? [];
   const musicCfg = d.music ?? {};
 
   const nowPlayingCards = sessions.length
     ? sessions.map(s => renderNowPlayingCard(s)).join('')
-    : `<div class="empty-state"><div class="empty-state-icon">🎵</div>
-       <div class="empty-state-title">Nothing playing right now</div>
-       <div class="empty-state-sub">Use <code>/music play</code> in Discord to start</div></div>`;
+    : renderEmpty('music', 'Nothing playing right now', 'Use <code>/music play</code> in Discord to start a session');
 
   return `
     <div class="section-title">Active Sessions (${sessions.length})</div>
@@ -405,9 +496,15 @@ function renderNowPlayingCard(s) {
   const pos  = s.position ?? 0;
   const dur  = track.duration ?? track.length ?? 0;
   const pct  = dur ? Math.round((pos / dur) * 100) : 0;
+  const isPlaying = s.playing !== false;
 
-  return `<div class="np-card" style="margin-bottom:12px">
-    <div class="np-thumb">🎵</div>
+  const heights = [40, 70, 30, 85, 55, 95, 45, 75, 35, 65, 90, 50];
+  const waveform = heights.map((h, i) =>
+    `<div class="wave-bar" style="height:${h}%;--delay:${(i * 0.07).toFixed(2)}s"></div>`
+  ).join('');
+
+  return `<div class="np-card${isPlaying ? ' is-playing' : ''}" style="margin-bottom:12px">
+    <div class="np-thumb">${icon('music', 'width:28px;height:28px;color:var(--accent-light);opacity:0.7')}</div>
     <div class="np-info">
       <div class="np-title">${esc(track.title ?? 'Unknown Track')}</div>
       <div class="np-artist">${esc(track.author ?? track.artist ?? 'Unknown Artist')}</div>
@@ -415,11 +512,12 @@ function renderNowPlayingCard(s) {
         <span>${fmtDuration(pos)}</span>
         <div style="flex:1">${progressBar(pct)}</div>
         <span>${fmtDuration(dur)}</span>
+        <div class="waveform">${waveform}</div>
       </div>
       <div style="display:flex;gap:6px;margin-top:10px;align-items:center">
-        <span class="badge badge-green">● Playing</span>
+        <span class="badge badge-green">Playing</span>
         ${s.channelId ? `<span class="badge badge-blue">VC Active</span>` : ''}
-        <span style="margin-left:auto;font-size:0.72rem;color:var(--text-muted)">${s.guildId ?? ''}</span>
+        <span style="margin-left:auto;font-size:0.68rem;color:var(--text-muted);font-family:var(--font-mono)">${s.guildId ?? ''}</span>
       </div>
     </div>
   </div>`;
@@ -444,14 +542,14 @@ async function renderPools(d) {
   const agents = d?.agents ?? [];
 
   if (!myPools.length) {
-    return renderEmpty('🤖', 'No Agent Pools', 'Create a pool with <code>/pools create</code> in Discord');
+    return renderEmpty('cpu', 'No Agent Pools', 'Create a pool with <code>/pools create</code> in Discord');
   }
 
   const poolCards = myPools.map(p => `
     <div class="pool-card" data-pool-id="${esc(p.id)}">
       <div class="pool-card-header">
         <div class="pool-name">${esc(p.name ?? 'Unnamed Pool')}</div>
-        <span class="badge ${p.public ? 'badge-green' : 'badge-yellow'}">${p.public ? '🌍 Public' : '🔒 Private'}</span>
+        <span class="badge ${p.public ? 'badge-green' : 'badge-yellow'}">${p.public ? 'Public' : 'Private'}</span>
       </div>
       <div style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:8px">
         ${p.description ? esc(p.description) : '<span style="color:var(--text-muted)">No description set</span>'}
@@ -465,8 +563,8 @@ async function renderPools(d) {
         ${progressBar(p.completeness ?? 0)}
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-ghost btn-sm" onclick="editPool('${esc(p.id)}')">✏️ Edit Profile</button>
-        <button class="btn btn-ghost btn-sm" onclick="viewPoolAgents('${esc(p.id)}')">🤖 Agents (${Number(p.agentCount ?? 0)})</button>
+        <button class="btn btn-ghost btn-sm" onclick="editPool('${esc(p.id)}')">Edit Profile</button>
+        <button class="btn btn-ghost btn-sm" onclick="viewPoolAgents('${esc(p.id)}')">Agents (${Number(p.agentCount ?? 0)})</button>
       </div>
     </div>`).join('');
 
@@ -529,7 +627,7 @@ async function renderVoice(d) {
     <tr>
       <td>${l.channelId}</td>
       <td><span class="badge ${l.enabled ? 'badge-green' : 'badge-yellow'}">${l.enabled ? 'Active' : 'Disabled'}</span></td>
-      <td>Max: ${l.maxUsers ?? '∞'} · ${l.private ? '🔒 Private' : '🌍 Public'}</td>
+      <td>Max: ${l.maxUsers ?? '∞'} · ${l.private ? 'Private' : 'Public'}</td>
       <td>
         <button class="btn btn-ghost btn-sm" onclick="toggleLobby('${l.channelId}', ${!l.enabled})">
           ${l.enabled ? 'Disable' : 'Enable'}
@@ -578,7 +676,7 @@ function initVoiceHandlers() {
 // ─── Audiobook ───────────────────────────────────
 
 async function renderAudiobook(d) {
-  return renderEmpty('📖', 'Audiobook Sessions', 'Use <code>/audiobook start</code> in Discord to begin a reading session. Sessions appear here when active.');
+  return renderEmpty('book', 'Audiobook Sessions', 'Use <code>/audiobook start</code> in Discord to begin a reading session. Sessions appear here when active.');
 }
 
 // ─── Logs ────────────────────────────────────────
@@ -687,9 +785,10 @@ function initSettingsHandlers() {
 
 // ─── Helpers ─────────────────────────────────────
 
-function renderEmpty(icon, title, sub = '') {
+function renderEmpty(iconName, title, sub = '') {
+  const svgIcon = ICONS[iconName] ?? ICONS.book;
   return `<div class="empty-state">
-    <div class="empty-state-icon">${icon}</div>
+    <div class="empty-state-icon">${svgIcon}</div>
     <div class="empty-state-title">${title}</div>
     ${sub ? `<div class="empty-state-sub">${sub}</div>` : ''}
   </div>`;
@@ -698,18 +797,18 @@ function renderEmpty(icon, title, sub = '') {
 // ─── Stats Panel ─────────────────────────────────
 
 const METRIC_LABELS = {
-  messages_sent:     '💬 Messages',
-  vc_minutes:        '🎙️ VC Time (min)',
-  credits_earned:    '💰 Credits Earned',
-  credits_spent:     '🛒 Credits Spent',
-  work_runs:         '💼 Work Runs',
-  gather_runs:       '⛏️ Gather Runs',
-  fight_wins:        '⚔️ Fight Wins',
-  trivia_wins:       '🧠 Trivia Wins',
-  heist_runs:        '🏴‍☠️ Heist Runs',
-  casino_wins:       '🎰 Casino Wins',
-  commands_used:     '🤖 Commands Used',
-  agent_actions_used:'🎭 Agent Actions',
+  messages_sent:     'Messages',
+  vc_minutes:        'VC Time',
+  credits_earned:    'Credits Earned',
+  credits_spent:     'Credits Spent',
+  work_runs:         'Work Runs',
+  gather_runs:       'Gather Runs',
+  fight_wins:        'Fight Wins',
+  trivia_wins:       'Trivia Wins',
+  heist_runs:        'Heist Runs',
+  casino_wins:       'Casino Wins',
+  commands_used:     'Commands Used',
+  agent_actions_used:'Agent Actions',
 };
 
 async function renderStats(d) {
@@ -728,22 +827,22 @@ async function renderStats(d) {
       <thead><tr><th>#</th><th>User</th><th>${METRIC_LABELS[m] || m}</th></tr></thead>
       <tbody>${rows.map((r, i) => `
         <tr>
-          <td><b>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</b></td>
-          <td><span class="tag">${esc(r.user_id)}</span></td>
-          <td><b>${Number(r.value || 0).toLocaleString()}</b></td>
+          <td class="${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : ''}" style="font-variant-numeric:tabular-nums;width:40px">${i + 1}</td>
+          <td style="font-family:var(--font-mono);font-size:0.76rem;color:var(--text-secondary)">${esc(r.user_id)}</td>
+          <td><b style="font-variant-numeric:tabular-nums">${Number(r.value || 0).toLocaleString()}</b></td>
         </tr>`).join('')}
       </tbody>
     </table></div>`;
   }
 
-  const metricSelector = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+  const metricSelector = `<div class="metric-tabs">
     ${Object.entries(METRIC_LABELS).map(([k, v]) =>
-      `<button class="btn ${k === 'messages_sent' ? 'btn-primary' : ''}" id="metric-${k}" onclick="window.__statsLoadBoard('${k}')" style="font-size:12px;padding:4px 10px">${v}</button>`
+      `<button class="metric-tab${k === 'messages_sent' ? ' active' : ''}" id="metric-${k}" onclick="window.__statsLoadBoard('${k}')">${v}</button>`
     ).join('')}
   </div>`;
 
   const html = `
-    <div class="section-title">📊 Server Leaderboards</div>
+    <div class="section-title">Leaderboards</div>
     ${metricSelector}
     <div id="stats-board">${boardHtml(rows, 'messages_sent')}</div>
   `;
@@ -752,9 +851,9 @@ async function renderStats(d) {
     window.__statsLoadBoard = async (m) => {
       const el = document.getElementById('stats-board');
       if (el) el.innerHTML = '<div class="splash-loader" style="width:80px;margin:0 auto"><div class="loader-bar"></div></div>';
-      $$('[id^="metric-"]').forEach(b => b.classList.remove('btn-primary'));
+      $$('[id^="metric-"]').forEach(b => b.classList.remove('active'));
       const btn = document.getElementById(`metric-${m}`);
-      if (btn) btn.classList.add('btn-primary');
+      if (btn) btn.classList.add('active');
       const res = await get(`/api/guild/${guildId}/stats/leaderboard?metric=${m}&limit=15`);
       if (el) el.innerHTML = boardHtml(res?.ok ? res.rows : [], m);
     };
@@ -770,15 +869,15 @@ async function renderLeveling(d) {
   const cfg = cfgRes?.ok ? cfgRes.config : {};
 
   const sources = [
-    ['xp_per_message', '💬 Per Message', 'xp_per_message'],
-    ['xp_per_vc_minute', '🎙️ Per VC Minute', 'xp_per_vc_minute'],
-    ['xp_per_work', '💼 Work', 'xp_per_work'],
-    ['xp_per_gather', '⛏️ Gather', 'xp_per_gather'],
-    ['xp_per_fight_win', '⚔️ Fight Win', 'xp_per_fight_win'],
-    ['xp_per_trivia_win', '🧠 Trivia Win', 'xp_per_trivia_win'],
-    ['xp_per_daily', '📅 Daily Streak', 'xp_per_daily'],
-    ['xp_per_command', '🤖 Per Command', 'xp_per_command'],
-    ['xp_per_agent_action', '🎭 Agent Action', 'xp_per_agent_action'],
+    ['xp_per_message', 'Per Message', 'xp_per_message'],
+    ['xp_per_vc_minute', 'Per VC Minute', 'xp_per_vc_minute'],
+    ['xp_per_work', 'Work', 'xp_per_work'],
+    ['xp_per_gather', 'Gather', 'xp_per_gather'],
+    ['xp_per_fight_win', 'Fight Win', 'xp_per_fight_win'],
+    ['xp_per_trivia_win', 'Trivia Win', 'xp_per_trivia_win'],
+    ['xp_per_daily', 'Daily Streak', 'xp_per_daily'],
+    ['xp_per_command', 'Per Command', 'xp_per_command'],
+    ['xp_per_agent_action', 'Agent Action', 'xp_per_agent_action'],
   ];
 
   const enabled = cfg.enabled !== false;
@@ -787,12 +886,12 @@ async function renderLeveling(d) {
   const lvlupCh = cfg.levelup_channel_id ? `<#${cfg.levelup_channel_id}>` : '—';
 
   const html = `
-    <div class="section-title">⚡ XP & Leveling Configuration</div>
+    <div class="section-title">XP &amp; Leveling Configuration</div>
     <div class="card" style="margin-bottom:16px;padding:16px">
       <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="checkbox" id="xp-enabled" ${enabled ? 'checked' : ''} onchange="window.__xpToggle(this.checked)" style="width:18px;height:18px">
-          <span><b>Leveling System</b> — ${enabled ? '✅ Enabled' : '❌ Disabled'}</span>
+          <span><b>Leveling System</b> — ${enabled ? 'Enabled' : 'Disabled'}</span>
         </label>
         <span style="color:var(--text-muted)">|</span>
         <label style="display:flex;align-items:center;gap:8px">
@@ -827,7 +926,7 @@ async function renderLeveling(d) {
 
     <div class="section-title">Quick Presets</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${[['relaxed','🌿 Relaxed'],['balanced','⚖️ Balanced'],['grind','🔥 Grind']].map(([p, l]) =>
+      ${[['relaxed','Relaxed'],['balanced','Balanced'],['grind','Grind']].map(([p, l]) =>
         `<button class="btn" onclick="window.__xpPreset('${p}')">${l}</button>`).join('')}
     </div>
     <div id="xp-feedback" style="margin-top:12px;height:24px;color:var(--text-accent,#5865F2)"></div>
@@ -840,23 +939,23 @@ async function renderLeveling(d) {
     };
     window.__xpToggle = async (v) => {
       const r = await post(`/api/guild/${guildId}/xp/config`, { enabled: v });
-      feedback(r?.ok ? `✅ Leveling ${v ? 'enabled' : 'disabled'}` : '❌ Error', r?.ok);
+      feedback(r?.ok ? `Leveling ${v ? 'enabled' : 'disabled'}` : 'Error', r?.ok);
     };
     window.__xpSaveMultiplier = async () => {
       const v = parseFloat(document.getElementById('xp-multiplier')?.value || 1);
       const r = await post(`/api/guild/${guildId}/xp/config`, { xp_multiplier: v });
-      feedback(r?.ok ? `✅ Multiplier set to ${v}x` : '❌ Error', r?.ok);
+      feedback(r?.ok ? `Multiplier set to ${v}x` : 'Error', r?.ok);
     };
     window.__xpSaveCooldown = async () => {
       const v = parseInt(document.getElementById('xp-cooldown')?.value || 60);
       const r = await post(`/api/guild/${guildId}/xp/config`, { message_xp_cooldown_s: v });
-      feedback(r?.ok ? `✅ Cooldown set to ${v}s` : '❌ Error', r?.ok);
+      feedback(r?.ok ? `Cooldown set to ${v}s` : 'Error', r?.ok);
     };
     window.__xpSaveField = async (field, val) => {
       const v = parseInt(val);
-      if (isNaN(v) || v < 0) { feedback('❌ Invalid value', false); return; }
+      if (isNaN(v) || v < 0) { feedback('Invalid value', false); return; }
       const r = await post(`/api/guild/${guildId}/xp/config`, { [field]: v });
-      feedback(r?.ok ? `✅ Saved` : '❌ Error', r?.ok);
+      feedback(r?.ok ? `Saved` : 'Error', r?.ok);
     };
     const PRESET_RATES = {
       relaxed:  { xp_per_message:3,xp_per_vc_minute:1,xp_per_work:20,xp_per_gather:15,xp_per_fight_win:25,xp_per_trivia_win:30,xp_per_daily:50,xp_multiplier:1.0,message_xp_cooldown_s:120 },
@@ -865,7 +964,7 @@ async function renderLeveling(d) {
     };
     window.__xpPreset = async (preset) => {
       const r = await post(`/api/guild/${guildId}/xp/config`, PRESET_RATES[preset]);
-      feedback(r?.ok ? `✅ Preset "${preset}" applied` : '❌ Error', r?.ok);
+      feedback(r?.ok ? `Preset "${preset}" applied` : 'Error', r?.ok);
       if (r?.ok) setTimeout(() => navigate('leveling'), 800);
     };
   }, 50);
@@ -884,13 +983,13 @@ async function renderActions(d) {
   const usage   = usageRes.ok ? usageRes.usage : [];
   const usageMap = Object.fromEntries(usage.map(u => [u.action_type, u]));
 
-  const ACTION_EMOJI = { play_sound:'🔊', say_message:'🗣️', summon_dj:'🎵', air_horn:'📯', rickroll:'🎵', announce:'📢' };
+  const ACTION_EMOJI = { play_sound:'', say_message:'', summon_dj:'', air_horn:'', rickroll:'', announce:'' };
 
   function actionRow(a) {
     const u = usageMap[a.action_type] || {};
     return `
       <tr>
-        <td>${ACTION_EMOJI[a.action_type] || '🤖'} <b>${esc(a.name)}</b></td>
+        <td><b>${esc(a.name)}</b></td>
         <td><span class="tag">${esc(a.action_type)}</span></td>
         <td>
           <input type="number" id="cost-${a.id}" value="${a.cost}" min="0" style="width:70px;background:var(--bg-input,#1e2124);color:var(--text-primary,#fff);border:1px solid var(--border,#444);border-radius:4px;padding:2px 6px">
@@ -908,8 +1007,8 @@ async function renderActions(d) {
   }
 
   const html = `
-    <div class="section-title">🎭 Agent Economy Actions</div>
-    <div style="color:var(--text-muted);margin-bottom:16px;font-size:13px">
+    <div class="section-title">Agent Economy Actions</div>
+    <div style="color:var(--text-muted);margin-bottom:16px;font-size:0.78rem">
       Users can spend credits to trigger agents. Use <code>/actions admin enable</code> to add actions, then configure costs here.
     </div>
     ${actions.length ? `
@@ -918,19 +1017,19 @@ async function renderActions(d) {
         <tbody>${actions.map(actionRow).join('')}</tbody>
       </table></div>` :
       `<div class="card" style="padding:20px;text-align:center;color:var(--text-muted)">
-        <div style="font-size:32px;margin-bottom:8px">🎭</div>
+        <div style="margin-bottom:8px;color:var(--text-muted)">${icon('sparkles', 'width:28px;height:28px')}</div>
         <b>No actions configured yet</b><br>
         <span style="font-size:13px">Use <code>/actions admin enable</code> in Discord to add economy actions for your server.</span>
       </div>`
     }
 
     ${usage.length ? `
-      <div class="section-title" style="margin-top:24px">📈 Usage Summary</div>
+      <div class="section-title" style="margin-top:24px">Usage Summary</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Action</th><th>Total Uses</th><th>Credits Spent</th><th>Last Used</th></tr></thead>
         <tbody>${usage.map(u => `
           <tr>
-            <td>${ACTION_EMOJI[u.action_type] || '🤖'} ${esc(u.action_type)}</td>
+            <td>${esc(u.action_type)}</td>
             <td>${Number(u.uses).toLocaleString()}</td>
             <td>${Number(u.total_spent || 0).toLocaleString()}</td>
             <td>${u.last_used ? new Date(Number(u.last_used)).toLocaleString() : '—'}</td>
@@ -948,24 +1047,17 @@ async function renderActions(d) {
     };
     window.__actionSetCost = async (type, val) => {
       const cost = parseInt(val);
-      if (isNaN(cost) || cost < 0) { feedback('❌ Invalid cost', false); return; }
+      if (isNaN(cost) || cost < 0) { feedback('Invalid cost', false); return; }
       const r = await post(`/api/guild/${guildId}/actions/${type}/cost`, { cost });
-      feedback(r?.ok ? `✅ Cost updated for ${type}` : '❌ ' + (r?.error || 'Error'), r?.ok);
+      feedback(r?.ok ? `Cost updated for ${type}` : '' + (r?.error || 'Error'), r?.ok);
     };
     window.__actionToggle = async (type, enabled) => {
       const r = await post(`/api/guild/${guildId}/actions/${type}/toggle`, { enabled });
-      feedback(r?.ok ? `✅ ${type} ${enabled ? 'enabled' : 'disabled'}` : '❌ Error', r?.ok);
+      feedback(r?.ok ? `${type} ${enabled ? 'enabled' : 'disabled'}` : 'Error', r?.ok);
     };
   }, 50);
 
   return html;
-}
-
-  return `<div class="empty-state">
-    <div class="empty-state-icon">${icon}</div>
-    <div class="empty-state-title">${title}</div>
-    ${sub ? `<div class="empty-state-sub">${sub}</div>` : ''}
-  </div>`;
 }
 
 // ─── Init ────────────────────────────────────────
@@ -974,7 +1066,7 @@ if (!guildId || !/^\d+$/.test(guildId)) {
   document.getElementById('app').innerHTML = `
     <div class="splash">
       <div class="splash-inner">
-        <div class="splash-logo">⚠️</div>
+        <div class="splash-mark" style="background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.2)">${ICONS.alert}</div>
         <div class="splash-title">Invalid Session</div>
         <div class="splash-subtitle">No guild ID found. <a href="/" style="color:var(--text-accent)">Return home</a></div>
       </div>
@@ -985,7 +1077,7 @@ if (!guildId || !/^\d+$/.test(guildId)) {
     document.getElementById('app').innerHTML = `
       <div class="splash">
         <div class="splash-inner">
-          <div class="splash-logo">⚠️</div>
+          <div class="splash-mark" style="background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.2)">${ICONS.alert}</div>
           <div class="splash-title">Failed to Load</div>
           <div class="splash-subtitle">${esc(err.message)} · <a href="/" style="color:var(--text-accent)">Return home</a></div>
         </div>

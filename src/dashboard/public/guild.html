@@ -6,16 +6,25 @@
   <title>Chopsticks Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/console-assets/css/dashboard.css" />
 </head>
 <body>
   <div id="app">
     <div class="splash">
       <div class="splash-inner">
-        <div class="splash-logo">🥢</div>
-        <div class="splash-title">Chopsticks Console</div>
-        <div class="splash-subtitle">Loading your server control panel…</div>
+        <div class="splash-mark">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <line x1="8" y1="3" x2="16" y2="25" stroke="url(#spl1)" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="14" y1="3" x2="22" y2="25" stroke="url(#spl2)" stroke-width="2.5" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="spl1" x1="8" y1="3" x2="16" y2="25" gradientUnits="userSpaceOnUse"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+              <linearGradient id="spl2" x1="14" y1="3" x2="22" y2="25" gradientUnits="userSpaceOnUse"><stop stop-color="#7c3aed"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div class="splash-title">Chopsticks</div>
+        <div class="splash-subtitle">Loading console…</div>
         <div class="splash-loader"><div class="loader-bar"></div></div>
       </div>
     </div>
@@ -26,7 +35,16 @@
       <!-- Sidebar -->
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-          <div class="sidebar-logo">🥢</div>
+          <div class="sidebar-logo">
+            <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+              <line x1="8" y1="3" x2="16" y2="25" stroke="url(#sl1)" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="14" y1="3" x2="22" y2="25" stroke="url(#sl2)" stroke-width="2.5" stroke-linecap="round"/>
+              <defs>
+                <linearGradient id="sl1" x1="8" y1="3" x2="16" y2="25" gradientUnits="userSpaceOnUse"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient>
+                <linearGradient id="sl2" x1="14" y1="3" x2="22" y2="25" gradientUnits="userSpaceOnUse"><stop stop-color="#7c3aed"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
+              </defs>
+            </svg>
+          </div>
           <div class="sidebar-guild">
             <div class="sidebar-guild-name" id="guild-name">Loading…</div>
             <div class="sidebar-guild-id" id="guild-id-display"></div>
@@ -35,34 +53,44 @@
 
         <nav class="sidebar-nav">
           <button class="nav-item active" data-page="overview">
-            <span class="nav-icon">⚡</span><span class="nav-label">Overview</span>
+            <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+            <span class="nav-label">Overview</span>
           </button>
           <button class="nav-item" data-page="music">
-            <span class="nav-icon">🎵</span><span class="nav-label">Music</span>
+            <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+            <span class="nav-label">Music</span>
           </button>
           <button class="nav-item" data-page="pools">
-            <span class="nav-icon">🤖</span><span class="nav-label">Agent Pools</span>
+            <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg></span>
+            <span class="nav-label">Agent Pools</span>
           </button>
           <button class="nav-item" data-page="voice">
-            <span class="nav-icon">🔊</span><span class="nav-label">Voice Rooms</span>
+            <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span>
+            <span class="nav-label">Voice Rooms</span>
           </button>
           <button class="nav-item" data-page="audiobook">
-            <span class="nav-icon">📖</span><span class="nav-label">Audiobooks</span>
+            <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+            <span class="nav-label">Audiobooks</span>
           </button>
           <button class="nav-item" data-page="stats">
-            <span class="nav-icon">📊</span><span class="nav-label">Stats</span>
+            <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg></span>
+            <span class="nav-label">Stats</span>
           </button>
           <button class="nav-item" data-page="leveling">
-            <span class="nav-icon">⚡</span><span class="nav-label">Leveling</span>
+            <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
+            <span class="nav-label">Leveling</span>
           </button>
           <button class="nav-item" data-page="actions">
-            <span class="nav-icon">🎭</span><span class="nav-label">Agent Actions</span>
+            <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg></span>
+            <span class="nav-label">Agent Actions</span>
           </button>
           <button class="nav-item" data-page="logs">
-            <span class="nav-icon">📋</span><span class="nav-label">Logs</span>
+            <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
+            <span class="nav-label">Logs</span>
           </button>
           <button class="nav-item" data-page="settings">
-            <span class="nav-icon">⚙️</span><span class="nav-label">Settings</span>
+            <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+            <span class="nav-label">Settings</span>
           </button>
         </nav>
 
@@ -74,20 +102,31 @@
               <div class="user-role admin-badge" id="user-role">Admin</div>
             </div>
           </div>
-          <a href="/logout" class="btn-logout" title="Sign out">↩</a>
+          <a href="/logout" class="btn-logout" title="Sign out">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </a>
         </div>
       </aside>
 
       <!-- Main content -->
       <main class="main-content" id="main-content">
         <div class="page-header">
-          <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+          <button class="sidebar-toggle" id="sidebar-toggle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
           <div>
             <h1 class="page-title" id="page-title">Overview</h1>
             <p class="page-sub" id="page-sub">Server dashboard</p>
           </div>
           <div class="header-actions">
-            <button class="btn btn-ghost" id="refresh-btn" title="Refresh data">↻</button>
+            <button class="kbd-hint" id="cmd-palette-btn" title="Open command palette (Ctrl+K)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span>Search</span>
+              <kbd>K</kbd>
+            </button>
+            <button class="btn btn-ghost btn-icon" id="refresh-btn" title="Refresh data">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </button>
           </div>
         </div>
 
@@ -95,6 +134,18 @@
           <!-- Dynamic content renders here -->
         </div>
       </main>
+    </div>
+
+    <!-- Command Palette -->
+    <div class="cmd-overlay" id="cmd-overlay">
+      <div class="cmd-palette" id="cmd-palette">
+        <div class="cmd-input-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cmd-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="cmd-input" id="cmd-input" placeholder="Navigate to…" autocomplete="off" spellcheck="false" />
+          <kbd class="cmd-esc">Esc</kbd>
+        </div>
+        <div class="cmd-results" id="cmd-results"></div>
+      </div>
     </div>
   </template>
 
