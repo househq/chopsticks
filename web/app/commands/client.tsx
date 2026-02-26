@@ -122,7 +122,7 @@ export default function CommandsClient() {
             Command Reference
           </div>
           <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.25rem)', fontWeight: 700, letterSpacing: '-0.04em', color: 'var(--text)', marginBottom: '0.6rem', fontFamily: 'var(--font-heading)', lineHeight: 1 }}>
-            60+ commands.
+            100+ commands.
           </h1>
           <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', maxWidth: 480, lineHeight: 1.7, marginBottom: '2rem' }}>
             Seven categories. Searchable, filterable, fully documented. Use the spotlights below to explore the most powerful commands first.
@@ -131,11 +131,11 @@ export default function CommandsClient() {
           {/* Stats bar */}
           <div className="cmd-stats-bar">
             {[
-              { val: '60+',    label: 'Commands' },
+              { val: '101',    label: 'Commands' },
               { val: '7',      label: 'Categories' },
-              { val: '49',     label: 'Concurrent players' },
+              { val: '49',     label: 'Concurrent sessions' },
               { val: 'Agents', label: 'Near-human actors' },
-              { val: 'Free',   label: 'Forever' },
+              { val: 'MIT',    label: 'Licensed' },
             ].map(s => (
               <div key={s.label} className="cmd-stat">
                 <span className="cmd-stat-val">{s.val}</span>

@@ -3,7 +3,7 @@ import CommandsClient from './client';
 
 export const metadata: Metadata = {
   title: 'Commands',
-  description: 'Browse all 168+ Chopsticks Discord bot commands — music, moderation, economy, games, AI agents, and more.',
+  description: 'Browse all 101 Chopsticks Discord bot commands — music, moderation, economy, games, AI agents, and automation.',
   alternates: { canonical: 'https://chopsticks.wokspec.org/commands' },
 };
 

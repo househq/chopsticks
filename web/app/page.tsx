@@ -8,7 +8,7 @@ import {
 
 export const metadata: Metadata = {
   title: 'Chopsticks — Discord Bot by WokSpec',
-  description: '100+ slash commands covering music, moderation, economy, games, AI, and the Agent Pool system. Open source, community-built, free forever.',
+  description: '100+ slash commands covering music, moderation, economy, games, AI, and the Agent Pool system. Open source, community-built.',
   alternates: { canonical: 'https://chopsticks.wokspec.org' },
 };
 
@@ -72,8 +72,8 @@ export default function HomePage() {
 
               <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', paddingTop: '2rem', borderTop: '1px solid var(--border)' }}>
                 {[
-                  { v: '100+', l: 'Commands' },
-                  { v: '49', l: 'Concurrent players' },
+                  { v: '101', l: 'Commands' },
+                  { v: '49', l: 'Concurrent sessions' },
                   { v: 'Agents', l: 'Near-human actors' },
                   { v: 'MIT', l: 'License' },
                 ].map(s => (

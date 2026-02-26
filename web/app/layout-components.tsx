@@ -47,7 +47,7 @@ export function Footer() {
               <div style={{ width: 26, height: 26, borderRadius: 7, background: 'linear-gradient(135deg, #38bdf8, #0284c7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 800, color: '#03111e' }}>CH</div>
               <span style={{ fontWeight: 700, fontSize: '0.9rem', fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' }}>Chopsticks</span>
             </div>
-            <p>An open source Discord bot built by goot27 and the WokSpec community. Free to use, free to host.</p>
+            <p>An open source Discord bot built by goot27 and the WokSpec community.</p>
           </div>
 
           <div className="footer-col">

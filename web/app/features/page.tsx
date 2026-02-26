@@ -186,7 +186,7 @@ export default function FeaturesPage() {
               What Chopsticks<br />actually does.
             </h1>
             <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', lineHeight: 1.75, maxWidth: 520, marginBottom: '2rem' }}>
-              One bot. Six capability pillars. 49 concurrent music players. Near-human AI agents. A full gamification platform. Raid protection. Fully programmable automation. All open source, free forever.
+              One bot. Six capability pillars. 49 concurrent music players. Near-human AI agents. A full gamification platform. Raid protection. Fully programmable automation. All open source.
             </p>
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <a href={BOT_INVITE} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '0.75rem 1.5rem', fontSize: '0.88rem' }}>

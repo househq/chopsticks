@@ -104,7 +104,7 @@ export default function DocsPage() {
               It ships 60 slash commands across music, moderation, economy, games, AI, and utility — plus the Agent Pool system for community-powered voice deployments.
             </p>
             <p style={P_STYLE}>
-              It&apos;s open source (MIT), free forever, and built on discord.js v14 with PostgreSQL, Redis, and Lavalink.
+              It&apos;s open source (MIT) and built on discord.js v14 with PostgreSQL, Redis, and Lavalink.
               You can use the hosted instance immediately, fork and reskin it for your brand, or self-host a full Docker stack.
             </p>
           </section>
