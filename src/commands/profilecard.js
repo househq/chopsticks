@@ -10,7 +10,7 @@ import { Colors } from "../utils/discordOutput.js";
 import { withTimeout } from "../utils/interactionTimeout.js";
 
 export const meta = {
-  category: "profile",
+  category: "social",
   guildOnly: false,
   deployGlobal: false, // use /card profile instead
 };

@@ -10,7 +10,7 @@ import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   name: "customcmd",
-  category: "admin",
+  category: "tools",
   deployGlobal: true,
 };
 

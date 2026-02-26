@@ -6,7 +6,7 @@ export const meta = {
   guildOnly: true,
   deployGlobal: false,
   userPerms: [PermissionFlagsBits.ModerateMembers],
-  category: "mod"
+  category: "info"
 };
 
 const TYPE_ICONS = {

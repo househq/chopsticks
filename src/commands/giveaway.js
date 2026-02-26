@@ -6,7 +6,7 @@ import { withTimeout } from "../utils/interactionTimeout.js";
 
 export const meta = {
   deployGlobal: false,
-  category: "admin",
+  category: "community",
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageGuild]
 };

@@ -20,7 +20,7 @@ import { Branding } from "../config/branding.js";
 
 export const meta = {
   name: "theme",
-  category: "admin",
+  category: "utility",
   deployGlobal: true,
 };
 

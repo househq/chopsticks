@@ -12,7 +12,7 @@ export const meta = {
   deployGlobal: true,
   name: 'wouldyourather',
   description: 'Would you rather question',
-  category: 'fun',
+  category: "entertainment",
 };
 
 export const data = new SlashCommandBuilder()

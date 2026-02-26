@@ -9,7 +9,7 @@ import { getAntinukeConfig, saveAntinukeConfig } from "../tools/antinuke/engine.
 
 export const meta = {
   name: "antinuke",
-  category: "admin",
+  category: "safety",
   deployGlobal: true,
 };
 

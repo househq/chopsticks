@@ -6,7 +6,7 @@ import { dispatchModerationLog } from "../utils/modLogs.js";
 export const meta = {
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageNicknames],
-  category: "mod",
+  category: "utility",
   deployGlobal: false,
 };
 

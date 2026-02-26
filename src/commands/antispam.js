@@ -4,7 +4,7 @@ import { Colors, replyEmbed, replySuccess, replyError } from "../utils/discordOu
 
 export const meta = {
   deployGlobal: false,
-  category: "mod",
+  category: "safety",
   userPerms: ["ManageGuild"],
   guildOnly: true
 };

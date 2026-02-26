@@ -120,9 +120,9 @@ describe("BYOK — encrypt/decrypt round-trip", () => {
 // ── agentkeys command file ─────────────────────────────────────────────────
 
 describe("BYOK — agentkeys.js command structure", () => {
-  it("exports meta with category: utility", () => {
+  it("exports meta with category: ai", () => {
     const code = src("src/commands/agentkeys.js");
-    assert.ok(code.includes('category: "utility"'), "meta.category must be utility");
+    assert.ok(code.includes('category: "ai"'), "meta.category must be ai (BYOK is an AI feature)");
   });
 
   it("command name is 'agentkeys'", () => {

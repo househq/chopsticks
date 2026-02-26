@@ -14,7 +14,7 @@ export const meta = {
   deployGlobal: true,
   name: 'card',
   description: 'Generate stylized image cards',
-  category: 'fun',
+  category: "social",
 };
 
 export const data = new SlashCommandBuilder()

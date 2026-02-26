@@ -21,7 +21,7 @@ const RULE_LABELS = {
 
 export const meta = {
   name: "automod",
-  category: "admin",
+  category: "safety",
   deployGlobal: true,
 };
 

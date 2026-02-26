@@ -105,8 +105,8 @@ describe("convert command - unit conversion", function () {
 
 // ---- 5. reputation - give restrictions ----
 describe("reputation command", function () {
-  it("has meta.category = 'economy'", function () {
-    assert.equal(reputation.meta.category, "economy");
+  it("has meta.category = 'social'", function () {
+    assert.equal(reputation.meta.category, "social");
   });
 
   it("cannot give rep to self (logic check)", function () {
@@ -166,9 +166,9 @@ describe("all new commands: meta and slash name", function () {
   const commands = [
     { mod: lockdown, name: "lockdown", category: "mod" },
     { mod: { meta: { category: "tools" }, data: { toJSON: () => ({ name: "embed" }) }, execute: () => {} }, name: "embed", category: "tools" },
-    { mod: { meta: { category: "tools" }, data: { toJSON: () => ({ name: "convert" }) }, execute: () => {} }, name: "convert", category: "tools" },
-    { mod: reputation, name: "reputation", category: "economy" },
-    { mod: { meta: { category: "tools" }, data: { toJSON: () => ({ name: "birthday" }) }, execute: () => {} }, name: "birthday", category: "tools" }
+    { mod: { meta: { category: "utility" }, data: { toJSON: () => ({ name: "convert" }) }, execute: () => {} }, name: "convert", category: "utility" },
+    { mod: reputation, name: "reputation", category: "social" },
+    { mod: { meta: { category: "social" }, data: { toJSON: () => ({ name: "birthday" }) }, execute: () => {} }, name: "birthday", category: "social" }
   ];
 
   // Re-import the real modules to check their actual data
@@ -183,20 +183,20 @@ describe("all new commands: meta and slash name", function () {
     assert.equal(mod.data.toJSON().name, "embed");
   });
 
-  it("convert: meta.category = 'tools', name = 'convert'", async function () {
+  it("convert: meta.category = 'utility', name = 'convert'", async function () {
     const mod = await import("../../src/commands/convert.js");
-    assert.equal(mod.meta.category, "tools");
+    assert.equal(mod.meta.category, "utility");
     assert.equal(mod.data.toJSON().name, "convert");
   });
 
-  it("reputation: meta.category = 'economy', name = 'reputation'", function () {
-    assert.equal(reputation.meta.category, "economy");
+  it("reputation: meta.category = 'social', name = 'reputation'", function () {
+    assert.equal(reputation.meta.category, "social");
     assert.equal(reputation.data.toJSON().name, "reputation");
   });
 
-  it("birthday: meta.category = 'tools', name = 'birthday'", async function () {
+  it("birthday: meta.category = 'social', name = 'birthday'", async function () {
     const mod = await import("../../src/commands/birthday.js");
-    assert.equal(mod.meta.category, "tools");
+    assert.equal(mod.meta.category, "social");
     assert.equal(mod.data.toJSON().name, "birthday");
   });
 });

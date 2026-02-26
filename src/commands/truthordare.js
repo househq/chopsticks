@@ -8,7 +8,7 @@ export const meta = {
   deployGlobal: true,
   name: 'truthordare',
   description: 'Truth or dare prompt',
-  category: 'fun',
+  category: "entertainment",
 };
 
 export const data = new SlashCommandBuilder()

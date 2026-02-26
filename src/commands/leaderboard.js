@@ -9,7 +9,7 @@ function rankLines(rows, fmt) {
 }
 
 export const meta = {
-  category: "economy",
+  category: "social",
   guildOnly: true,
   deployGlobal: false, // merged into /stats leaderboard
 };

@@ -4,7 +4,7 @@ import { withTimeout } from "../utils/interactionTimeout.js";
 
 export const meta = {
   deployGlobal: true,
-  category: "utility",
+  category: "social",
   guildOnly: true,
   userPerms: [],
 };

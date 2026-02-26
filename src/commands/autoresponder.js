@@ -15,7 +15,7 @@ import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   name: "autoresponder",
-  category: "admin",
+  category: "tools",
   deployGlobal: true,
 };
 

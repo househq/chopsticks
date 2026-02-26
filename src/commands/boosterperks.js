@@ -18,7 +18,7 @@ import { loadGuildData, saveGuildData } from "../utils/storage.js";
 
 export const meta = {
   name: "boosterperks",
-  category: "social",
+  category: "admin",
   deployGlobal: true,
 };
 

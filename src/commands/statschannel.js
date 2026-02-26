@@ -8,7 +8,7 @@ import { loadGuildData, saveGuildData } from "../utils/storage.js";
 import { botLogger } from "../utils/modernLogger.js";
 
 export const meta = {
-  category: "utility",
+  category: "info",
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageGuild],
   deployGlobal: false

@@ -7,7 +7,7 @@ import { AUDIT_EVENT_TYPES } from "../tools/auditLog/dispatcher.js";
 export const meta = {
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageGuild],
-  category: "admin",
+  category: "mod",
   deployGlobal: true,
 };
 

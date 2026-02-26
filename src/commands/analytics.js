@@ -9,7 +9,7 @@ import { loadGuildData } from "../utils/storage.js";
 
 export const meta = {
   name: "analytics",
-  category: "admin",
+  category: "info",
   deployGlobal: true,
 };
 

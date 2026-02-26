@@ -19,7 +19,7 @@ export const meta = {
   deployGlobal: true,
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageRoles],
-  category: "admin"
+  category: "social"
 };
 
 function buildEmbed(title, description, color = Colors.INFO) {

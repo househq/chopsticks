@@ -13,7 +13,7 @@ const UI_PREFIX = "cmdui";
 
 export const meta = {
   deployGlobal: true,
-  category: "util",
+  category: "info",
   guildOnly: true,
 };
 

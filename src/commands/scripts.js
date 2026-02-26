@@ -20,7 +20,7 @@ import {
 export const meta = {
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageGuild],
-  category: "admin",
+  category: "tools",
   deployGlobal: false
 };
 

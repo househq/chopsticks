@@ -14,7 +14,7 @@ import { buildRoleMenuComponents, buildRoleMenuEmbed } from "../tools/roles/hand
 
 export const meta = {
   name: "roles",
-  category: "server",
+  category: "mod",
   deployGlobal: true,
 };
 

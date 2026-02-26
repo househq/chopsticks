@@ -18,7 +18,7 @@ export const meta = {
   deployGlobal: true,
   name: 'stats',
   description: 'Per-guild activity stats, leaderboards, and achievements',
-  category: 'economy',
+  category: "info",
 };
 
 export const data = new SlashCommandBuilder()

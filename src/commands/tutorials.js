@@ -22,7 +22,7 @@ export const meta = {
   deployGlobal: true,
   guildOnly: false,
   userPerms: [],
-  category: "core"
+  category: "info"
 };
 
 const TUTORIAL_UI_PREFIX = "tutorialsui";

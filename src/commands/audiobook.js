@@ -32,7 +32,7 @@ export const meta = {
   deployGlobal: false,
   name: 'audiobook',
   description: 'Read books aloud in your voice channel',
-  category: 'entertainment',
+  category: "media",
 };
 
 export const data = new SlashCommandBuilder()

@@ -4,7 +4,7 @@ import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   deployGlobal: true,
-  category: "tools",
+  category: "utility",
   guildOnly: true,
 };
 

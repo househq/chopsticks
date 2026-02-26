@@ -2,7 +2,7 @@ import { SlashCommandBuilder, PermissionFlagsBits } from "discord.js";
 import { replySuccess, replyError } from "../utils/discordOutput.js";
 
 export const meta = {
-  category: "tools",
+  category: "utility",
   userPerms: ["ManageMessages"],
   guildOnly: true,
   deployGlobal: false,

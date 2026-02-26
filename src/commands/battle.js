@@ -12,7 +12,7 @@ export const meta = {
   deployGlobal: true,
   name: 'battle',
   description: 'PvP battle between two users',
-  category: 'fun',
+  category: "game",
   guildOnly: true,
 };
 

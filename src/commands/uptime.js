@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, MessageFlags } from "discord.js";
 
 export const meta = {
-  category: "util",
+  category: "info",
   guildOnly: true,
   deployGlobal: false,
 };

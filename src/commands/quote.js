@@ -9,7 +9,7 @@ export const meta = {
   deployGlobal: true,
   name: 'quote',
   description: 'Random quote',
-  category: 'fun',
+  category: "entertainment",
 };
 
 export const data = new SlashCommandBuilder()

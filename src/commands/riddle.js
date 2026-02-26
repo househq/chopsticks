@@ -12,7 +12,7 @@ export const meta = {
   deployGlobal: true,
   name: 'riddle',
   description: 'Get a random riddle',
-  category: 'fun',
+  category: "entertainment",
 };
 
 export const data = new SlashCommandBuilder()

@@ -10,6 +10,8 @@ import { loadGuildData } from "../utils/storage.js";
 import { Colors } from "../utils/discordOutput.js";
 import { searchCommands, getAutocompleteSuggestions } from "../utils/helpSearch.js";
 import { getCommand, getCommands } from "../utils/helpRegistry.js";
+import { CATEGORIES } from "../utils/commandCategories.js";
+import { getPrefixCommands, CATEGORIES as PREFIX_CATEGORY_GROUPS } from "../prefix/registry.js";
 
 const HELP_UI_PREFIX = "helpui";
 const MAIN_VALUE = "__main__";
@@ -18,27 +20,37 @@ const BROAD_CATEGORIES = [
   {
     key: "core",
     label: "Core",
-    description: "General bot usage, discovery, and status."
+    description: "Slash commands, discoverability, bot status, and navigation.",
+    emoji: "🤖",
+    taxonomyKeys: [CATEGORIES.INFO, CATEGORIES.UTILITY],
   },
   {
     key: "voice_audio",
     label: "Voice + Audio",
-    description: "Music, VoiceMaster, assistant, agents, and pools."
+    description: "Music, voice lobbies, AI assistant, agents, and pools.",
+    emoji: "🎵",
+    taxonomyKeys: [CATEGORIES.MUSIC, CATEGORIES.VOICE, CATEGORIES.AGENTS, CATEGORIES.AI],
   },
   {
     key: "moderation",
     label: "Moderation",
-    description: "Safety, enforcement, and server member controls."
+    description: "Safety, enforcement, server controls, and anti-abuse.",
+    emoji: "🔨",
+    taxonomyKeys: [CATEGORIES.MOD, CATEGORIES.SAFETY],
   },
   {
     key: "economy_fun",
-    label: "Economy + Fun",
-    description: "Economy progression, inventory, games, and casual tools."
+    label: "Economy + Game",
+    description: "Economy progression, inventory, crafting, and social features.",
+    emoji: "💰",
+    taxonomyKeys: [CATEGORIES.ECONOMY, CATEGORIES.GAME, CATEGORIES.SOCIAL, CATEGORIES.FUN, CATEGORIES.ENTERTAINMENT],
   },
   {
     key: "admin_setup",
     label: "Admin + Setup",
-    description: "Configuration, automation, logging, and governance."
+    description: "Bot config, automations, tools, and server governance.",
+    emoji: "⚙️",
+    taxonomyKeys: [CATEGORIES.ADMIN, CATEGORIES.TOOLS, CATEGORIES.COMMUNITY],
   }
 ];
 
@@ -106,7 +118,7 @@ const KNOWN_COMMAND_GROUPS = {
 
 export const meta = {
   deployGlobal: true,
-  category: "util",
+  category: "info",
   guildOnly: true,
 };
 
@@ -140,6 +152,17 @@ export const data = new SlashCommandBuilder()
           .setDescription("Command name")
           .setRequired(true)
           .setAutocomplete(true)
+      )
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName("prefix")
+      .setDescription("Browse prefix commands (!cmd) by category")
+      .addStringOption(opt =>
+        opt
+          .setName("category")
+          .setDescription("Prefix command category to browse")
+          .setRequired(false)
       )
   );
 
@@ -187,15 +210,38 @@ function formatVariantSummary({ variants, args }) {
   return "base command";
 }
 
-function inferBroadCategory(commandName, explicitCategory = "") {
-  const name = String(commandName || "");
-  const explicit = String(explicitCategory || "").toLowerCase();
+// Taxonomy → broad category mapping (uses canonical CATEGORIES)
+const TAXONOMY_TO_BROAD = {
+  [CATEGORIES.INFO]:          "core",
+  [CATEGORIES.UTILITY]:       "core",
+  [CATEGORIES.MUSIC]:         "voice_audio",
+  [CATEGORIES.VOICE]:         "voice_audio",
+  [CATEGORIES.AGENTS]:        "voice_audio",
+  [CATEGORIES.AI]:            "voice_audio",
+  [CATEGORIES.MOD]:           "moderation",
+  [CATEGORIES.SAFETY]:        "moderation",
+  [CATEGORIES.ECONOMY]:       "economy_fun",
+  [CATEGORIES.GAME]:          "economy_fun",
+  [CATEGORIES.SOCIAL]:        "economy_fun",
+  [CATEGORIES.FUN]:           "economy_fun",
+  [CATEGORIES.ENTERTAINMENT]: "economy_fun",
+  [CATEGORIES.ADMIN]:         "admin_setup",
+  [CATEGORIES.TOOLS]:         "admin_setup",
+  [CATEGORIES.COMMUNITY]:     "admin_setup",
+  [CATEGORIES.MEDIA]:         "economy_fun",
+  [CATEGORIES.INTERNAL]:      "core",
+};
 
+function inferBroadCategory(commandName, explicitCategory = "") {
+  const explicit = String(explicitCategory || "").toLowerCase();
+  if (TAXONOMY_TO_BROAD[explicit]) return TAXONOMY_TO_BROAD[explicit];
+
+  // Legacy fallback
   if (explicit === "music" || explicit === "assistant" || explicit === "pools") return "voice_audio";
   if (explicit === "admin") return "admin_setup";
 
   for (const [category, names] of Object.entries(KNOWN_COMMAND_GROUPS)) {
-    if (names.has(name)) return category;
+    if (names.has(commandName)) return category;
   }
   return "core";
 }
@@ -491,6 +537,58 @@ export async function execute(interaction) {
     return;
   }
   
+  // Handle prefix subcommand — discoverability hub for prefix commands
+  if (subcommand === 'prefix') {
+    const requestedCategory = interaction.options.getString('category')?.toLowerCase();
+    let prefixCmds;
+    try {
+      prefixCmds = await getPrefixCommands();
+    } catch {
+      prefixCmds = new Map();
+    }
+
+    if (requestedCategory) {
+      // Show commands for a specific category
+      const cmds = [...prefixCmds.values()].filter(c => c.category === requestedCategory);
+      if (!cmds.length) {
+        await interaction.reply({
+          content: `No prefix commands found in category \`${requestedCategory}\`. Use \`/help prefix\` (no category) to see all categories.`,
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      const lines = cmds.slice(0, 30).map(c => `**!${c.name}**${c.aliases?.length ? ` *(${c.aliases.slice(0,2).join(', ')})*` : ''} — ${c.description || c.desc || 'No description'}`);
+      const embed = new EmbedBuilder()
+        .setTitle(`📋 Prefix Commands: ${requestedCategory}`)
+        .setColor(Colors.PRIMARY)
+        .setDescription(lines.join('\n'))
+        .setFooter({ text: `${cmds.length} commands in this category · Use !help for inline help` });
+      await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    // Show category overview
+    const categoryCount = new Map();
+    for (const cmd of prefixCmds.values()) {
+      const cat = cmd.category || 'other';
+      categoryCount.set(cat, (categoryCount.get(cat) || 0) + 1);
+    }
+    const sortedCats = [...categoryCount.entries()].sort((a, b) => b[1] - a[1]);
+    const fields = sortedCats.map(([cat, count]) => ({
+      name: `📂 ${cat}`,
+      value: `${count} commands · \`/help prefix category:${cat}\``,
+      inline: true
+    }));
+    const embed = new EmbedBuilder()
+      .setTitle('📋 Prefix Command Categories')
+      .setColor(Colors.PRIMARY)
+      .setDescription(`**${prefixCmds.size} prefix commands** across ${sortedCats.length} categories.\nUse your server's prefix (default: \`!\`) · Tab-complete: type \`!\` in chat\n\nBrowse a category: \`/help prefix category:<name>\``)
+      .addFields(fields.slice(0, 18))
+      .setFooter({ text: 'Prefix commands are the advanced power-user surface · No slash limits apply' });
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    return;
+  }
+
   // Default: browse mode
   const payload = buildPanelPayload(interaction, MAIN_VALUE);
 

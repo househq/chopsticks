@@ -34,7 +34,7 @@ export const meta = {
   deployGlobal: false,
   guildOnly: false, // Pool management can be done outside guilds
   userPerms: [],
-  category: "pools"
+  category: "agents"
 };
 
 export const data = new SlashCommandBuilder()

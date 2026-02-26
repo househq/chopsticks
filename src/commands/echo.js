@@ -3,7 +3,7 @@ import { replyEmbed } from "../utils/discordOutput.js";
 import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
-  category: "util",
+  category: "utility",
   guildOnly: true,
   deployGlobal: false,
 };

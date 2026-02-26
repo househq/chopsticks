@@ -54,7 +54,7 @@ function defaultPanelState({ userId, guildId }) {
     work: { job: "programmer" },
     gather: { tool: null, zone: "any" },
     fight: { difficulty: "easy" },
-    shop: { category: "tools", item: "basic_scanner" }
+    shop: { category: "game", item: "basic_scanner" }
     ,
     craft: { recipe: "energy_drink" }
   };

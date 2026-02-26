@@ -137,8 +137,8 @@ describe("/wouldyourather command", function () {
   it("exports execute as a function", function () {
     assert.equal(typeof wyrExecute, "function");
   });
-  it("has meta.category = 'fun'", function () {
-    assert.equal(wyrMeta.category, "fun");
+  it("has meta.category = 'entertainment'", function () {
+    assert.equal(wyrMeta.category, "entertainment");
   });
   it("takes no required options", function () {
     const opts = wyrData.toJSON().options || [];
@@ -219,8 +219,8 @@ describe("/battle command", function () {
   it("exports execute as a function", function () {
     assert.equal(typeof battleExecute, "function");
   });
-  it("has meta.category = 'fun'", function () {
-    assert.equal(battleMeta.category, "fun");
+  it("has meta.category = 'game'", function () {
+    assert.equal(battleMeta.category, "game");
   });
   it("has meta.guildOnly = true", function () {
     assert.equal(battleMeta.guildOnly, true);
@@ -280,8 +280,8 @@ describe("/riddle command", function () {
   it("exports execute as a function", function () {
     assert.equal(typeof riddleExecute, "function");
   });
-  it("has meta.category = 'fun'", function () {
-    assert.equal(riddleMeta.category, "fun");
+  it("has meta.category = 'entertainment'", function () {
+    assert.equal(riddleMeta.category, "entertainment");
   });
   it("has optional 'reveal' boolean option", function () {
     const opts = riddleData.toJSON().options || [];

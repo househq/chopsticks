@@ -17,7 +17,7 @@ import { buildVerifyPanel } from "../tools/verify/handler.js";
 
 export const meta = {
   name: "verify",
-  category: "admin",
+  category: "safety",
   deployGlobal: true,
 };
 

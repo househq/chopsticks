@@ -7,7 +7,7 @@ export const meta = {
   deployGlobal: true,
   guildOnly: true,
   userPerms: [],
-  category: "tools"
+  category: "utility"
 };
 
 const TAG_NAME_RE = /^[a-z0-9-]{1,32}$/;

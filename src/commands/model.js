@@ -26,7 +26,7 @@ import { withTimeout } from "../utils/interactionTimeout.js";
 export const meta = {
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageGuild],
-  category: "admin",
+  category: "ai",
   description: "Configure the voice AI model provider for this server.",
   keywords: ["voice", "ai", "model", "llm", "provider", "api key", "anthropic", "openai", "ollama"],
   deployGlobal: false

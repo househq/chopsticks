@@ -19,7 +19,7 @@ import {
 
 export const meta = {
   name: "avatar",
-  category: "utility",
+  category: "media",
   deployGlobal: true,
 };
 

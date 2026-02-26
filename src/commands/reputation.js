@@ -7,7 +7,7 @@ export const meta = {
   deployGlobal: true,
   guildOnly: true,
   userPerms: [],
-  category: "economy"
+  category: "social"
 };
 
 export const data = new SlashCommandBuilder()

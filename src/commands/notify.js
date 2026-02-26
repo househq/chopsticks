@@ -9,7 +9,7 @@ import { loadGuildData, saveGuildData } from "../utils/storage.js";
 
 export const meta = {
   name: "notify",
-  category: "server",
+  category: "utility",
   deployGlobal: true,
 };
 

@@ -4,7 +4,7 @@ import { Colors, replyEmbed, replySuccess, replyError } from "../utils/discordOu
 
 export const meta = {
   deployGlobal: true,
-  category: "community",
+  category: "social",
   guildOnly: true
 };
 

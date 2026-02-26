@@ -14,7 +14,7 @@ import {
 
 export const meta = {
   name: "emoji",
-  category: "admin",
+  category: "tools",
   deployGlobal: true,
 };
 

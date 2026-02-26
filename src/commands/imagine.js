@@ -10,7 +10,7 @@ import { loadGuildData } from '../utils/storage.js';
 export const meta = {
   name: 'imagine',
   description: 'Generate AI images for free using HuggingFace',
-  category: 'fun',
+  category: "media",
   deployGlobal: false, // merged into /ai image
 };
 

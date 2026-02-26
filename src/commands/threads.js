@@ -10,7 +10,7 @@ import { loadGuildData, saveGuildData } from "../utils/storage.js";
 
 export const meta = {
   name: "threads",
-  category: "admin",
+  category: "tools",
   deployGlobal: true,
 };
 

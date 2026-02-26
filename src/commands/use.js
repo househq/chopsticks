@@ -13,7 +13,7 @@ import { sanitizeString } from "../utils/validation.js";
 
 export const meta = {
   deployGlobal: true,
-  category: "economy",
+  category: "game",
   guildOnly: true,
 };
 

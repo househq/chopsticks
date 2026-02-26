@@ -9,7 +9,7 @@ export const meta = {
   deployGlobal: true,
   name: 'meme',
   description: 'Random meme',
-  category: 'fun',
+  category: "media",
 };
 
 export const data = new SlashCommandBuilder()

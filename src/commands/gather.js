@@ -16,7 +16,7 @@ export const GATHER_COOLDOWN = 5 * 60 * 1000; // 5 minutes
 
 export const meta = {
   deployGlobal: true,
-  category: "economy",
+  category: "game",
   guildOnly: true,
 };
 

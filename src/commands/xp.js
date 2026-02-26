@@ -13,7 +13,7 @@ export const meta = {
   deployGlobal: true,
   name: 'xp',
   description: 'Configure per-guild XP and leveling system',
-  category: 'admin',
+  category: "social",
 };
 
 const XP_SOURCES = [

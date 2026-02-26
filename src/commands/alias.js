@@ -7,7 +7,7 @@ export const meta = {
   deployGlobal: true,
   guildOnly: true,
   userPerms: [PermissionFlagsBits.ManageGuild],
-  category: "admin"
+  category: "utility"
 };
 
 export const data = new SlashCommandBuilder()

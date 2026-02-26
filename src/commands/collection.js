@@ -10,7 +10,7 @@ const ITEMS_PER_PAGE = 12;
 
 export const meta = {
   deployGlobal: true,
-  category: "economy",
+  category: "game",
   guildOnly: true,
 };
 

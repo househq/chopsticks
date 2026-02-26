@@ -15,7 +15,7 @@ const QUEST_UI_PREFIX = "questui";
 
 export const meta = {
   deployGlobal: true,
-  category: "economy",
+  category: "game",
   guildOnly: true,
 };
 
