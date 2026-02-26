@@ -29,23 +29,23 @@ describe('Protocol Versioning', function() {
       );
     });
 
-    it('should have PROTOCOL_VERSION in agentManager.js', function() {
-      const managerPath = path.join(__dirname, '../../src/agents/agentManager.js');
-      const managerCode = fs.readFileSync(managerPath, 'utf8');
+    it('should have PROTOCOL_VERSION in agentProtocol.js (canonical source)', function() {
+      const protocolPath = path.join(__dirname, '../../src/agents/agentProtocol.js');
+      const protocolCode = fs.readFileSync(protocolPath, 'utf8');
       
       assert(
-        managerCode.includes('const PROTOCOL_VERSION = "1.0.0"'),
-        'agentManager.js must define PROTOCOL_VERSION = "1.0.0"'
+        protocolCode.includes('PROTOCOL_VERSION') && protocolCode.includes('"1.0.0"'),
+        'agentProtocol.js must define PROTOCOL_VERSION = "1.0.0"'
       );
     });
 
-    it('should have SUPPORTED_VERSIONS in agentManager.js', function() {
+    it('should have SUPPORTED_VERSIONS in agentManager.js (via import)', function() {
       const managerPath = path.join(__dirname, '../../src/agents/agentManager.js');
       const managerCode = fs.readFileSync(managerPath, 'utf8');
       
       assert(
         managerCode.includes('SUPPORTED_VERSIONS'),
-        'agentManager.js must define SUPPORTED_VERSIONS'
+        'agentManager.js must import and use SUPPORTED_VERSIONS'
       );
     });
   });

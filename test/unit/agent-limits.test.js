@@ -19,12 +19,19 @@ const __dirname = path.dirname(__filename);
 describe('Agent Limit Enforcement', function() {
   describe('Constants', function() {
     it('should define MAX_AGENTS_PER_GUILD = 49', function() {
-      const managerPath = path.join(__dirname, '../../src/agents/agentManager.js');
-      const managerCode = fs.readFileSync(managerPath, 'utf8');
+      // MAX_AGENTS_PER_GUILD is now in agentProtocol.js and imported by agentManager.js
+      const protocolPath = path.join(__dirname, '../../src/agents/agentProtocol.js');
+      const managerPath  = path.join(__dirname, '../../src/agents/agentManager.js');
+      const protocolCode = fs.readFileSync(protocolPath, 'utf8');
+      const managerCode  = fs.readFileSync(managerPath, 'utf8');
       
       assert(
-        managerCode.includes('const MAX_AGENTS_PER_GUILD = 49'),
-        'agentManager.js must define MAX_AGENTS_PER_GUILD = 49'
+        protocolCode.includes('MAX_AGENTS_PER_GUILD = 49'),
+        'agentProtocol.js must define MAX_AGENTS_PER_GUILD = 49'
+      );
+      assert(
+        managerCode.includes('MAX_AGENTS_PER_GUILD'),
+        'agentManager.js must import and use MAX_AGENTS_PER_GUILD'
       );
     });
   });

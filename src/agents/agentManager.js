@@ -1,6 +1,6 @@
 // src/agents/agentManager.js
 import { WebSocketServer } from "ws";
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { fetchAgentBots, fetchAgentToken, fetchAgentRunners, fetchPool, loadGuildData, updateAgentBotStatus } from "../utils/storage.js";
 import { logger, createAgentScopedLogger, generateCorrelationId } from "../utils/logger.js";
 import {
@@ -16,40 +16,20 @@ import {
 } from "../utils/metrics.js";
 import CircuitBreaker from "opossum";
 import { createPrimarySession, getPrimarySession, releasePrimarySession } from "../music/primarySession.js";
+import {
+  PROTOCOL_VERSION,
+  SUPPORTED_VERSIONS,
+  MAX_AGENTS_PER_GUILD,
+  normalizePodTag,
+  sessionKey,
+  assistantKey,
+  textKey,
+  safeInt,
+  buildInviteUrl,
+  secretsMatch,
+} from "./agentProtocol.js";
 
-// Protocol version - must match agent version
-const PROTOCOL_VERSION = "1.0.0";
-const SUPPORTED_VERSIONS = new Set(["1.0.0"]); // Add older versions here for compatibility
-
-// Agent limits per guild (Level 1: Invariants Locked)
-const MAX_AGENTS_PER_GUILD = 49;
-
-function sessionKey(guildId, voiceChannelId) {
-  return `${guildId}:${voiceChannelId}`;
-}
-
-function assistantKey(guildId, voiceChannelId) {
-  return `a:${guildId}:${voiceChannelId}`;
-}
-
-function textKey(kind, guildId, textChannelId, ownerUserId) {
-  const k = String(kind || "text");
-  return `t:${k}:${guildId}:${textChannelId}:${ownerUserId || "0"}`;
-}
-
-function now() {
-  return Date.now();
-}
-
-function safeInt(v, fallback) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function buildInviteUrl({ clientId, permissions }) {
-  const perms = BigInt(permissions ?? 0);
-  return `https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=${perms.toString()}&scope=bot%20applications.commands`;
-}
+function now() { return Date.now(); }
 
 /**
  * Control-plane between main bot and agentRunner.
@@ -79,6 +59,11 @@ export class AgentManager {
     // Preferred agent per session (soft hint)
     this.preferred = new Map(); // sessionKey -> { agentId, expiresAt }
     this.assistantPreferred = new Map(); // assistantKey -> { agentId, expiresAt }
+
+    // MAP Cycle 3: Warm-up pool — track guilds that have requested agents so we can
+    // pre-warm AGENT_WARM_COUNT idle agents on the next registration cycle.
+    this.warmCount = safeInt(process.env.AGENT_WARM_COUNT, 0);
+    this._warmGuilds = new Set(); // guilds that have had at least one agent registration
 
     // Health / pruning
     this.staleAgentMs = safeInt(process.env.AGENT_STALE_MS, 45_000);
@@ -313,12 +298,7 @@ export class AgentManager {
     // If AGENT_RUNNER_SECRET is set on the controller, the agent MUST present it in hello.
     if (this.runnerSecret) {
       const presented = String(msg?.runnerSecret || "").trim();
-      const expected  = this.runnerSecret;
-      const bPresented = Buffer.from(presented, "utf8");
-      const bExpected  = Buffer.from(expected,  "utf8");
-      const valid = presented.length > 0
-        && bPresented.length === bExpected.length
-        && timingSafeEqual(bPresented, bExpected);
+      const valid = secretsMatch(presented, this.runnerSecret);
       if (!valid) {
         agentLogger.warn("Agent presented invalid runner secret, rejecting", {
           remoteAddress: ws.__remoteAddress || undefined
@@ -362,6 +342,7 @@ export class AgentManager {
         lastSeen: null,
         botUserId: msg?.botUserId ?? null,
         tag: msg?.tag ?? null,
+        podTag: normalizePodTag(msg?.podTag),
         // A2: Per-agent health metrics
         rttMs: null,         // Exponential moving average of WS ping RTT
         _pingTs: null,       // Timestamp of last outbound ping frame
@@ -388,10 +369,18 @@ export class AgentManager {
     agent.guildIds = new Set(Array.isArray(msg?.guildIds) ? msg.guildIds : []);
     agent.botUserId = msg?.botUserId ?? agent.botUserId;
     agent.tag = msg?.tag ?? agent.tag;
+    agent.podTag = normalizePodTag(msg?.podTag ?? agent.podTag);
     agent.runnerId = String(msg?.runnerId || agent.runnerId || "").trim() || null;
     agent.poolId = String(msg?.poolId || agent.poolId || "").trim() || null;
     agent.startedAt = agent.startedAt ?? now();
     agent.lastSeen = now();
+
+    // Warm-pool tracking: mark guilds that have active agents for warm-up hints
+    if (this.warmCount > 0) {
+      for (const gId of agent.guildIds) {
+        this._warmGuilds.add(gId);
+      }
+    }
     
     // Update metrics
     this._updateMetrics();
@@ -603,6 +592,24 @@ export class AgentManager {
     }
     out.sort((a, b) => String(a.voiceChannelId).localeCompare(String(b.voiceChannelId)));
     return out;
+  }
+
+  // ===== warm-up pool =====
+
+  /**
+   * Returns warm-pool status for a guild.
+   * If AGENT_WARM_COUNT > 0, the bot should ensure at least warmCount idle agents
+   * are available for guilds that have had prior agent activity.
+   * @param {string} guildId
+   * @returns {{ guildKnown: boolean, warmCount: number, idleAgents: number, needsWarmup: boolean }}
+   */
+  getWarmStatus(guildId) {
+    const guildKnown = this._warmGuilds.has(guildId);
+    const idleAgents = Array.from(this.liveAgents.values()).filter(
+      a => a.ready && !a.busyKey && a.guildIds?.has?.(guildId)
+    ).length;
+    const needsWarmup = guildKnown && this.warmCount > 0 && idleAgents < this.warmCount;
+    return { guildKnown, warmCount: this.warmCount, idleAgents, needsWarmup };
   }
 
   // ===== invite helpers / deploy =====

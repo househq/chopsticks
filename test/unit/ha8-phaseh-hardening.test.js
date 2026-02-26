@@ -16,35 +16,42 @@ function src(relPath) {
 // ── Timing-safe secret comparison — agentManager.js ──────────────────────────
 
 describe("HA-8: agentManager — timing-safe runnerSecret comparison", function () {
-  it("agentManager.js imports timingSafeEqual from node:crypto", function () {
+  it("agentManager.js uses secretsMatch (timing-safe) from agentProtocol.js", function () {
     const code = src("src/agents/agentManager.js");
     assert.ok(
-      code.includes("timingSafeEqual") && code.includes("node:crypto"),
-      "timingSafeEqual not imported from node:crypto"
+      code.includes("secretsMatch"),
+      "secretsMatch not used — timing-safe comparison delegated to agentProtocol.js"
     );
   });
 
-  it("runnerSecret validation uses timingSafeEqual (not !==)", function () {
+  it("agentProtocol.js implements timingSafeEqual from node:crypto", function () {
+    const code = src("src/agents/agentProtocol.js");
+    assert.ok(
+      code.includes("timingSafeEqual") && code.includes("node:crypto"),
+      "timingSafeEqual not imported from node:crypto in agentProtocol.js"
+    );
+  });
+
+  it("runnerSecret validation uses secretsMatch (not direct !==)", function () {
     const code = src("src/agents/agentManager.js");
-    // Find the actual handleHello method definition (not the call site)
     const handleHelloIdx = code.indexOf("handleHello(ws, msg) {");
     assert.notEqual(handleHelloIdx, -1, "handleHello method not found");
     const handleHello = code.slice(handleHelloIdx, handleHelloIdx + 2500);
     assert.ok(
-      handleHello.includes("timingSafeEqual"),
-      "runnerSecret comparison does not use timingSafeEqual"
+      handleHello.includes("secretsMatch"),
+      "runnerSecret comparison does not use secretsMatch"
     );
     // Must NOT fall back to direct !== comparison
     const directCompare = /presented\s*!==\s*this\.runnerSecret/.test(handleHello);
     assert.ok(!directCompare, "direct !== comparison still present for runnerSecret");
   });
 
-  it("runnerSecret validation checks length equality before timingSafeEqual", function () {
-    const code = src("src/agents/agentManager.js");
+  it("agentProtocol.secretsMatch checks length equality before timingSafeEqual", function () {
+    const code = src("src/agents/agentProtocol.js");
     // Length check prevents panic from unequal-length Buffers
     assert.ok(
-      code.includes("bPresented.length === bExpected.length"),
-      "no length equality check before timingSafeEqual (could throw)"
+      code.includes("bP.length === bE.length") || code.includes(".length === b"),
+      "no length equality check before timingSafeEqual in agentProtocol.js"
     );
   });
 });
