@@ -419,7 +419,11 @@ client.once(Events.ClientReady, async () => {
   // Auto-register all commands in help registry
   try {
     await registerAllCommands();
-    botLogger.info(`📚 Help registry initialized with ${client.commands.size} commands`);
+    const loadedCount = client.commands.size;
+    botLogger.info(`📚 Help registry initialized with ${loadedCount} commands`);
+    if (loadedCount < 50) {
+      botLogger.warn({ loadedCount }, "⚠️  Fewer commands than expected loaded — check for import errors above");
+    }
   } catch (err) {
     botLogger.warn({ err }, `⚠️  Help registry initialization failed`);
   }
@@ -503,20 +507,34 @@ client.once(Events.ClientReady, async () => {
   // no separate process or PM2 needed out of the box.
   if (String(process.env.DISABLE_AGENT_RUNNER || "false").toLowerCase() !== "true") {
     const runnerPath = new URL("./agents/agentRunner.js", import.meta.url).pathname;
-    const agentChild = spawn(process.execPath, [runnerPath], {
-      env: { ...process.env },
-      stdio: "inherit",
-      detached: false,
-    });
-    global.__agentsChild = agentChild;
-    agentChild.on("exit", (code, signal) => {
-      botLogger.warn({ code, signal }, "⚠️  agentRunner exited — agents offline until restart");
-      global.__agentsChild = null;
-    });
-    agentChild.on("error", err => {
-      botLogger.error({ err }, "❌ agentRunner child error");
-    });
-    botLogger.info({ pid: agentChild.pid }, "🤖 agentRunner spawned");
+    let _agentRestarts = 0;
+    const MAX_AGENT_RESTARTS = 10;
+    const spawnAgentRunner = () => {
+      if (_agentRestarts >= MAX_AGENT_RESTARTS) {
+        botLogger.error("❌ agentRunner exceeded max restarts — giving up. Restart bot to retry.");
+        return;
+      }
+      const agentChild = spawn(process.execPath, [runnerPath], {
+        env: { ...process.env },
+        stdio: "inherit",
+        detached: false,
+      });
+      global.__agentsChild = agentChild;
+      agentChild.on("exit", (code, signal) => {
+        global.__agentsChild = null;
+        if (global.__botShuttingDown) return;
+        _agentRestarts++;
+        const delay = Math.min(1000 * Math.pow(2, _agentRestarts - 1), 30_000);
+        botLogger.warn({ code, signal, restarts: _agentRestarts, retryMs: delay },
+          "⚠️  agentRunner exited — restarting with backoff");
+        setTimeout(spawnAgentRunner, delay);
+      });
+      agentChild.on("error", err => {
+        botLogger.error({ err }, "❌ agentRunner child error");
+      });
+      botLogger.info({ pid: agentChild.pid, restarts: _agentRestarts }, "🤖 agentRunner spawned");
+    };
+    spawnAgentRunner();
   } else {
     botLogger.info("ℹ️  DISABLE_AGENT_RUNNER=true — manage agentRunner externally (e.g. via PM2).");
   }
@@ -546,6 +564,7 @@ client.once(Events.ClientReady, async () => {
   }
 
   const shutdown = async (signal) => {
+    global.__botShuttingDown = true;
     botLogger.info({ signal }, "[shutdown] Graceful shutdown initiated");
     clearInterval(flushTimer);
     if (presenceTimer) clearInterval(presenceTimer);
