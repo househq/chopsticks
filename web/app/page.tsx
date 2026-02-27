@@ -114,10 +114,10 @@ function DiscordMockup() {
       </div>
 
       {/* App body */}
-      <div style={{ display: 'flex', height: 360 }}>
+      <div className="discord-mock-body" style={{ display: 'flex', height: 360 }}>
 
         {/* Server rail */}
-        <div style={{ width: 72, background: '#1e1f22', display: 'flex', flexDirection: 'column',
+        <div className="discord-mock-rail" style={{ width: 72, background: '#1e1f22', display: 'flex', flexDirection: 'column',
           alignItems: 'center', padding: '0.75rem 0', gap: '0.5rem', borderRight: '1px solid rgba(255,255,255,0.04)' }}>
           {/* Server icon */}
           <div style={{ position: 'relative' }}>
@@ -146,7 +146,7 @@ function DiscordMockup() {
         </div>
 
         {/* Channel sidebar */}
-        <div style={{ width: 220, background: '#2b2d31', display: 'flex', flexDirection: 'column',
+        <div className="discord-mock-sidebar" style={{ width: 220, background: '#2b2d31', display: 'flex', flexDirection: 'column',
           borderRight: '1px solid rgba(255,255,255,0.04)' }}>
           {/* Server header */}
           <div style={{ padding: '0 0.875rem', height: 48, display: 'flex', alignItems: 'center',
@@ -403,12 +403,12 @@ export default function HomePage() {
   return (
     <main>
       {/* ── Hero ─────────────────────────────────────── */}
-      <section style={{ position: 'relative', overflow: 'hidden', minHeight: '88vh', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }} className="bg-grid">
+      <section style={{ position: 'relative', overflow: 'hidden', minHeight: '88vh', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }} className="bg-grid hero-section">
         <div className="orb orb-blue"   style={{ width: 700, height: 700, top: -250, left: -200, opacity: 0.45 }} />
         <div className="orb orb-violet" style={{ width: 500, height: 500, bottom: -200, right: -150, opacity: 0.35 }} />
         <div className="orb"            style={{ width: 300, height: 300, top: '30%', left: '55%', background: 'radial-gradient(circle, rgba(244,114,182,0.25), transparent 70%)', opacity: 0.5 }} />
 
-        <div className="container" style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'center', padding: '5rem 1.5rem' }}>
+        <div className="container hero-grid" style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'center', padding: '5rem 1.5rem' }}>
           {/* Left */}
           <div>
             <a href="https://wokspec.org" target="_blank" rel="noopener noreferrer" className="badge" style={{ marginBottom: '1.5rem', background: 'rgba(30,30,30,0.7)', border: '1px solid rgba(180,100,30,0.35)', color: '#c8c8c8', gap: '0.5rem', textDecoration: 'none', cursor: 'pointer' }}>
@@ -489,7 +489,7 @@ export default function HomePage() {
       <section style={{ padding: '5rem 0', borderBottom: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
         <div className="orb orb-violet" style={{ width: 600, height: 600, top: '50%', right: -200, transform: 'translateY(-50%)', opacity: 0.18, pointerEvents: 'none' }} />
         <div className="container" style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'start' }}>
+          <div className="oss-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'start' }}>
             <div>
               <div className="badge" style={{ marginBottom: '1.25rem' }}>Open Source</div>
               <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.1, marginBottom: '1.25rem' }}>

@@ -90,7 +90,7 @@ export default function SelfHostPage() {
       </section>
 
       {/* Main content */}
-      <div className="container" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '3rem', padding: '4rem 1.5rem', alignItems: 'start', maxWidth: 1000 }}>
+      <div className="container self-host-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '3rem', padding: '4rem 1.5rem', alignItems: 'start', maxWidth: 1000 }}>
 
         {/* Step sidebar */}
         <div style={{ position: 'sticky', top: 72 }}>
@@ -205,7 +205,7 @@ cd Chopsticks`}</CodeBlock>
             <div>
               <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.5rem', letterSpacing: '-0.03em', color: 'var(--text)', marginBottom: '0.5rem' }}>Start the Docker stack</h2>
               <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem', lineHeight: 1.7 }}>Choose the right Compose file for your environment.</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem', marginBottom: '1.25rem' }}>
+              <div className="compose-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem', marginBottom: '1.25rem' }}>
                 {[
                   { file: 'docker-compose.laptop.yml',     label: 'Local dev', desc: 'Lightweight, hot-reload' },
                   { file: 'docker-compose.production.yml', label: 'Production', desc: 'Caddy, hardened, TLS' },

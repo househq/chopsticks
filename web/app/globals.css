@@ -2271,3 +2271,78 @@ footer {
   border-color: rgba(240,178,50,0.4);
   color: #f0b232;
 }
+
+/* ══════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — comprehensive pass
+   ══════════════════════════════════════════════════════ */
+
+/* ── Shared layout grids ──────────────────────────────── */
+@media (max-width: 860px) {
+  /* Hero: already has hero-grid → 1fr at 900px; tighten padding */
+  .hero-grid { padding: 3.5rem 1.25rem !important; gap: 2.5rem !important; }
+
+  /* OSS two-col section */
+  .oss-grid { grid-template-columns: 1fr !important; gap: 2rem !important; }
+
+  /* Self-host sidebar + content */
+  .self-host-grid { grid-template-columns: 1fr !important; gap: 1.5rem !important; }
+  .self-host-grid > div:first-child { position: static !important; } /* un-stick progress sidebar */
+
+  /* Docker compose picker */
+  .compose-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Feature pillars */
+  .features-grid { grid-template-columns: 1fr !important; }
+  .agent-roles-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── Discord mockup — strip rail + sidebar on mobile ──── */
+@media (max-width: 700px) {
+  .discord-mock-rail    { display: none !important; }
+  .discord-mock-sidebar { display: none !important; }
+  .discord-mock-body    { height: 320px !important; }
+}
+
+/* ── Small screens (≤480px) ──────────────────────────── */
+@media (max-width: 480px) {
+  .container { padding: 0 1rem; }
+
+  /* Hero */
+  .hero-grid { padding: 2.5rem 1rem !important; }
+
+  /* Docker compose single col */
+  .compose-grid { grid-template-columns: 1fr !important; }
+
+  /* Bento and community always 1 col */
+  .bento           { grid-template-columns: 1fr !important; }
+  .community-grid  { grid-template-columns: 1fr !important; }
+  .footer-grid     { grid-template-columns: 1fr !important; }
+
+  /* Tutorials */
+  .tut-window { border-radius: 6px; }
+  .tut-cta-bar { flex-direction: column; align-items: flex-start; }
+
+  /* Misc */
+  .btn { width: 100%; justify-content: center; text-align: center; }
+  .btn + .btn { margin-top: 0.5rem; }
+  section { overflow-x: hidden; }
+}
+
+/* ── Prevent horizontal scroll sitewide ──────────────── */
+html, body { overflow-x: hidden; max-width: 100vw; }
+
+/* ── Touch target minimum size ────────────────────────── */
+@media (max-width: 860px) {
+  .btn { min-height: 44px; padding: 0.75rem 1.5rem; }
+  nav a, .mobile-nav-link { min-height: 44px; }
+}
+
+/* ── Footer on mobile ─────────────────────────────────── */
+@media (max-width: 640px) {
+  .footer-bottom { flex-direction: column; align-items: center; text-align: center; gap: 0.5rem; }
+}
+
+/* ── Hero section: remove tall minHeight when stacked ── */
+@media (max-width: 860px) {
+  .hero-section { min-height: unset !important; padding: 0; }
+}
