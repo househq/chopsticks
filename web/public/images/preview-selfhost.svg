@@ -1,24 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" font-family="'gg sans','Noto Sans','Helvetica Neue',Arial,sans-serif"><rect width="800" height="450" fill="#313338"/><rect x="0" y="0" width="800" height="450" fill="#1e1e2e" rx="0"/>
-<rect x="0" y="0" width="800" height="34" fill="#313244" rx="0"/>
-<circle cx="18" cy="17" r="6" fill="#ed4245"/>
-<circle cx="38" cy="17" r="6" fill="#faa61a"/>
-<circle cx="58" cy="17" r="6" fill="#23a55a"/>
-<text x="400" y="21" font-size="12" font-weight="700" fill="#cdd6f4" text-anchor="middle" font-family="'Consolas','Courier New',monospace">Chopsticks — Self-Host Terminal</text>
-<text x="16" y="56" font-size="13" font-weight="700" fill="#a6e3a1" text-anchor="start" font-family="'Consolas','Courier New',monospace">$ </text>
-<text x="30" y="56" font-size="13" font-weight="normal" fill="#89b4fa" text-anchor="start" font-family="'Consolas','Courier New',monospace">git clone https://github.com/WokSpec/Chopsticks.git</text>
-<text x="16" y="78" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  Cloning into Chopsticks...</text>
-<text x="16" y="100" font-size="13" font-weight="700" fill="#a6e3a1" text-anchor="start" font-family="'Consolas','Courier New',monospace">$ </text>
-<text x="30" y="100" font-size="13" font-weight="normal" fill="#89b4fa" text-anchor="start" font-family="'Consolas','Courier New',monospace">cp .env.example .env  # add BOT_TOKEN and MONGO_URI</text>
-<text x="16" y="122" font-size="13" font-weight="700" fill="#a6e3a1" text-anchor="start" font-family="'Consolas','Courier New',monospace">$ </text>
-<text x="30" y="122" font-size="13" font-weight="normal" fill="#89b4fa" text-anchor="start" font-family="'Consolas','Courier New',monospace">docker compose -f docker-compose.free.yml up -d</text>
-<text x="16" y="144" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [+] Running 3/3</text>
-<text x="16" y="166" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">      chopsticks-bot       Started</text>
-<text x="16" y="188" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">      chopsticks-redis      Started</text>
-<text x="16" y="210" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">      mongodb               Started</text>
-<text x="16" y="232" font-size="13" font-weight="700" fill="#a6e3a1" text-anchor="start" font-family="'Consolas','Courier New',monospace">$ </text>
-<text x="30" y="232" font-size="13" font-weight="normal" fill="#89b4fa" text-anchor="start" font-family="'Consolas','Courier New',monospace">docker logs chopsticks-bot --tail 5</text>
-<text x="16" y="254" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [Chopsticks] Connecting to Discord...</text>
-<text x="16" y="276" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [Chopsticks] Connected as Chopsticks#0001</text>
-<text x="16" y="298" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [Chopsticks] 162 prefix commands loaded</text>
-<text x="16" y="320" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [Chopsticks] 20 slash commands registered</text>
-<text x="16" y="342" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [Chopsticks] Ready. Serving 1 guild.</text></svg>
+<rect x="0" y="0" width="800" height="36" fill="#313244" rx="0"/>
+<circle cx="20" cy="18" r="6" fill="#ed4245"/>
+<circle cx="42" cy="18" r="6" fill="#f0b232"/>
+<circle cx="64" cy="18" r="6" fill="#23a55a"/>
+<text x="400" y="23" font-size="12" font-weight="600" fill="#cdd6f4" text-anchor="middle" font-family="'Consolas','Courier New',monospace">Chopsticks — Self-Host Terminal</text>
+<text x="16" y="58" font-size="13" font-weight="700" fill="#f38ba8" text-anchor="start" font-family="'Consolas','Courier New',monospace">$</text>
+<text x="28" y="58" font-size="12" font-weight="normal" fill="#89b4fa" text-anchor="start" font-family="'Consolas','Courier New',monospace">git clone https://github.com/WokSpec/Chopsticks.git</text>
+<text x="16" y="80" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  Cloning into Chopsticks...</text>
+<text x="16" y="102" font-size="13" font-weight="700" fill="#f38ba8" text-anchor="start" font-family="'Consolas','Courier New',monospace">$</text>
+<text x="28" y="102" font-size="12" font-weight="normal" fill="#89b4fa" text-anchor="start" font-family="'Consolas','Courier New',monospace">cp .env.example .env  # add BOT_TOKEN + MONGO_URI</text>
+<text x="16" y="124" font-size="13" font-weight="700" fill="#f38ba8" text-anchor="start" font-family="'Consolas','Courier New',monospace">$</text>
+<text x="28" y="124" font-size="12" font-weight="normal" fill="#89b4fa" text-anchor="start" font-family="'Consolas','Courier New',monospace">docker compose -f docker-compose.free.yml up -d</text>
+<text x="16" y="146" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [+] Running 3/3</text>
+<text x="16" y="168" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">      chopsticks-bot       Started</text>
+<text x="16" y="190" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">      chopsticks-redis      Started</text>
+<text x="16" y="212" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">      mongodb               Started</text>
+<text x="16" y="234" font-size="13" font-weight="700" fill="#f38ba8" text-anchor="start" font-family="'Consolas','Courier New',monospace">$</text>
+<text x="28" y="234" font-size="12" font-weight="normal" fill="#89b4fa" text-anchor="start" font-family="'Consolas','Courier New',monospace">docker logs chopsticks-bot --tail 5</text>
+<text x="16" y="256" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [Chopsticks] Connecting to Discord...</text>
+<text x="16" y="278" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [Chopsticks] Connected as Chopsticks#0001</text>
+<text x="16" y="300" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [Chopsticks] 162 prefix commands loaded</text>
+<text x="16" y="322" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [Chopsticks] 20 slash commands registered</text>
+<text x="16" y="344" font-size="12" font-weight="normal" fill="#cdd6f4" text-anchor="start" font-family="'Consolas','Courier New',monospace">  [Chopsticks] Ready. Serving 1 guild.</text></svg>
