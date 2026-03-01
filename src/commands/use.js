@@ -111,65 +111,69 @@ export default {
 };
 
 async function handleConsumable(interaction, matchedItem, itemData, quantity) {
-  // Remove item from inventory
-  await removeItem(interaction.user.id, matchedItem.item_id, quantity, matchedItem.metadata);
+  // Apply effect FIRST — only consume item after effect succeeds, to avoid loss on failure.
+  let effectDescription = "";
 
-    // Apply effect based on item effect type
-    let effectDescription = "";
-
-    switch (itemData.effect) {
-      case "loot_crate": {
-        const { drops } = openCrateRolls(matchedItem.item_id, quantity);
-        for (const id of drops) {
-          // eslint-disable-next-line no-await-in-loop
-          await addItem(interaction.user.id, id, 1);
-        }
-
-        const countBy = new Map();
-        for (const id of drops) countBy.set(id, (countBy.get(id) || 0) + 1);
-        const lines = Array.from(countBy.entries())
-          .slice(0, 12)
-          .map(([id, n]) => {
-            const it = (itemsData.tools?.[id] || itemsData.consumables?.[id] || itemsData.collectibles?.[id]) || null;
-            const name = it?.name || id;
-            const emoji = it?.emoji || "📦";
-            return `${emoji} **${name}**${n > 1 ? ` ×${n}` : ""}`;
-          });
-        const more = countBy.size > lines.length ? `\n...and ${countBy.size - lines.length} more.` : "";
-
-        effectDescription = `Opened **${quantity}x ${itemData.emoji} ${itemData.name}** and got:\n\n${lines.join("\n")}${more}`;
-        break;
+  switch (itemData.effect) {
+    case "loot_crate": {
+      const { drops } = openCrateRolls(matchedItem.item_id, quantity);
+      for (const id of drops) {
+        // eslint-disable-next-line no-await-in-loop
+        await addItem(interaction.user.id, id, 1);
       }
 
-      case "cooldown_reduction":
-        // Currently scoped to /work (matches Energy Drink description).
-        await setBuff(interaction.user.id, "cd:work", 1 - Number(itemData.effectValue || 0), itemData.duration);
-        effectDescription = `Your **/work** cooldown is reduced by ${Math.round(Number(itemData.effectValue || 0) * 100)}% for ${formatDuration(itemData.duration)}.`;
-        break;
+      const countBy = new Map();
+      for (const id of drops) countBy.set(id, (countBy.get(id) || 0) + 1);
+      const lines = Array.from(countBy.entries())
+        .slice(0, 12)
+        .map(([id, n]) => {
+          const it = (itemsData.tools?.[id] || itemsData.consumables?.[id] || itemsData.collectibles?.[id]) || null;
+          const name = it?.name || id;
+          const emoji = it?.emoji || "📦";
+          return `${emoji} **${name}**${n > 1 ? ` ×${n}` : ""}`;
+        });
+      const more = countBy.size > lines.length ? `\n...and ${countBy.size - lines.length} more.` : "";
 
-      case "luck_boost":
-        await setBuff(interaction.user.id, "luck:gather", Number(itemData.effectValue || 0), itemData.duration);
-        effectDescription = `Your **/gather** luck increased by ${Math.round(Number(itemData.effectValue || 0) * 100)}% for ${formatDuration(itemData.duration)}.`;
-        break;
-
-      case "companion_restore":
-        effectDescription = `Companion stats restored: +${itemData.effectValue.hunger} hunger, +${itemData.effectValue.happiness} happiness!`;
-        // TODO: Update companion stats
-        break;
-
-      case "xp_multiplier":
-        await setBuff(interaction.user.id, "xp:mult", Number(itemData.effectValue || 1), itemData.duration);
-        effectDescription = `XP gain multiplied by **${Number(itemData.effectValue || 1)}x** for ${formatDuration(itemData.duration)}.`;
-        break;
-
-      case "premium_unlock":
-        effectDescription = `Premium features unlocked for ${formatDuration(itemData.duration)}!`;
-        // TODO: Grant temporary premium access
-        break;
-
-      default:
-        effectDescription = "Item consumed.";
+      effectDescription = `Opened **${quantity}x ${itemData.emoji} ${itemData.name}** and got:\n\n${lines.join("\n")}${more}`;
+      break;
     }
+
+    case "cooldown_reduction":
+      // Currently scoped to /work (matches Energy Drink description).
+      await setBuff(interaction.user.id, "cd:work", 1 - Number(itemData.effectValue || 0), itemData.duration);
+      effectDescription = `Your **/work** cooldown is reduced by ${Math.round(Number(itemData.effectValue || 0) * 100)}% for ${formatDuration(itemData.duration)}.`;
+      break;
+
+    case "luck_boost":
+      await setBuff(interaction.user.id, "luck:gather", Number(itemData.effectValue || 0), itemData.duration);
+      effectDescription = `Your **/gather** luck increased by ${Math.round(Number(itemData.effectValue || 0) * 100)}% for ${formatDuration(itemData.duration)}.`;
+      break;
+
+    case "companion_restore":
+      // Companion system is not yet implemented — do not consume the item.
+      return await replyError(
+        interaction,
+        "No Companion",
+        `${itemData.emoji} **${itemData.name}** requires a companion, but you don't have one yet. Companions are coming soon!`,
+        true
+      );
+
+    case "xp_multiplier":
+      await setBuff(interaction.user.id, "xp:mult", Number(itemData.effectValue || 1), itemData.duration);
+      effectDescription = `XP gain multiplied by **${Number(itemData.effectValue || 1)}x** for ${formatDuration(itemData.duration)}.`;
+      break;
+
+    case "premium_unlock":
+      await setBuff(interaction.user.id, "premium:access", 1, itemData.duration);
+      effectDescription = `✨ Premium features unlocked for ${formatDuration(itemData.duration)}!`;
+      break;
+
+    default:
+      effectDescription = "Item consumed.";
+  }
+
+  // Consume the item after the effect has been applied successfully.
+  await removeItem(interaction.user.id, matchedItem.item_id, quantity, matchedItem.metadata);
 
   await replySuccess(
     interaction,

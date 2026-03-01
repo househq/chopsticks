@@ -52,7 +52,14 @@ export function calcHeistOutcome(participantCount, roll) {
 }
 
 export function canStartHeist(activeHeist) {
-  return !activeHeist || activeHeist.status === 'done';
+  if (!activeHeist || activeHeist.status === 'done') return true;
+  // If the heist is still marked "recruiting" but its join window has expired, treat it as
+  // clearable so the guild is not permanently blocked after a bot restart.
+  if (activeHeist.status === 'recruiting') {
+    const deadline = new Date(activeHeist.start_time).getTime() + activeHeist.join_window_seconds * 1000;
+    if (Date.now() > deadline + 10_000) return true; // 10s grace past window
+  }
+  return false;
 }
 
 export function canJoinHeist(heist, userId) {
@@ -109,6 +116,11 @@ export async function execute(interaction) {
           embeds: [makeEmbed('Heist In Progress', 'A heist is already recruiting members!', [], null, null, Colors.ERROR)],
           ephemeral: true,
         });
+      }
+
+      // Clear any stale heist state before writing the new one.
+      if (heist && heist.status !== 'done') {
+        await persistHeist(guildId, { ...heist, status: 'done' });
       }
 
       const newHeist = {
