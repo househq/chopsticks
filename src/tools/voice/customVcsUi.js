@@ -17,6 +17,7 @@ import { randomBytes } from "node:crypto";
 
 import { getVoiceState, saveVoiceState } from "./schema.js";
 import { auditLog } from "../../utils/audit.js";
+import { logger } from "../../utils/logger.js";
 import {
   ensureCustomVcsState,
   getCustomVcConfig,
@@ -26,10 +27,19 @@ import {
   patchCustomRoom,
   removeCustomRoom
 } from "./customVcsState.js";
+import { acquireCreationLock, releaseCreationLock } from "./state.js";
 
 const PREFIX = "customvc";
 const PENDING_TTL_MS = 5 * 60 * 1000;
 const pending = new Map(); // nonce -> { guildId, userId, name, limit, bitrateKbps, createdAt, expiresAt }
+
+// Sweep expired pending entries every 2 minutes to prevent memory leak.
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of pending) {
+    if (v.expiresAt && now > v.expiresAt) pending.delete(k);
+  }
+}, 2 * 60 * 1000).unref();
 
 function id(...parts) {
   return `${PREFIX}:${parts.join(":")}`;
@@ -513,7 +523,9 @@ async function applyOverwrites(guild, channel, record, cfg) {
     });
   }
 
-  await channel.permissionOverwrites.set(overwrites).catch(() => {});
+  await channel.permissionOverwrites.set(overwrites).catch(err => {
+    logger.warn({ err, channelId: channel.id }, "[customVC] applyOverwrites failed — Discord permissions may be out of sync");
+  });
 }
 
 async function renderManage(interaction, { guildId, channelId, ownerId, page = "main", update = false, note = "" } = {}) {
@@ -608,41 +620,52 @@ async function createRoomForUser(client, { guildId, userId, privacy, name, limit
     }
   }
 
-  const existing = findUserCustomRooms(voice, userId);
-  if (existing.length >= (cfg.maxRoomsPerUser || 1)) {
-    const first = existing[0];
-    return {
-      ok: false,
-      error: "limit",
-      detail: `You already have a custom VC: <#${first.channelId}>.`,
-      channelId: first.channelId
-    };
+  // Acquire a per-user lock to prevent race-condition double-creation.
+  const lockId = `customvc:${userId}`;
+  if (!acquireCreationLock(guild.id, lockId)) {
+    return { ok: false, error: "in-progress", detail: "A room is already being created for you. Please wait." };
   }
 
-  const ownerId = member.user.id;
-  const fallbackName = `custom-${member.displayName ?? member.user.username}`;
-  const channelName = safeName(name, fallbackName);
-  const userLimit = safeInt(limit, { min: 0, max: 99, fallback: cfg.defaultUserLimit || 0 });
-
-  const maxBitrateKbps = Number.isFinite(guild.maximumBitrate)
-    ? Math.max(8, Math.trunc(guild.maximumBitrate / 1000))
-    : 512;
-  const requestedBr =
-    bitrateKbps === "" || bitrateKbps == null
-      ? cfg.defaultBitrateKbps
-      : safeInt(bitrateKbps, { min: 8, max: 512, fallback: cfg.defaultBitrateKbps });
-  const br = requestedBr ? Math.min(requestedBr, maxBitrateKbps) : null;
-
-  const record = {
-    ownerId,
-    privacy: privacy === "private" ? "private" : "public",
-    guestIds: [],
-    denyJoinIds: [],
-    denySpeakIds: [],
-    createdAt: Date.now()
-  };
-
   try {
+    // Re-read voice state inside the lock so the limit check is authoritative.
+    const voiceLocked = await getVoiceState(guild.id);
+    ensureCustomVcsState(voiceLocked);
+    const cfgLocked = getCustomVcConfig(voiceLocked);
+
+    const existing = findUserCustomRooms(voiceLocked, userId);
+    if (existing.length >= (cfgLocked.maxRoomsPerUser || 1)) {
+      const first = existing[0];
+      return {
+        ok: false,
+        error: "limit",
+        detail: `You already have a custom VC: <#${first.channelId}>.`,
+        channelId: first.channelId
+      };
+    }
+
+    const ownerId = member.user.id;
+    const fallbackName = `custom-${member.displayName ?? member.user.username}`;
+    const channelName = safeName(name, fallbackName);
+    const userLimit = safeInt(limit, { min: 0, max: 99, fallback: cfgLocked.defaultUserLimit || 0 });
+
+    const maxBitrateKbps = Number.isFinite(guild.maximumBitrate)
+      ? Math.max(8, Math.trunc(guild.maximumBitrate / 1000))
+      : 512;
+    const requestedBr =
+      bitrateKbps === "" || bitrateKbps == null
+        ? cfgLocked.defaultBitrateKbps
+        : safeInt(bitrateKbps, { min: 8, max: 512, fallback: cfgLocked.defaultBitrateKbps });
+    const br = requestedBr ? Math.min(requestedBr, maxBitrateKbps) : null;
+
+    const record = {
+      ownerId,
+      privacy: privacy === "private" ? "private" : "public",
+      guestIds: [],
+      denyJoinIds: [],
+      denySpeakIds: [],
+      createdAt: Date.now()
+    };
+
     const created = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildVoice,
@@ -652,8 +675,8 @@ async function createRoomForUser(client, { guildId, userId, privacy, name, limit
       permissionOverwrites: []
     });
 
-    await applyOverwrites(guild, created, record, cfg);
-    const saved = await upsertCustomRoom(guild.id, created.id, record, voice);
+    await applyOverwrites(guild, created, record, cfgLocked);
+    const saved = await upsertCustomRoom(guild.id, created.id, record, voiceLocked);
     if (!saved.ok) {
       await created.delete().catch(() => {});
       return { ok: false, error: "persist-failed", detail: "Failed to persist custom room." };
@@ -673,9 +696,11 @@ async function createRoomForUser(client, { guildId, userId, privacy, name, limit
       }
     } catch {}
 
-    return { ok: true, guild, member, channel: created, record: saved.record, cfg };
+    return { ok: true, guild, member, channel: created, record: saved.record, cfg: cfgLocked };
   } catch (err) {
     return { ok: false, error: "create-failed", detail: String(err?.message || err) };
+  } finally {
+    releaseCreationLock(guild.id, lockId);
   }
 }
 

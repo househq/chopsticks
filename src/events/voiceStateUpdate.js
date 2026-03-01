@@ -95,7 +95,7 @@ export default {
 
     /* ---------- LEAVE CUSTOM VC ---------- */
 
-    if (oldChannel && voice.customRooms?.[oldChannel.id]) {
+    if (oldChannel && !newChannel && voice.customRooms?.[oldChannel.id]) {
       const channelId = oldChannel.id;
       const record = getCustomRoom(voice, channelId);
       if (record?.ownerId === member.id) {
