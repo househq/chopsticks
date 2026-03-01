@@ -150,6 +150,23 @@ const FEATURES = [
     chips: ['!ask', '!summarize', '!translate', '/ai chat', '/agents style'],
     span: 1,
   },
+  {
+    Icon: ServerIcon,
+    color: '#38bdf8',
+    label: 'Server Backup',
+    headline: 'Snapshot. Restore. Breathe.',
+    sub: 'Backup your entire server structure and restore it with a single button click. Never lose a role setup or channel layout again.',
+    points: [
+      'Snapshots all roles, categories, text and voice channels with permissions',
+      'Restore creates missing structure non-destructively — existing content is untouched',
+      'Up to 5 named backups per server, stored in guild data',
+      'Confirmation button with 60-second safety window to prevent accidents',
+    ],
+    cmd: '/backup create label:before-reorg',
+    cmdOut: '📦 Backup Created\nRoles: 12  ·  Channels: 24\nBackup 1/5 stored',
+    chips: ['/backup create', '/backup restore', '/backup list', '/backup delete'],
+    span: 1,
+  },
 ];
 
 // ── Agent role table ───────────────────────────────────────────────────────
@@ -205,12 +222,12 @@ export default function FeaturesPage() {
 
           <h1 style={{ fontSize: 'clamp(2.5rem, 6vw, 4.25rem)', fontWeight: 800, letterSpacing: '-0.055em',
             color: 'var(--text)', fontFamily: 'var(--font-heading)', lineHeight: 1.0, marginBottom: '1.5rem', maxWidth: 700 }}>
-            Six systems.<br />
+            Seven systems.<br />
             <span className="gradient-text">One bot.</span>
           </h1>
 
           <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', lineHeight: 1.8, maxWidth: 540, marginBottom: '2.5rem' }}>
-            Voice &amp; media, AI agents, gamification, moderation, automation, and intelligence — fully integrated,
+            Voice &amp; media, AI agents, gamification, moderation, automation, intelligence, and server backup — fully integrated,
             open source, free. Deploy the hosted instance in 30 seconds or self-host on your own infrastructure.
           </p>
 
@@ -220,8 +237,9 @@ export default function FeaturesPage() {
               { n: '148', l: 'prefix commands' },
               { n: '101', l: 'slash commands' },
               { n: '11',  l: 'categories' },
-              { n: '6',   l: 'core systems' },
+              { n: '7',   l: 'core systems' },
               { n: '16',  l: 'agent roles' },
+              { n: '5',   l: 'backups/server' },
             ].map(s => (
               <div key={s.n} style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem',
                 background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
@@ -277,6 +295,11 @@ export default function FeaturesPage() {
             {FEATURES.slice(4, 6).map(f => (
               <FeatureCard key={f.label} f={f} />
             ))}
+          </div>
+
+          {/* Row 4 — Backup */}
+          <div className="feat-bento-r4" style={{ marginTop: '1rem' }}>
+            <FeatureCard key="Server Backup" f={FEATURES[6]} />
           </div>
         </div>
       </section>

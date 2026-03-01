@@ -1,13 +1,13 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
-import { MusicIcon, ShieldIcon, CoinIcon, SparkleIcon, GamepadIcon, ZapIcon, WrenchIcon, RadioIcon } from './icons';
+import { MusicIcon, ShieldIcon, CoinIcon, SparkleIcon, GamepadIcon, ZapIcon, WrenchIcon, RadioIcon, ServerIcon } from './icons';
 
 const BOT_INVITE = 'https://discord.com/api/oauth2/authorize?client_id=1466382874587431036&permissions=1099514858544&scope=bot%20applications.commands';
 const DISCORD_SERVER = 'https://discord.gg/QbS47HDdpf';
 const GITHUB_REPO = 'https://github.com/wokspec/chopsticks';
 
 // ─── Animated Discord mockup ──────────────────────────────────────────────
-const CHANNELS = ['general', 'music', 'commands', 'bot-log'];
+const CHANNELS = ['general', 'music', 'commands', 'bot-log', 'giveaways'];
 type Embed = { color: string; title: string; desc?: string; fields?: { k: string; v: string }[] };
 type Msg = { user: string; avatar: string; color: string; type: 'user' | 'bot'; content?: string; embed?: Embed };
 
@@ -91,6 +91,19 @@ const CHANNEL_MSGS: Record<number, Msg[]> = {
     { user: 'Chopsticks', avatar: '/images/chopsticks.png', color: '#5865f2', type: 'bot',
       embed: { color: '#57f287', title: '🔓 Channel Unlocked',
         fields: [{ k: 'Channel', v: '#general' }, { k: 'Moderator', v: 'Admin' }, { k: 'Duration', v: 'Lockdown lifted' }] } },
+  ],
+  // giveaways — button-based giveaway flow
+  4: [
+    { user: 'Mikel',      avatar: '/images/avatar-mousememe.jpg',   color: '#22d3ee', type: 'user', content: '/giveaway start minutes:60 winners:1 prize:Nitro Classic' },
+    { user: 'Chopsticks', avatar: '/images/chopsticks.png',         color: '#5865f2', type: 'bot',
+      embed: { color: '#f0b232', title: '🎉 GIVEAWAY — Nitro Classic',
+        desc: 'React below to enter!\nEnds: <t:+3600:R>',
+        fields: [{ k: 'Prize', v: 'Nitro Classic' }, { k: 'Winners', v: '1' }, { k: 'Entries', v: '0 entries' }] } },
+    { user: 'Nakari',     avatar: '/images/avatar-patrickstar.jpg', color: '#a78bfa', type: 'bot',  content: '[ Nakari clicked Enter Giveaway ]' },
+    { user: 'Chopsticks', avatar: '/images/chopsticks.png',         color: '#5865f2', type: 'bot',
+      embed: { color: '#f0b232', title: '🎉 GIVEAWAY — Nitro Classic',
+        desc: 'React below to enter!\nEnds: <t:+3600:R>',
+        fields: [{ k: 'Prize', v: 'Nitro Classic' }, { k: 'Winners', v: '1' }, { k: 'Entries', v: '1 entry' }] } },
   ],
 };
 
@@ -403,6 +416,14 @@ const FEATURES = [
     body: 'Scheduled announcements, reaction roles, welcome messages, ticket system, and a full server setup dashboard — all in one place.',
     chips: ['!poll', '!giveaway', '!remind', '!autorole', '/tickets', '/setup'],
   },
+  {
+    cat: 'Server Backup',
+    color: '#38bdf8',
+    Icon: ServerIcon,
+    headline: 'Server Backup',
+    body: 'Snapshot your server structure — roles, channels, and permissions — and restore them with one click. Up to 5 named backups per server with a confirmation button flow.',
+    chips: ['/backup create', '/backup restore', '/backup list', '/backup delete'],
+  },
 ];
 
 function hexToRgb(hex: string) {
@@ -469,7 +490,7 @@ export default function HomePage() {
               <span className="gradient-text">Chopsticks</span>
             </h1>
             <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', lineHeight: 1.8, maxWidth: 480, marginBottom: '2rem' }}>
-              Chopsticks is a fully-loaded Discord bot with 148 prefix commands and 101 slash commands across 11 categories — music, moderation, economy, AI, leveling, and automation. It's open source, actively developed, and we'd love your help making it something special.
+              Chopsticks is a fully-loaded Discord bot with server backup, button giveaways, visual leaderboards, and a canvas profile card system — plus music, moderation, economy, AI, leveling, and automation. It's open source, actively developed, and we'd love your help making it something special.
             </p>
             <div style={{ display: 'flex', gap: '0.875rem', flexWrap: 'wrap', marginBottom: '2.5rem' }}>
               <a href={BOT_INVITE} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '0.8rem 2rem', fontSize: '0.9rem' }}>
@@ -481,7 +502,7 @@ export default function HomePage() {
             </div>
             {/* Stat pills */}
             <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
-              {[['148', 'Prefix commands'], ['101', 'Slash commands'], ['49', 'Voice sessions'], ['6', 'Agent roles']].map(([n, l]) => (
+              {[['249', 'Total commands'], ['14', 'Agent roles'], ['5', 'Backups/server'], ['6', 'Core systems']].map(([n, l]) => (
                 <div key={l} style={{ textAlign: 'center' }}>
                   <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: '1.6rem', color: 'var(--text)', letterSpacing: '-0.05em' }}>{n}</div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: 'var(--font-heading)', fontWeight: 600 }}>{l}</div>
