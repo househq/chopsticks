@@ -203,7 +203,8 @@ async function startAgent(agentConfig) {
   }
 
   function connectAgentControl() { // Each agent has its own WS connection to AgentManager
-    if (ws && ws.readyState === WebSocket.OPEN) return;
+    // Guard both OPEN (1) and CONNECTING (0) to prevent racing duplicate connections.
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
     ws = new WebSocket(CONTROL_URL);
     wsReady = false;
@@ -261,14 +262,10 @@ async function startAgent(agentConfig) {
     });
 
     ws.on("error", (err) => {
+      // Only log here. In the ws library, the 'close' event always fires after 'error',
+      // so the 'close' handler below is the single place that schedules reconnection.
+      // Scheduling reconnection here too would create two parallel connections.
       logger.error({ err }, `[agent:${agentId}] WS connection error`);
-      // Ensure reconnect fires even if 'close' doesn't follow 'error'
-      if (wsReady) {
-        wsReady = false;
-        const delay = wsReconnectDelay + Math.random() * 500;
-        wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30_000);
-        setTimeout(connectAgentControl, delay);
-      }
     });
   }
 

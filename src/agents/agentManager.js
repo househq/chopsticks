@@ -1517,12 +1517,16 @@ export class AgentManager {
       if (aId === agentId) {
         affectedSessions.push(k);
         this.sessions.delete(k);
+        trackSessionRelease('music');
       }
     }
     
     // Release assistant sessions held by this agent
     for (const [k, aId] of this.assistantSessions.entries()) {
-      if (aId === agentId) this.assistantSessions.delete(k);
+      if (aId === agentId) {
+        this.assistantSessions.delete(k);
+        trackSessionRelease('assistant');
+      }
     }
 
     // Release text sessions held by this agent
@@ -1531,6 +1535,7 @@ export class AgentManager {
     }
 
     this.liveAgents.delete(agentId);
+    this._updateMetrics();
     logger.info(`[AgentManager] Cleaned up disconnected agent ${agentId}. Affected sessions: ${affectedSessions.length}`);
     
     // Notify users in affected voice channels
