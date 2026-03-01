@@ -419,7 +419,7 @@ export default function HomePage() {
               <span className="gradient-text">Infinite possibilities.</span>
             </h1>
             <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', lineHeight: 1.8, maxWidth: 480, marginBottom: '2rem' }}>
-              Chopsticks is a fully-loaded Discord bot with 162 prefix commands across 17 categories — music, moderation, economy, AI, leveling, and automation. It's open source, actively developed, and we'd love your help making it something special.
+              Chopsticks is a fully-loaded Discord bot with 148 prefix commands and 101 slash commands across 11 categories — music, moderation, economy, AI, leveling, and automation. It's open source, actively developed, and we'd love your help making it something special.
             </p>
             <div style={{ display: 'flex', gap: '0.875rem', flexWrap: 'wrap', marginBottom: '2.5rem' }}>
               <a href={BOT_INVITE} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '0.8rem 2rem', fontSize: '0.9rem' }}>
@@ -431,7 +431,7 @@ export default function HomePage() {
             </div>
             {/* Stat pills */}
             <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
-              {[['162', 'Prefix commands'], ['49', 'Voice sessions'], ['6', 'Agent roles'], ['17', 'Categories']].map(([n, l]) => (
+              {[['148', 'Prefix commands'], ['101', 'Slash commands'], ['49', 'Voice sessions'], ['6', 'Agent roles']].map(([n, l]) => (
                 <div key={l} style={{ textAlign: 'center' }}>
                   <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: '1.6rem', color: 'var(--text)', letterSpacing: '-0.05em' }}>{n}</div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: 'var(--font-heading)', fontWeight: 600 }}>{l}</div>

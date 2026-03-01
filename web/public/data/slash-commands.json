@@ -1,204 +1,13 @@
 [
   {
-    "name": "setup",
-    "category": "Config",
-    "summary": "Interactive server setup wizard",
-    "description": "Opens the full server configuration wizard. Walks you through mod log channel, welcome messages, economy settings, DJ roles, leveling, tickets, and the Agent Pool \u2014 all in one place. Run once on a fresh install or whenever you need to reconfigure.",
-    "subcommandsRich": [
-      {
-        "name": "wizard",
-        "desc": "Launch the full interactive setup wizard"
-      },
-      {
-        "name": "status",
-        "desc": "Show current setup status across all modules"
-      },
-      {
-        "name": "leveling",
-        "desc": "Configure XP, level-up messages and role rewards"
-      }
-    ],
-    "permissions": "Manage Server",
-    "examples": [
-      "/setup wizard",
-      "/setup status"
-    ]
-  },
-  {
-    "name": "dashboard",
-    "category": "Config",
-    "summary": "Live server dashboard with interactive controls",
-    "description": "Displays a real-time dashboard embed showing bot health, active agent sessions, economy stats, and quick-action buttons for common mod tasks. Only admins can trigger actions; everyone can view.",
-    "permissions": "Manage Server",
-    "examples": [
-      "/dashboard"
-    ]
-  },
-  {
-    "name": "prefix",
-    "category": "Config",
-    "summary": "View or change the command prefix",
-    "description": "With no argument, shows the current prefix. Pass a value (1\u20134 characters) to change it. Anyone can view; only members with Manage Server can change it.",
-    "permissions": "Manage Server",
-    "examples": [
-      "/prefix",
-      "/prefix value:!",
-      "/prefix value:;;"
-    ]
-  },
-  {
-    "name": "config",
-    "category": "Config",
-    "summary": "Fine-grained per-module configuration",
-    "description": "Per-module settings not covered by /setup. Covers AI provider selection, economy multipliers, XP rates, announcement channels, and timezone.",
-    "permissions": "Manage Server",
-    "examples": [
-      "/config",
-      "/config module:economy"
-    ]
-  },
-  {
-    "name": "help",
-    "category": "Utility",
-    "summary": "Browse all prefix commands and slash commands",
-    "description": "Interactive help browser. Browse by category, search by name, or look up a specific command. Shows usage, aliases, examples, and permission level.",
-    "subcommandsRich": [
-      {
-        "name": "browse",
-        "desc": "Browse commands by category"
-      },
-      {
-        "name": "search",
-        "desc": "Search for a command by keyword"
-      },
-      {
-        "name": "command",
-        "desc": "Get detailed info on a specific command"
-      },
-      {
-        "name": "prefix",
-        "desc": "List all prefix commands for a category"
-      }
-    ],
-    "permissions": "@everyone",
-    "examples": [
-      "/help browse",
-      "/help search query:ban",
-      "/help command name:play"
-    ]
-  },
-  {
-    "name": "automod",
-    "category": "Config",
-    "summary": "Configure automatic moderation rules",
-    "description": "Set up spam detection, bad-word filters, mention limits, link blocking, and raid-detection thresholds. Each rule has an action (warn, mute, kick, ban) and can be scoped to channels or roles.",
-    "permissions": "Manage Server",
-    "examples": [
-      "/automod",
-      "/automod rule:spam action:timeout"
-    ]
-  },
-  {
-    "name": "welcome",
-    "category": "Config",
-    "summary": "Set up welcome and farewell messages",
-    "description": "Configure the welcome channel, embed message, and farewell message. Supports {user}, {server}, {membercount} placeholders. Can also assign a welcome role on join.",
-    "permissions": "Manage Server",
-    "examples": [
-      "/welcome",
-      "/welcome channel:#welcome"
-    ]
-  },
-  {
-    "name": "autorole",
-    "category": "Config",
-    "summary": "Roles automatically assigned on member join",
-    "description": "Add or remove roles from the autorole list. Members receive all autorole roles the moment they join the server.",
-    "permissions": "Manage Server",
-    "examples": [
-      "/autorole",
-      "/autorole add role:@Member"
-    ]
-  },
-  {
-    "name": "roles",
-    "category": "Config",
-    "summary": "Reaction roles and self-assignable role menus",
-    "description": "Create role menus with dropdown selects or reaction-based assignment. Useful for colour roles, pronoun roles, or notification opt-ins.",
-    "permissions": "Manage Server",
-    "examples": [
-      "/roles",
-      "/roles create type:dropdown"
-    ]
-  },
-  {
-    "name": "tickets",
-    "category": "Config",
-    "summary": "Ticket system configuration",
-    "description": "Set up support ticket channels: create panel, define staff roles, configure transcript channel, and set ticket naming format. Members open tickets with a button.",
-    "permissions": "Manage Server",
-    "examples": [
-      "/tickets setup",
-      "/tickets panel channel:#support"
-    ]
-  },
-  {
-    "name": "mod",
-    "category": "Moderation",
-    "summary": "Slash-based moderation (ban, kick, warn\u2026)",
-    "description": "Slash command equivalents of the prefix moderation commands. Useful when you want the Discord context-menu integration or ephemeral responses. Prefix equivalents also exist for every subcommand.",
-    "subcommandsRich": [
-      {
-        "name": "ban",
-        "desc": "Ban a member"
-      },
-      {
-        "name": "kick",
-        "desc": "Kick a member"
-      },
-      {
-        "name": "warn",
-        "desc": "Warn a member"
-      },
-      {
-        "name": "timeout",
-        "desc": "Temporarily mute a member"
-      },
-      {
-        "name": "purge",
-        "desc": "Bulk-delete messages"
-      },
-      {
-        "name": "case",
-        "desc": "Look up a moderation case"
-      }
-    ],
-    "permissions": "Moderate Members",
-    "examples": [
-      "/mod ban user:@user reason:spam",
-      "/mod purge amount:50"
-    ]
-  },
-  {
-    "name": "levels",
-    "category": "Utility",
-    "summary": "XP and leveling configuration",
-    "description": "Configure the leveling system: enable/disable, set XP per message, configure level-up announcement channel, and manage level role rewards.",
-    "permissions": "Manage Server",
-    "examples": [
-      "/levels",
-      "/levels preset:active"
-    ]
-  },
-  {
     "name": "music",
     "category": "Music",
-    "summary": "Music playback via slash command",
-    "description": "Slash command interface to the music system. All subcommands mirror their prefix equivalents. Most users prefer the prefix commands (!play, !skip etc.) but slash works too.",
+    "summary": "Voice-channel music (agent-backed, one session per voice channel)",
+    "description": "Up to 49 concurrent sessions \u2014 one per voice channel, running simultaneously across the server. Play tracks from YouTube, Spotify, or SoundCloud by search or URL. Full queue management, looping, shuffle, volume control, lyrics, and seeking. Backed by the Agent Pool for maximum uptime.",
     "subcommandsRich": [
       {
         "name": "play",
-        "desc": "Play or queue a track \u2014 search or URL"
+        "desc": "Search or URL \u2014 YouTube, Spotify, SoundCloud"
       },
       {
         "name": "skip",
@@ -210,108 +19,2569 @@
       },
       {
         "name": "resume",
-        "desc": "Resume playback"
+        "desc": "Resume paused playback"
       },
       {
         "name": "stop",
-        "desc": "Stop and disconnect"
+        "desc": "Stop and clear the queue"
+      },
+      {
+        "name": "now",
+        "desc": "Show what's currently playing"
+      },
+      {
+        "name": "queue",
+        "desc": "Display the full queue"
+      },
+      {
+        "name": "remove",
+        "desc": "Remove a specific track from the queue"
+      },
+      {
+        "name": "volume",
+        "desc": "Set playback volume (0\u2013100)"
+      },
+      {
+        "name": "loop",
+        "desc": "Loop the current track or entire queue"
+      },
+      {
+        "name": "shuffle",
+        "desc": "Shuffle the queue randomly"
+      },
+      {
+        "name": "seek",
+        "desc": "Jump to a timestamp in the current track"
+      },
+      {
+        "name": "lyrics",
+        "desc": "Fetch lyrics for the current track"
       }
     ],
-    "permissions": "@everyone",
+    "permissions": "Admin",
     "examples": [
-      "/music play query:lofi hip hop",
-      "/music skip"
+      "/music play lofi hip hop",
+      "/music queue",
+      "/music skip",
+      "/music stop"
     ]
   },
   {
-    "name": "agents",
-    "category": "Agents",
-    "summary": "Manage and deploy community Agent Pool agents",
-    "description": "View available agents, deploy an agent to a voice channel, configure session limits and allowed actions, and check pool credit balance.",
+    "name": "voice",
+    "category": "Music",
+    "summary": "VoiceMaster setup and room controls",
+    "description": "VoiceMaster setup and room controls",
     "subcommandsRich": [
       {
-        "name": "join",
-        "desc": "Deploy an agent to your current voice channel"
+        "name": "add",
+        "desc": "Register a lobby channel"
       },
       {
-        "name": "leave",
-        "desc": "End the active agent session"
+        "name": "setup",
+        "desc": "Create a lobby + category and register VoiceMaster"
+      },
+      {
+        "name": "remove",
+        "desc": "Remove a lobby channel"
+      },
+      {
+        "name": "enable",
+        "desc": "Enable a lobby channel"
+      },
+      {
+        "name": "disable",
+        "desc": "Disable a lobby channel"
+      },
+      {
+        "name": "update",
+        "desc": "Update lobby settings"
+      },
+      {
+        "name": "status",
+        "desc": "Show current voice configuration"
+      },
+      {
+        "name": "reset",
+        "desc": "Reset all voice configuration"
+      },
+      {
+        "name": "room_status",
+        "desc": "Show your current room settings"
+      },
+      {
+        "name": "room_rename",
+        "desc": "Rename your current room"
+      },
+      {
+        "name": "room_limit",
+        "desc": "Set user limit for your room"
+      },
+      {
+        "name": "room_lock",
+        "desc": "Lock your room (deny Connect for @everyone)"
+      },
+      {
+        "name": "room_unlock",
+        "desc": "Unlock your room"
+      },
+      {
+        "name": "room_panel",
+        "desc": "Post a live room panel with dynamic buttons in this text channel"
+      },
+      {
+        "name": "room_claim",
+        "desc": "Claim room ownership when current owner is absent"
+      },
+      {
+        "name": "room_release",
+        "desc": "Release your room (delete it and move members out)"
+      },
+      {
+        "name": "room_transfer",
+        "desc": "Transfer room ownership to someone in the room"
+      },
+      {
+        "name": "panel",
+        "desc": "Send a room dashboard to your chosen destination"
+      },
+      {
+        "name": "console",
+        "desc": "Interactive VoiceMaster control panel"
+      },
+      {
+        "name": "panel_user_default",
+        "desc": "Set your default room dashboard delivery"
+      },
+      {
+        "name": "panel_guild_default",
+        "desc": "Set guild-wide default room dashboard delivery"
+      },
+      {
+        "name": "customs_setup",
+        "desc": "Configure Custom VCs (Manage Server)"
+      },
+      {
+        "name": "customs_panel",
+        "desc": "Post a Custom VCs request panel (Manage Server)"
+      },
+      {
+        "name": "customs_status",
+        "desc": "Show Custom VCs configuration (Manage Server)"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "mod",
+    "category": "Moderation",
+    "summary": "Moderation actions",
+    "description": "Moderation actions",
+    "subcommandsRich": [
+      {
+        "name": "ban",
+        "desc": "Ban a user from this server"
+      },
+      {
+        "name": "unban",
+        "desc": "Unban a user by ID"
+      },
+      {
+        "name": "softban",
+        "desc": "Softban a user (ban then immediately unban to clear messages)"
+      },
+      {
+        "name": "massban",
+        "desc": "Ban multiple users at once by user ID (max 20)"
+      },
+      {
+        "name": "kick",
+        "desc": "Kick a member from this server"
+      },
+      {
+        "name": "timeout",
+        "desc": "Timeout a member (0 minutes to clear)"
+      },
+      {
+        "name": "warn",
+        "desc": "Warn a user and record the warning"
+      },
+      {
+        "name": "warnings",
+        "desc": "List recorded warnings for a user"
+      },
+      {
+        "name": "clearwarns",
+        "desc": "Clear all warnings for a user"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "antinuke",
+    "category": "Moderation",
+    "summary": "Anti-nuke / anti-raid protection system",
+    "description": "Anti-nuke / anti-raid protection system",
+    "subcommandsRich": [
+      {
+        "name": "enable",
+        "desc": "Enable anti-nuke protection"
+      },
+      {
+        "name": "disable",
+        "desc": "Disable anti-nuke protection"
+      },
+      {
+        "name": "status",
+        "desc": "View current anti-nuke configuration"
+      },
+      {
+        "name": "punishment",
+        "desc": "Set punishment for nuke attempts"
+      },
+      {
+        "name": "threshold",
+        "desc": "Set how many of an action triggers anti-nuke"
+      },
+      {
+        "name": "window",
+        "desc": "Set the sliding time window in seconds (default: 10)"
+      },
+      {
+        "name": "whitelist-add",
+        "desc": "Whitelist a user (exempt from anti-nuke)"
+      },
+      {
+        "name": "whitelist-remove",
+        "desc": "Remove a user from whitelist"
+      },
+      {
+        "name": "log-channel",
+        "desc": "Set channel for anti-nuke alerts"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "antispam",
+    "category": "Moderation",
+    "summary": "Configure automatic spam protection for this server",
+    "description": "Configure automatic spam protection for this server",
+    "subcommandsRich": [
+      {
+        "name": "set",
+        "desc": "Enable and configure antispam protection"
+      },
+      {
+        "name": "disable",
+        "desc": "Disable antispam protection"
+      },
+      {
+        "name": "status",
+        "desc": "Show current antispam configuration"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "automod",
+    "category": "Moderation",
+    "summary": "Configure AutoMod content filtering",
+    "description": "Configure AutoMod content filtering",
+    "subcommandsRich": [
+      {
+        "name": "setup",
+        "desc": "Enable or disable AutoMod"
+      },
+      {
+        "name": "rules",
+        "desc": "Show current AutoMod rule configuration"
+      },
+      {
+        "name": "rule-set",
+        "desc": "Enable/disable a rule and set its action"
+      },
+      {
+        "name": "words-add",
+        "desc": "Add a word/phrase/regex to the blacklist"
+      },
+      {
+        "name": "words-remove",
+        "desc": "Remove a word/phrase from the blacklist"
+      },
+      {
+        "name": "words-list",
+        "desc": "List all blacklisted words/patterns"
+      },
+      {
+        "name": "exempt-add",
+        "desc": "Exempt a channel from AutoMod"
+      },
+      {
+        "name": "exempt-remove",
+        "desc": "Remove a channel exemption"
+      },
+      {
+        "name": "exempt-role",
+        "desc": "Toggle a role exemption from AutoMod"
+      },
+      {
+        "name": "test",
+        "desc": "Test a message against AutoMod rules without sending anything"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "cases",
+    "category": "Moderation",
+    "summary": "View and manage moderation cases",
+    "description": "View and manage moderation cases",
+    "subcommandsRich": [
+      {
+        "name": "list",
+        "desc": "List recent mod cases"
+      },
+      {
+        "name": "user",
+        "desc": "List cases for a specific user"
+      },
+      {
+        "name": "get",
+        "desc": "Get details of a specific case"
+      },
+      {
+        "name": "pardon",
+        "desc": "Pardon (clear) a case"
+      },
+      {
+        "name": "note",
+        "desc": "Add a note to a case"
+      },
+      {
+        "name": "escalation-view",
+        "desc": "View the current escalation chain configuration"
+      },
+      {
+        "name": "escalation-toggle",
+        "desc": "Enable or disable automatic escalation"
+      },
+      {
+        "name": "escalation-window",
+        "desc": "Set the rolling window for warn counting (days)"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "lockdown",
+    "category": "Moderation",
+    "summary": "Lock or unlock channel(s)",
+    "description": "Lock or unlock channel(s)",
+    "subcommandsRich": [
+      {
+        "name": "start",
+        "desc": "Lock channel(s)"
+      },
+      {
+        "name": "end",
+        "desc": "Unlock previously locked channel(s)"
+      },
+      {
+        "name": "lock",
+        "desc": "Lock the current channel (denies @everyone SendMessages)"
+      },
+      {
+        "name": "unlock",
+        "desc": "Unlock the current channel (restores @everyone SendMessages)"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "logs",
+    "category": "Moderation",
+    "summary": "Command logs and audit log channel configuration",
+    "description": "Command logs and audit log channel configuration",
+    "subcommandsRich": [
+      {
+        "name": "show",
+        "desc": "Show recent command logs"
+      },
+      {
+        "name": "export",
+        "desc": "Export command logs"
+      },
+      {
+        "name": "channel-set",
+        "desc": "Set the audit log channel for an event type (or * for all events)"
+      },
+      {
+        "name": "channel-clear",
+        "desc": "Remove the audit log channel for an event type"
+      },
+      {
+        "name": "channels-list",
+        "desc": "List all configured audit log channels"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "modlogs",
+    "category": "Moderation",
+    "summary": "Configure where mod actions get logged.",
+    "description": "Sets the channel where bans, kicks, warns, timeouts, and other mod actions are posted. Keeps your moderation auditable.",
+    "subcommandsRich": [
+      {
+        "name": "setup",
+        "desc": "Enable moderation logs and set destination channel"
+      },
+      {
+        "name": "event",
+        "desc": "Enable or disable a moderation action event"
+      },
+      {
+        "name": "status",
+        "desc": "Show current moderation log configuration"
+      },
+      {
+        "name": "disable",
+        "desc": "Disable moderation logs"
+      },
+      {
+        "name": "test",
+        "desc": "Send a test moderation log entry"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/modlogs set #mod-log"
+    ]
+  },
+  {
+    "name": "note",
+    "category": "Moderation",
+    "summary": "Manage moderator notes for a user",
+    "description": "Manage moderator notes for a user",
+    "subcommandsRich": [
+      {
+        "name": "add",
+        "desc": "Add a note to a user"
       },
       {
         "name": "list",
-        "desc": "List available agents in the community pool"
+        "desc": "List notes for a user"
       },
       {
-        "name": "style",
-        "desc": "Set the persona and tone for the session"
+        "name": "delete",
+        "desc": "Delete a note by ID"
       }
     ],
-    "permissions": "@everyone",
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "purge",
+    "category": "Moderation",
+    "summary": "Delete messages with robust filters and confirmation",
+    "description": "Deletes up to 100 messages at once. Filter by user, bots, content match, or attachments. Shows a confirmation before deleting so you don't nuke the wrong thing.",
+    "subcommandsRich": [],
+    "permissions": "Admin",
     "examples": [
-      "/agents join",
-      "/agents list",
-      "/agents style tone:calm"
+      "/purge 50",
+      "/purge 20 --user @spammer"
     ]
   },
   {
-    "name": "ai",
-    "category": "AI",
-    "summary": "AI chat with slash command interface",
-    "description": "Chat with an AI model directly from a slash command. Creates a contextual conversation. Most users prefer !ask for quick messages; /ai is better for structured back-and-forth.",
-    "permissions": "@everyone",
+    "name": "role",
+    "category": "Moderation",
+    "summary": "Add or remove a role from a member.",
+    "description": "Assigns or removes a specified role from a member. Supports bulk operations and logs the change if mod logging is configured.",
+    "subcommandsRich": [
+      {
+        "name": "add",
+        "desc": "Add a role to a user"
+      },
+      {
+        "name": "remove",
+        "desc": "Remove a role from a user"
+      }
+    ],
+    "permissions": "Admin",
     "examples": [
-      "/ai chat message:Explain quantum entanglement"
+      "/role add @user VIP",
+      "/role remove @user Muted"
+    ]
+  },
+  {
+    "name": "roles",
+    "category": "Moderation",
+    "summary": "Role menus, temp roles, and role management",
+    "description": "Role menus, temp roles, and role management",
+    "subcommandsRich": [
+      {
+        "name": "menu-create",
+        "desc": "Create a new role menu"
+      },
+      {
+        "name": "menu-add",
+        "desc": "Add a role option to a menu"
+      },
+      {
+        "name": "menu-remove",
+        "desc": "Remove a role from a menu"
+      },
+      {
+        "name": "menu-publish",
+        "desc": "Publish a role menu to a channel"
+      },
+      {
+        "name": "menu-delete",
+        "desc": "Delete a role menu"
+      },
+      {
+        "name": "menu-list",
+        "desc": "List all role menus in this server"
+      },
+      {
+        "name": "temprole",
+        "desc": "Give a user a temporary role that expires after a duration"
+      },
+      {
+        "name": "temprole-remove",
+        "desc": "Remove a user's temp role early"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "slowmode",
+    "category": "Moderation",
+    "summary": "Rate-limit messages in a channel.",
+    "description": "Sets a per-user cooldown on sending messages. Use 0 to disable. Helpful during active events or when a channel gets spammy.",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": [
+      "/slowmode 5",
+      "/slowmode 0"
     ]
   },
   {
     "name": "verify",
-    "category": "Config",
-    "summary": "Member verification gate",
-    "description": "Configure a verification step new members must complete before gaining access to the server. Supports button click, reaction, or CAPTCHA-style text entry.",
-    "permissions": "Manage Server",
+    "category": "Moderation",
+    "summary": "Set up and manage the member verification system",
+    "description": "Set up and manage the member verification system",
+    "subcommandsRich": [
+      {
+        "name": "setup",
+        "desc": "Configure verification mode and roles"
+      },
+      {
+        "name": "enable",
+        "desc": "Enable the verification system"
+      },
+      {
+        "name": "disable",
+        "desc": "Disable the verification system"
+      },
+      {
+        "name": "panel",
+        "desc": "Post the verification panel in the configured channel"
+      },
+      {
+        "name": "quarantine-role",
+        "desc": "Set or auto-create the quarantine role"
+      },
+      {
+        "name": "message",
+        "desc": "Set the verification message shown in the panel"
+      },
+      {
+        "name": "dm-message",
+        "desc": "Set the DM message sent to new members (or clear it)"
+      },
+      {
+        "name": "status",
+        "desc": "Show current verification configuration"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "actions",
+    "category": "Economy",
+    "summary": "\ud83e\udd16 Spend credits to have agents perform actions in your server",
+    "description": "\ud83e\udd16 Spend credits to have agents perform actions in your server",
+    "subcommandsRich": [
+      {
+        "name": "list",
+        "desc": "View available agent actions and their costs"
+      },
+      {
+        "name": "use",
+        "desc": "Use an agent action"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "auction",
+    "category": "Economy",
+    "summary": "Auction house commands",
+    "description": "Auction house commands",
+    "subcommandsRich": [
+      {
+        "name": "create",
+        "desc": "Create a new auction"
+      },
+      {
+        "name": "bid",
+        "desc": "Bid on the most recent active auction"
+      },
+      {
+        "name": "list",
+        "desc": "Show all active auctions"
+      },
+      {
+        "name": "end",
+        "desc": "Admin: forcefully end an auction"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "bank",
+    "category": "Economy",
+    "summary": "Deposit or withdraw credits from your bank.",
+    "description": "Move credits between your wallet and bank. Banked credits are safe but can't be spent directly \u2014 withdraw first.",
+    "subcommandsRich": [
+      {
+        "name": "deposit",
+        "desc": "Deposit credits into your bank"
+      },
+      {
+        "name": "withdraw",
+        "desc": "Withdraw credits from your bank"
+      },
+      {
+        "name": "upgrade",
+        "desc": "Upgrade your bank capacity (cost scales)"
+      },
+      {
+        "name": "view",
+        "desc": "View your bank balance"
+      }
+    ],
+    "permissions": "Everyone",
     "examples": [
-      "/verify setup",
-      "/verify channel:#verify"
+      "/bank deposit 1000",
+      "/bank withdraw 250"
     ]
   },
   {
-    "name": "polls",
-    "category": "Utility",
-    "summary": "Create rich interactive polls",
-    "description": "Create polls with up to 10 options, set a duration, and optionally restrict voting to specific roles. Results posted when poll ends.",
-    "permissions": "@everyone",
+    "name": "casino",
+    "category": "Economy",
+    "summary": "Casino games \u2014 gamble your credits!",
+    "description": "Casino games \u2014 gamble your credits!",
+    "subcommandsRich": [
+      {
+        "name": "slots",
+        "desc": "Spin the slot machine (bet 10\u20131000)"
+      },
+      {
+        "name": "coinflip",
+        "desc": "Flip a coin for double-or-nothing (bet 10\u2013500)"
+      },
+      {
+        "name": "balance",
+        "desc": "Show your current credit balance"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "heist",
+    "category": "Economy",
+    "summary": "Organize a group heist for big rewards",
+    "description": "Organize a group heist for big rewards",
+    "subcommandsRich": [
+      {
+        "name": "start",
+        "desc": "Start a new heist"
+      },
+      {
+        "name": "join",
+        "desc": "Join the active heist"
+      },
+      {
+        "name": "status",
+        "desc": "Show current heist status"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "pay",
+    "category": "Economy",
+    "summary": "Transfer credits to another member.",
+    "description": "Sends credits from your wallet to another member's wallet. The amount must be in your current wallet balance.",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
     "examples": [
-      "/poll question:Best bot? options:Chopsticks,Other"
+      "/pay @friend 500"
     ]
+  },
+  {
+    "name": "trade",
+    "category": "Economy",
+    "summary": "Trade coins and items with other users",
+    "description": "Trade coins and items with other users",
+    "subcommandsRich": [
+      {
+        "name": "offer",
+        "desc": "Offer a trade to another user"
+      },
+      {
+        "name": "accept",
+        "desc": "Accept a pending trade"
+      },
+      {
+        "name": "cancel",
+        "desc": "Cancel your own pending trade"
+      },
+      {
+        "name": "list",
+        "desc": "Show your pending trades"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "trivia",
+    "category": "Fun & Games",
+    "summary": "Play trivia solo, versus players, or versus deployed agents",
+    "description": "Multiplayer trivia with categories, solo play, and competitive modes. Challenge an AI agent from the pool for a head-to-head match, or enter your server's pool agents into cross-server competitions. Earning credits for wins ties directly into the economy system.",
+    "subcommandsRich": [
+      {
+        "name": "start",
+        "desc": "Start a trivia session in the channel (solo or multiplayer)"
+      },
+      {
+        "name": "category",
+        "desc": "Filter by topic: Science, History, Gaming, Sports, and more"
+      },
+      {
+        "name": "vs-agent",
+        "desc": "Challenge an AI agent from the pool to a competitive trivia match"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": [
+      "/trivia start category:Science",
+      "/trivia vs-agent difficulty:hard",
+      "/trivia start multiplayer:true"
+    ]
+  },
+  {
+    "name": "audiobook",
+    "category": "Fun & Games",
+    "summary": "\ud83d\udcd6 Read books aloud in your voice channel via AI text-to-speech",
+    "description": "\ud83d\udcd6 Read books aloud in your voice channel via AI text-to-speech",
+    "subcommandsRich": [
+      {
+        "name": "start",
+        "desc": "Open a private book-drop thread \u2014 drag & drop files to add books"
+      },
+      {
+        "name": "play",
+        "desc": "Start or resume reading in your current voice channel"
+      },
+      {
+        "name": "pause",
+        "desc": "Pause reading"
+      },
+      {
+        "name": "resume",
+        "desc": "Resume reading"
+      },
+      {
+        "name": "skip",
+        "desc": "Skip to the next chapter"
+      },
+      {
+        "name": "stop",
+        "desc": "Stop reading and close the session"
+      },
+      {
+        "name": "speed",
+        "desc": "Change reading speed"
+      },
+      {
+        "name": "voice",
+        "desc": "Choose a reading voice and style"
+      },
+      {
+        "name": "library",
+        "desc": "View and manage your uploaded books"
+      },
+      {
+        "name": "bookmark",
+        "desc": "Save your current reading position"
+      },
+      {
+        "name": "bookmarks",
+        "desc": "View your saved bookmarks"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "battle",
+    "category": "Fun & Games",
+    "summary": "\u2694\ufe0f Challenge another user to a PvP battle for credits and glory",
+    "description": "\u2694\ufe0f Challenge another user to a PvP battle for credits and glory",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "birthday",
+    "category": "Fun & Games",
+    "summary": "Manage birthday entries",
+    "description": "Manage birthday entries",
+    "subcommandsRich": [
+      {
+        "name": "set",
+        "desc": "Set your birthday"
+      },
+      {
+        "name": "list",
+        "desc": "List all birthdays this month"
+      },
+      {
+        "name": "remove",
+        "desc": "Remove your birthday entry"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "card",
+    "category": "Fun & Games",
+    "summary": "\ud83c\udfb4 Generate stylized image cards",
+    "description": "\ud83c\udfb4 Generate stylized image cards",
+    "subcommandsRich": [
+      {
+        "name": "tweet",
+        "desc": "Create a Twitter/X-style post image"
+      },
+      {
+        "name": "quote",
+        "desc": "Create a quote card from text"
+      },
+      {
+        "name": "profile",
+        "desc": "Generate your server profile card"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "colorrole",
+    "category": "Fun & Games",
+    "summary": "Manage your personal color role",
+    "description": "Manage your personal color role",
+    "subcommandsRich": [
+      {
+        "name": "set",
+        "desc": "Set your color role to a hex color (creates it if needed)"
+      },
+      {
+        "name": "clear",
+        "desc": "Remove your color role"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "compliment",
+    "category": "Fun & Games",
+    "summary": "\ud83d\udc90 Compliment someone with a heartfelt (or hilariously over-the-top) message",
+    "description": "\ud83d\udc90 Compliment someone with a heartfelt (or hilariously over-the-top) message",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "confessions",
+    "category": "Fun & Games",
+    "summary": "Anonymous confession system",
+    "description": "Anonymous confession system",
+    "subcommandsRich": [
+      {
+        "name": "setup",
+        "desc": "(Admin) Configure the confessions channel"
+      },
+      {
+        "name": "disable",
+        "desc": "(Admin) Disable confessions"
+      },
+      {
+        "name": "send",
+        "desc": "Send an anonymous confession"
+      },
+      {
+        "name": "reveal",
+        "desc": "(Admin) Reveal who sent a confession by ID"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "craft",
+    "category": "Fun & Games",
+    "summary": "Craft items from recipes (interactive)",
+    "description": "Opens an interactive crafting panel. Select a recipe, confirm you have the ingredients, and craft the item. Recipes are discovered as you collect materials.",
+    "subcommandsRich": [
+      {
+        "name": "bench",
+        "desc": "Open the crafting bench (dropdown + buttons)"
+      },
+      {
+        "name": "make",
+        "desc": "Craft by recipe id (non-interactive)"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": [
+      "/craft"
+    ]
+  },
+  {
+    "name": "game",
+    "category": "Fun & Games",
+    "summary": "Game settings and utilities",
+    "description": "Game settings and utilities",
+    "subcommandsRich": [
+      {
+        "name": "panel",
+        "desc": "Open the interactive game console (dropdowns + buttons)"
+      },
+      {
+        "name": "theme",
+        "desc": "View or set the server theme for game outputs"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "imagine",
+    "category": "Fun & Games",
+    "summary": "\ud83c\udfa8 Generate an AI image from a text prompt (free, no API key required for basic use)",
+    "description": "\ud83c\udfa8 Generate an AI image from a text prompt (free, no API key required for basic use)",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "info",
+    "category": "Fun & Games",
+    "summary": "Server and user information commands",
+    "description": "Server and user information commands",
+    "subcommandsRich": [
+      {
+        "name": "avatar",
+        "desc": "View a user's avatar"
+      },
+      {
+        "name": "banner",
+        "desc": "View a user's profile banner"
+      },
+      {
+        "name": "server",
+        "desc": "View detailed server information"
+      },
+      {
+        "name": "role",
+        "desc": "View detailed role information"
+      },
+      {
+        "name": "channel",
+        "desc": "View channel information"
+      },
+      {
+        "name": "user",
+        "desc": "View detailed user information"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "levels",
+    "category": "Fun & Games",
+    "summary": "Configure XP level rewards and progression.",
+    "description": "Set up roles or messages that are automatically granted when a member reaches a certain XP level. Rewards active participation.",
+    "subcommandsRich": [],
+    "permissions": "Moderator",
+    "examples": [
+      "/levels set 10 @ActiveMember"
+    ]
+  },
+  {
+    "name": "marry",
+    "category": "Fun & Games",
+    "summary": "Propose, manage, or view your marriage",
+    "description": "Propose, manage, or view your marriage",
+    "subcommandsRich": [
+      {
+        "name": "propose",
+        "desc": "Propose to someone"
+      },
+      {
+        "name": "divorce",
+        "desc": "End your marriage"
+      },
+      {
+        "name": "status",
+        "desc": "View your or someone else's relationship status"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "meme",
+    "category": "Fun & Games",
+    "summary": "\ud83d\ude02 Get a random meme from Reddit",
+    "description": "\ud83d\ude02 Get a random meme from Reddit",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "profilecard",
+    "category": "Fun & Games",
+    "summary": "Generate a rich image profile card",
+    "description": "Generate a rich image profile card",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "quests",
+    "category": "Fun & Games",
+    "summary": "View and complete daily quests for bonus rewards.",
+    "description": "Shows your active daily quests with progress. Complete them before reset to claim XP and credit bonuses. Quests rotate every 24 hours.",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": [
+      "/quests"
+    ]
+  },
+  {
+    "name": "quote",
+    "category": "Fun & Games",
+    "summary": "\ud83d\udcac Get a random quote",
+    "description": "\ud83d\udcac Get a random quote",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "reputation",
+    "category": "Fun & Games",
+    "summary": "Reputation system",
+    "description": "Reputation system",
+    "subcommandsRich": [
+      {
+        "name": "give",
+        "desc": "Give +1 reputation to another user"
+      },
+      {
+        "name": "check",
+        "desc": "Check reputation of a user"
+      },
+      {
+        "name": "leaderboard",
+        "desc": "Show top 10 reputation holders in this server"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "riddle",
+    "category": "Fun & Games",
+    "summary": "\ud83e\udde9 Get a random riddle \u2014 answer is hidden as a spoiler!",
+    "description": "\ud83e\udde9 Get a random riddle \u2014 answer is hidden as a spoiler!",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "roast",
+    "category": "Fun & Games",
+    "summary": "\ud83d\udd25 Roast someone with AI (keep it fun, not mean!)",
+    "description": "\ud83d\udd25 Roast someone with AI (keep it fun, not mean!)",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "ship",
+    "category": "Fun & Games",
+    "summary": "\ud83d\udc98 Calculate the compatibility between two users",
+    "description": "\ud83d\udc98 Calculate the compatibility between two users",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "social",
+    "category": "Fun & Games",
+    "summary": "Fun social interactions \u2014 roast or compliment someone with AI",
+    "description": "Fun social interactions \u2014 roast or compliment someone with AI",
+    "subcommandsRich": [
+      {
+        "name": "roast",
+        "desc": "\ud83d\udd25 Roast someone with AI (keep it fun, not mean!)"
+      },
+      {
+        "name": "compliment",
+        "desc": "\ud83d\udc90 Compliment someone with AI"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "streak",
+    "category": "Fun & Games",
+    "summary": "Track your daily activity streak in this server",
+    "description": "Track your daily activity streak in this server",
+    "subcommandsRich": [
+      {
+        "name": "check",
+        "desc": "Check in and view your current streak"
+      },
+      {
+        "name": "leaderboard",
+        "desc": "View the top 10 streak holders in this server"
+      },
+      {
+        "name": "reset",
+        "desc": "Reset a user's streak (Manage Server required)"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "truthordare",
+    "category": "Fun & Games",
+    "summary": "\ud83c\udfad Get a truth or dare prompt!",
+    "description": "\ud83c\udfad Get a truth or dare prompt!",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "wouldyourather",
+    "category": "Fun & Games",
+    "summary": "\ud83e\udd14 Would you rather\u2026? Vote with reactions!",
+    "description": "\ud83e\udd14 Would you rather\u2026? Vote with reactions!",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "xp",
+    "category": "Fun & Games",
+    "summary": "\u26a1 Configure the XP and leveling system for this server",
+    "description": "\u26a1 Configure the XP and leveling system for this server",
+    "subcommandsRich": [],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "automations",
+    "category": "Automation",
+    "summary": "Trigger scripts automatically on server events.",
+    "description": "Configure event-triggered automations \u2014 run a sequence when someone joins, leaves, boosts, reaches a level, or any other server event. Automations can call scripts, assign roles, send messages, update economy values, or dispatch agents. Build complex server logic without writing code.",
+    "subcommandsRich": [
+      {
+        "name": "add",
+        "desc": "Create a new trigger \u2192 action automation"
+      },
+      {
+        "name": "list",
+        "desc": "View all configured automations"
+      },
+      {
+        "name": "remove",
+        "desc": "Delete an automation by ID"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/automations add trigger:member-join action:script:welcome-dm",
+      "/automations list"
+    ]
+  },
+  {
+    "name": "scripts",
+    "category": "Automation",
+    "summary": "Create and run safe automation scripts",
+    "description": "Build fully programmable server automations with named scripts. Scripts can chain commands, reference variables, trigger conditionally, and be called by other automations or custom commands. The most powerful programmability tool in Chopsticks \u2014 turns the bot into a configurable server platform.",
+    "subcommandsRich": [
+      {
+        "name": "create",
+        "desc": "Write a reusable script with commands and logic"
+      },
+      {
+        "name": "run",
+        "desc": "Execute a named script manually"
+      },
+      {
+        "name": "list",
+        "desc": "List all scripts configured for this server"
+      },
+      {
+        "name": "delete",
+        "desc": "Delete a script by name"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/scripts create name:welcome-dm",
+      "/scripts run name:daily-bonus",
+      "/scripts list"
+    ]
+  },
+  {
+    "name": "setup",
+    "category": "Automation",
+    "summary": "Guided wizard to configure key bot modules.",
+    "description": "The master configuration command for your server. Controls mod log channel, mod roles, agent pool configuration, economy settings, raid/nuke protection thresholds, dynamic voice channel creation, welcome messages, and auto-roles. Run /setup once when you add Chopsticks \u2014 everything else flows from here.",
+    "subcommandsRich": [
+      {
+        "name": "modlog",
+        "desc": "Set the channel for moderation action logs"
+      },
+      {
+        "name": "modrole",
+        "desc": "Designate one or more moderator roles"
+      },
+      {
+        "name": "agent-pool",
+        "desc": "Configure agent pool access, costs, and allowed actions"
+      },
+      {
+        "name": "economy",
+        "desc": "Enable/disable economy and set starting balance"
+      },
+      {
+        "name": "welcome",
+        "desc": "Configure the welcome message and channel"
+      },
+      {
+        "name": "autorole",
+        "desc": "Set roles granted automatically on join"
+      },
+      {
+        "name": "protection",
+        "desc": "Configure raid/nuke detection thresholds and auto-response"
+      },
+      {
+        "name": "voicechannel",
+        "desc": "Configure dynamic VC creation for members"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/setup protection raid-threshold:10 action:lockdown",
+      "/setup voicechannel enable:true",
+      "/setup agent-pool credits:500 actions:music,trivia"
+    ]
+  },
+  {
+    "name": "dashboard",
+    "category": "Automation",
+    "summary": "Open your server's Chopsticks dashboard \u2014 ephemeral single-use link",
+    "description": "Open your server's Chopsticks dashboard \u2014 ephemeral single-use link",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "autoresponder",
+    "category": "Automation",
+    "summary": "Create auto-responders that react to message triggers",
+    "description": "Create auto-responders that react to message triggers",
+    "subcommandsRich": [
+      {
+        "name": "add",
+        "desc": "Add an auto-responder trigger"
+      },
+      {
+        "name": "remove",
+        "desc": "Remove an auto-responder by trigger text"
+      },
+      {
+        "name": "list",
+        "desc": "List all auto-responders"
+      },
+      {
+        "name": "clear",
+        "desc": "Clear all auto-responders"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "autorole",
+    "category": "Automation",
+    "summary": "Automatically assign roles when members join.",
+    "description": "Sets one or more roles that are automatically given to every new member. Works immediately on join, no manual review needed.",
+    "subcommandsRich": [
+      {
+        "name": "set",
+        "desc": "Set auto-role"
+      },
+      {
+        "name": "disable",
+        "desc": "Disable auto-role"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/autorole set @Member"
+    ]
+  },
+  {
+    "name": "boosterperks",
+    "category": "Automation",
+    "summary": "Customize your server boost role or configure boost perks (admins)",
+    "description": "Customize your server boost role or configure boost perks (admins)",
+    "subcommandsRich": [
+      {
+        "name": "color",
+        "desc": "Set your personal boost role color (boosters only)"
+      },
+      {
+        "name": "name",
+        "desc": "Set your personal boost role name (boosters only)"
+      },
+      {
+        "name": "view",
+        "desc": "View your current boost role"
+      },
+      {
+        "name": "setup",
+        "desc": "(Admin) Set the position role \u2014 boost roles are placed below it"
+      },
+      {
+        "name": "reset",
+        "desc": "Remove your personal boost role"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "config",
+    "category": "Automation",
+    "summary": "Configuration commands",
+    "description": "Configuration commands",
+    "subcommandsRich": [
+      {
+        "name": "command-roles",
+        "desc": "Set roles required to use a command"
+      },
+      {
+        "name": "command-roles-list",
+        "desc": "List command role rules"
+      },
+      {
+        "name": "command-enable",
+        "desc": "Enable or disable a command"
+      },
+      {
+        "name": "category-enable",
+        "desc": "Enable or disable a category"
+      },
+      {
+        "name": "settings",
+        "desc": "Show command settings"
+      },
+      {
+        "name": "set-channel",
+        "desc": "Set a special-purpose channel for this server"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "custom",
+    "category": "Automation",
+    "summary": "Create server-specific slash commands.",
+    "description": "Build your own commands with custom names and responses. Supports static text responses and scripted actions.",
+    "subcommandsRich": [
+      {
+        "name": "set",
+        "desc": "Create or update a custom command"
+      },
+      {
+        "name": "delete",
+        "desc": "Delete a custom command"
+      },
+      {
+        "name": "list",
+        "desc": "List custom commands"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": [
+      "/custom add !rules Show our server rules"
+    ]
+  },
+  {
+    "name": "customcmd",
+    "category": "Automation",
+    "summary": "Create and manage custom text commands triggered by prefix",
+    "description": "Create and manage custom text commands triggered by prefix",
+    "subcommandsRich": [
+      {
+        "name": "create",
+        "desc": "Create a custom command"
+      },
+      {
+        "name": "edit",
+        "desc": "Edit a custom command's response"
+      },
+      {
+        "name": "delete",
+        "desc": "Delete a custom command"
+      },
+      {
+        "name": "list",
+        "desc": "List all custom commands"
+      },
+      {
+        "name": "info",
+        "desc": "View details of a custom command"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "embed",
+    "category": "Automation",
+    "summary": "Create and send a custom embed to a channel",
+    "description": "Create and send a custom embed to a channel",
+    "subcommandsRich": [
+      {
+        "name": "create",
+        "desc": "Send a custom embed to a channel"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "emoji",
+    "category": "Automation",
+    "summary": "Manage server emojis",
+    "description": "Manage server emojis",
+    "subcommandsRich": [
+      {
+        "name": "add",
+        "desc": "Add a new emoji from a URL or attachment"
+      },
+      {
+        "name": "steal",
+        "desc": "Steal a custom emoji from a message (by message ID or jump URL)"
+      },
+      {
+        "name": "delete",
+        "desc": "Delete a server emoji"
+      },
+      {
+        "name": "rename",
+        "desc": "Rename a server emoji"
+      },
+      {
+        "name": "list",
+        "desc": "List all server emojis"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "macro",
+    "category": "Automation",
+    "summary": "Create shorthand command aliases.",
+    "description": "Defines a short text alias that expands to a longer command when typed. Saves repetitive input for common actions.",
+    "subcommandsRich": [
+      {
+        "name": "set",
+        "desc": "Create/update a macro"
+      },
+      {
+        "name": "delete",
+        "desc": "Delete a macro"
+      },
+      {
+        "name": "list",
+        "desc": "List macros"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/macro add !kick kick {user} Breaking rules"
+    ]
+  },
+  {
+    "name": "prefix",
+    "category": "Automation",
+    "summary": "View or set the prefix",
+    "description": "View or set the prefix",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "reactionroles",
+    "category": "Automation",
+    "summary": "Let members self-assign roles with emoji reactions.",
+    "description": "Configure a message where members react with an emoji to gain a role and unreact to remove it. Supports exclusive (pick-one) and multi-select modes.",
+    "subcommandsRich": [
+      {
+        "name": "add",
+        "desc": "Bind one emoji reaction on a message to a role"
+      },
+      {
+        "name": "remove",
+        "desc": "Remove one reaction role binding"
+      },
+      {
+        "name": "list",
+        "desc": "List reaction role bindings for this server"
+      },
+      {
+        "name": "clear_message",
+        "desc": "Remove all reaction role bindings for one message"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/reactionroles panel #roles-channel"
+    ]
+  },
+  {
+    "name": "schedule",
+    "category": "Automation",
+    "summary": "Schedule a message to be sent in a channel",
+    "description": "Schedule a message to be sent in a channel",
+    "subcommandsRich": [
+      {
+        "name": "message",
+        "desc": "Schedule a message for a channel"
+      },
+      {
+        "name": "list",
+        "desc": "List pending scheduled messages for this server"
+      },
+      {
+        "name": "cancel",
+        "desc": "Cancel a scheduled message by ID"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "starboard",
+    "category": "Automation",
+    "summary": "Configure highlighted message feed from reactions",
+    "description": "When a message gets enough star reactions, Chopsticks reposts it in your designated starboard channel. Configure the threshold and which channel to post to.",
+    "subcommandsRich": [
+      {
+        "name": "setup",
+        "desc": "Enable and configure starboard"
+      },
+      {
+        "name": "status",
+        "desc": "Show current starboard settings"
+      },
+      {
+        "name": "disable",
+        "desc": "Disable starboard"
+      },
+      {
+        "name": "clear_posts",
+        "desc": "Clear tracked post mapping cache"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/starboard set #highlights --threshold 5"
+    ]
+  },
+  {
+    "name": "threads",
+    "category": "Automation",
+    "summary": "Auto-thread and announcement channel management",
+    "description": "Auto-thread and announcement channel management",
+    "subcommandsRich": [
+      {
+        "name": "autothread-add",
+        "desc": "Automatically create a thread on every message in a channel"
+      },
+      {
+        "name": "autothread-remove",
+        "desc": "Remove auto-threading from a channel"
+      },
+      {
+        "name": "autothread-list",
+        "desc": "List auto-threaded channels"
+      },
+      {
+        "name": "autopublish-add",
+        "desc": "Auto-publish messages in an Announcement channel"
+      },
+      {
+        "name": "autopublish-remove",
+        "desc": "Remove auto-publish from a channel"
+      },
+      {
+        "name": "autopublish-list",
+        "desc": "List auto-publish channels"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "tickets",
+    "category": "Automation",
+    "summary": "Support ticket system with panel, private channels, and transcripts",
+    "description": "Sends a ticket panel to a channel. Members click to open a private channel with staff. Tickets are auto-archived and a full transcript is saved on close.",
+    "subcommandsRich": [
+      {
+        "name": "panel",
+        "desc": "Post the ticket creation panel to a channel"
+      },
+      {
+        "name": "close",
+        "desc": "Close and archive the current ticket"
+      },
+      {
+        "name": "add",
+        "desc": "Add a member to the current ticket channel"
+      },
+      {
+        "name": "remove",
+        "desc": "Remove a member from the current ticket channel"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/tickets panel #support"
+    ]
+  },
+  {
+    "name": "welcome",
+    "category": "Automation",
+    "summary": "Customize your new-member welcome message.",
+    "description": "Configure a rich welcome message that fires when someone joins. Supports custom text, embeds, and variable substitution (member name, server name, etc.).",
+    "subcommandsRich": [
+      {
+        "name": "set",
+        "desc": "Set welcome channel"
+      },
+      {
+        "name": "message",
+        "desc": "Set welcome message"
+      },
+      {
+        "name": "preview",
+        "desc": "Preview current welcome configuration"
+      },
+      {
+        "name": "disable",
+        "desc": "Disable welcome messages"
+      },
+      {
+        "name": "dm-set",
+        "desc": "Set a DM message sent to new members"
+      },
+      {
+        "name": "dm-enable",
+        "desc": "Enable DM on join"
+      },
+      {
+        "name": "dm-disable",
+        "desc": "Disable DM on join"
+      },
+      {
+        "name": "goodbye-set",
+        "desc": "Set goodbye channel and message"
+      },
+      {
+        "name": "goodbye-enable",
+        "desc": "Enable goodbye messages"
+      },
+      {
+        "name": "goodbye-disable",
+        "desc": "Disable goodbye messages"
+      },
+      {
+        "name": "membercount",
+        "desc": "Set a voice channel to display live member count"
+      },
+      {
+        "name": "membercount-disable",
+        "desc": "Disable member count voice channel"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/welcome set #welcome Welcome {user} to {server}!"
+    ]
+  },
+  {
+    "name": "agents",
+    "category": "AI",
+    "summary": "Deploy and manage Chopsticks agents",
+    "description": "Deploy and manage Chopsticks agents",
+    "subcommandsRich": [
+      {
+        "name": "status",
+        "desc": "Status overview for this guild"
+      },
+      {
+        "name": "manifest",
+        "desc": "List every connected agent and identity"
+      },
+      {
+        "name": "diagnose",
+        "desc": "Diagnose why an agent may not be coming online"
+      },
+      {
+        "name": "deploy",
+        "desc": "Generate invite links to deploy more agents into this guild"
+      },
+      {
+        "name": "advisor",
+        "desc": "Compare accessible pools and recommend the best deployment source"
+      },
+      {
+        "name": "panel",
+        "desc": "Interactive agent deployment panel (pool selector + invite links)"
+      },
+      {
+        "name": "idle_policy",
+        "desc": "View or configure idle auto-release timeout for this server"
+      },
+      {
+        "name": "sessions",
+        "desc": "List active sessions for this guild"
+      },
+      {
+        "name": "assign",
+        "desc": "Pin a specific agent to a voice channel"
+      },
+      {
+        "name": "release",
+        "desc": "Release a session for a voice channel"
+      },
+      {
+        "name": "scale",
+        "desc": "Scale active agents inside agentRunner (requires AGENT_SCALE_TOKEN)"
+      },
+      {
+        "name": "restart",
+        "desc": "Restart an agent by id (disconnects it so agentRunner reconnects)"
+      },
+      {
+        "name": "add_token",
+        "desc": "Register your bot agent"
+      },
+      {
+        "name": "verify_membership",
+        "desc": "Force check which agents are actually in this guild (admin only)"
+      },
+      {
+        "name": "list_tokens",
+        "desc": "View registered agents in accessible pools"
+      },
+      {
+        "name": "update_token_status",
+        "desc": "Update the status of an agent token"
+      },
+      {
+        "name": "delete_token",
+        "desc": "Delete an agent token from the system"
+      },
+      {
+        "name": "revoke",
+        "desc": "Revoke your contributed agent from a pool (permanent)"
+      },
+      {
+        "name": "my_agents",
+        "desc": "View all agents you have contributed across all pools"
+      },
+      {
+        "name": "set_profile",
+        "desc": "Set the AI profile for an agent."
+      },
+      {
+        "name": "get_profile",
+        "desc": "Get the AI profile for an agent."
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "agentkeys",
+    "category": "AI",
+    "summary": "Link your own API keys to your guild's agents for richer customization",
+    "description": "Link your own API keys to your guild's agents for richer customization",
+    "subcommandsRich": [
+      {
+        "name": "link",
+        "desc": "Link an API key for a service to your agents"
+      },
+      {
+        "name": "unlink",
+        "desc": "Remove a linked API key for a service"
+      },
+      {
+        "name": "status",
+        "desc": "Show which services have linked keys for this server"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "ai",
+    "category": "AI",
+    "summary": "Chat with AI and manage AI provider settings",
+    "description": "Chat with AI and manage AI provider settings",
+    "subcommandsRich": [
+      {
+        "name": "chat",
+        "desc": "Send a message to the AI and get a response"
+      },
+      {
+        "name": "image",
+        "desc": "Generate an AI image \u2014 free via HuggingFace FLUX or premium via linked OpenAI"
+      },
+      {
+        "name": "set-provider",
+        "desc": "(Admin) Set the guild-wide default AI provider"
+      },
+      {
+        "name": "help",
+        "desc": "Show AI features, current provider, and quick setup guide"
+      },
+      {
+        "name": "stats",
+        "desc": "Show AI usage statistics for this server"
+      },
+      {
+        "name": "summarize",
+        "desc": "Summarize recent channel messages using AI"
+      },
+      {
+        "name": "translate",
+        "desc": "Translate text to another language using AI"
+      },
+      {
+        "name": "moderate",
+        "desc": "Moderate a message for policy violations (requires Manage Messages)"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "assistant",
+    "category": "AI",
+    "summary": "Voice assistant for active agent sessions.",
+    "description": "Activates voice assistant mode for an agent in a voice channel. The agent listens and responds in real time. Use /assistant bind to permanently assign an agent to a channel \u2014 for customer support, lobby music, onboarding, or any always-on role. Sessions are funded by server credits.",
+    "subcommandsRich": [
+      {
+        "name": "start",
+        "desc": "Activate voice assistant mode in the current channel"
+      },
+      {
+        "name": "stop",
+        "desc": "Deactivate the voice assistant and end the session"
+      },
+      {
+        "name": "bind",
+        "desc": "Permanently bind an AI agent to a channel (support, lobby music, greeter)"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": [
+      "/assistant bind channel:#lobby role:lobby-music",
+      "/assistant start",
+      "/assistant stop"
+    ]
+  },
+  {
+    "name": "model",
+    "category": "AI",
+    "summary": "Configure the voice AI model provider for this server",
+    "description": "Configure the voice AI model provider for this server",
+    "subcommandsRich": [
+      {
+        "name": "get",
+        "desc": "Show current voice AI provider configuration"
+      },
+      {
+        "name": "set",
+        "desc": "Choose which AI provider powers voice (requires /model link for paid providers)"
+      },
+      {
+        "name": "link",
+        "desc": "Securely link your API key for the current provider (opens private form)"
+      },
+      {
+        "name": "unset",
+        "desc": "Remove API key and disable voice AI for this server"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "pools",
+    "category": "AI",
+    "summary": "Manage agent pools",
+    "description": "Manage agent pools",
+    "subcommandsRich": [
+      {
+        "name": "list",
+        "desc": "View all accessible pools"
+      },
+      {
+        "name": "public",
+        "desc": "View all public pools (for contribution)"
+      },
+      {
+        "name": "ui",
+        "desc": "Interactive pool navigator and deployment planner (guild only)"
+      },
+      {
+        "name": "setup",
+        "desc": "Interactive pool setup (create/select/visibility/delete)"
+      },
+      {
+        "name": "create",
+        "desc": "Create your agent pool (one pool per user)"
+      },
+      {
+        "name": "view",
+        "desc": "View details of a pool"
+      },
+      {
+        "name": "select",
+        "desc": "Select which pool this guild uses (admin only)"
+      },
+      {
+        "name": "settings",
+        "desc": "Manage your pool settings"
+      },
+      {
+        "name": "delete",
+        "desc": "Delete your pool (owner only)"
+      },
+      {
+        "name": "transfer",
+        "desc": "Transfer pool ownership"
+      },
+      {
+        "name": "contributions",
+        "desc": "View and manage pending contributions to your pool"
+      },
+      {
+        "name": "approve",
+        "desc": "Approve a pending contribution to your pool"
+      },
+      {
+        "name": "reject",
+        "desc": "Reject a pending contribution to your pool"
+      },
+      {
+        "name": "admin_list",
+        "desc": "List all pools including private (master only)"
+      },
+      {
+        "name": "admin_view",
+        "desc": "View any pool details (master only)"
+      },
+      {
+        "name": "profile",
+        "desc": "Set your pool appearance \u2014 description and tags are what admins see when browsing /pools discover"
+      },
+      {
+        "name": "leaderboard",
+        "desc": "Top public pools ranked by activity"
+      },
+      {
+        "name": "stats",
+        "desc": "View stats for a pool"
+      },
+      {
+        "name": "discover",
+        "desc": "Browse and filter public pools"
+      },
+      {
+        "name": "specialty",
+        "desc": "Set your pool's primary specialization"
+      },
+      {
+        "name": "ally",
+        "desc": "Manage pool alliances"
+      },
+      {
+        "name": "secondary",
+        "desc": "Add or remove a secondary pool for cross-pool deployment"
+      },
+      {
+        "name": "members",
+        "desc": "Manage pool managers and view roster"
+      },
+      {
+        "name": "help",
+        "desc": "Show help for the agent pool system \u2014 workflows, security promises, and quick-start guide"
+      },
+      {
+        "name": "review",
+        "desc": "Leave a star rating and review for a pool"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "help",
+    "category": "Utility",
+    "summary": "Open the Chopsticks help center.",
+    "description": "Shows an overview of available command categories and links to the full documentation. Good starting point for new members.",
+    "subcommandsRich": [
+      {
+        "name": "browse",
+        "desc": "Browse commands by category (default view)"
+      },
+      {
+        "name": "search",
+        "desc": "Search for commands by name or keyword"
+      },
+      {
+        "name": "command",
+        "desc": "Get detailed help for a specific command"
+      },
+      {
+        "name": "prefix",
+        "desc": "Browse prefix commands (!cmd) by category"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": [
+      "/help"
+    ]
+  },
+  {
+    "name": "afk",
+    "category": "Utility",
+    "summary": "Set or clear your AFK status \u2014 bot will notify others who mention you",
+    "description": "Set or clear your AFK status \u2014 bot will notify others who mention you",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "alias",
+    "category": "Utility",
+    "summary": "Prefix alias management",
+    "description": "Prefix alias management",
+    "subcommandsRich": [
+      {
+        "name": "set",
+        "desc": "Set an alias"
+      },
+      {
+        "name": "clear",
+        "desc": "Clear an alias"
+      },
+      {
+        "name": "list",
+        "desc": "List aliases"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "analytics",
+    "category": "Utility",
+    "summary": "View server activity and engagement analytics",
+    "description": "View server activity and engagement analytics",
+    "subcommandsRich": [
+      {
+        "name": "overview",
+        "desc": "Overall 7-day server summary"
+      },
+      {
+        "name": "activity",
+        "desc": "Message activity over the past 7 days"
+      },
+      {
+        "name": "members",
+        "desc": "Member join/leave trends over the past 30 days"
+      },
+      {
+        "name": "commands",
+        "desc": "Top 10 most-used bot commands"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "commands",
+    "category": "Utility",
+    "summary": "Browse commands",
+    "description": "Browse commands",
+    "subcommandsRich": [
+      {
+        "name": "list",
+        "desc": "List categories"
+      },
+      {
+        "name": "category",
+        "desc": "List commands in a category"
+      },
+      {
+        "name": "search",
+        "desc": "Search commands"
+      },
+      {
+        "name": "ui",
+        "desc": "Interactive command center (buttons + dropdowns)"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "convert",
+    "category": "Utility",
+    "summary": "Convert units or currencies",
+    "description": "Convert units or currencies",
+    "subcommandsRich": [
+      {
+        "name": "unit",
+        "desc": "Convert between units of measurement"
+      },
+      {
+        "name": "currency",
+        "desc": "Convert between currencies"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "echo",
+    "category": "Utility",
+    "summary": "Echo text",
+    "description": "Echo text",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "events",
+    "category": "Utility",
+    "summary": "Manage scheduled server events",
+    "description": "Manage scheduled server events",
+    "subcommandsRich": [
+      {
+        "name": "create",
+        "desc": "Create a new scheduled event"
+      },
+      {
+        "name": "list",
+        "desc": "List upcoming events"
+      },
+      {
+        "name": "cancel",
+        "desc": "Cancel an event by ID (Manage Events required)"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
   },
   {
     "name": "giveaway",
     "category": "Utility",
-    "summary": "Launch and manage giveaways",
-    "description": "Start a timed giveaway, set winners count, require a role to enter, and re-roll if needed. Results are announced automatically.",
-    "permissions": "Moderate Members",
+    "summary": "Run a simple giveaway in any channel.",
+    "description": "Starts a timed giveaway. Members react to enter. When time's up, a winner is picked at random and announced.",
+    "subcommandsRich": [
+      {
+        "name": "start",
+        "desc": "Start a giveaway"
+      },
+      {
+        "name": "end",
+        "desc": "End a giveaway early"
+      },
+      {
+        "name": "reroll",
+        "desc": "Reroll winners for an ended giveaway"
+      },
+      {
+        "name": "list",
+        "desc": "List active giveaways in this server"
+      }
+    ],
+    "permissions": "Admin",
     "examples": [
-      "/giveaway start prize:Nitro duration:24h winners:1"
+      "/giveaway start --prize Nitro --duration 24h"
+    ]
+  },
+  {
+    "name": "highlight",
+    "category": "Utility",
+    "summary": "Get notified when a keyword is mentioned in this server",
+    "description": "Get notified when a keyword is mentioned in this server",
+    "subcommandsRich": [
+      {
+        "name": "add",
+        "desc": "Add a keyword to highlight"
+      },
+      {
+        "name": "remove",
+        "desc": "Remove a keyword"
+      },
+      {
+        "name": "list",
+        "desc": "List your highlighted keywords"
+      },
+      {
+        "name": "clear",
+        "desc": "Remove all your highlighted keywords"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "history",
+    "category": "Utility",
+    "summary": "View moderation history for a user",
+    "description": "View moderation history for a user",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "nick",
+    "category": "Utility",
+    "summary": "Set or clear a member's server nickname.",
+    "description": "Sets a custom display name for a member within the server. Leave the nickname blank to reset to their account username.",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": [
+      "/nick @user CoolName",
+      "/nick @user (clears nickname)"
+    ]
+  },
+  {
+    "name": "notify",
+    "category": "Utility",
+    "summary": "Configure Twitch and YouTube stream/upload notifications",
+    "description": "Configure Twitch and YouTube stream/upload notifications",
+    "subcommandsRich": [
+      {
+        "name": "channel",
+        "desc": "Set the channel where notifications are posted"
+      },
+      {
+        "name": "twitch-add",
+        "desc": "Add a Twitch streamer to notify when they go live"
+      },
+      {
+        "name": "twitch-remove",
+        "desc": "Remove a Twitch streamer notification"
+      },
+      {
+        "name": "twitch-list",
+        "desc": "List configured Twitch notifications"
+      },
+      {
+        "name": "youtube-add",
+        "desc": "Add a YouTube channel to notify on new uploads"
+      },
+      {
+        "name": "youtube-remove",
+        "desc": "Remove a YouTube channel notification"
+      },
+      {
+        "name": "youtube-list",
+        "desc": "List configured YouTube notifications"
+      },
+      {
+        "name": "test",
+        "desc": "Send a test notification to the configured channel"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "pin",
+    "category": "Utility",
+    "summary": "Pin or unpin a message in the current channel",
+    "description": "Pin or unpin a message in the current channel",
+    "subcommandsRich": [
+      {
+        "name": "add",
+        "desc": "Pin a message by its ID"
+      },
+      {
+        "name": "remove",
+        "desc": "Unpin a message by its ID"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "poll",
+    "category": "Utility",
+    "summary": "Create a timed poll with automatic result reveal",
+    "description": "Posts an embedded poll that members vote on with reactions. Supports up to 10 options. Results show in real time.",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": [
+      "/poll \"Best language?\" TypeScript Python Rust Go"
     ]
   },
   {
     "name": "remind",
     "category": "Utility",
-    "summary": "Set personal or channel reminders",
-    "description": "Schedule a reminder for yourself or a channel. Supports natural-language time parsing (e.g. 'in 2 hours', 'tomorrow at 9am').",
-    "permissions": "@everyone",
+    "summary": "Set a personal reminder.",
+    "description": "Sends you a DM or channel ping after the specified duration. Useful for anything you don't want to forget mid-conversation.",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
     "examples": [
-      "/remind time:in 2 hours message:Check the queue"
+      "/remind 30m Check on the giveaway",
+      "/remind 2h Update patch notes"
     ]
   },
   {
-    "name": "embed",
+    "name": "snipe",
     "category": "Utility",
-    "summary": "Build and send custom embeds",
-    "description": "Interactive embed builder \u2014 set title, description, color, fields, image, footer, and author. Send to any channel you have permission for.",
-    "permissions": "Moderate Members",
-    "examples": [
-      "/embed"
-    ]
+    "summary": "Show the last deleted or edited message in this channel",
+    "description": "Show the last deleted or edited message in this channel",
+    "subcommandsRich": [
+      {
+        "name": "deleted",
+        "desc": "Show the last deleted message"
+      },
+      {
+        "name": "edited",
+        "desc": "Show the last edited message"
+      },
+      {
+        "name": "clear",
+        "desc": "Clear the snipe cache for this channel (moderators only)"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "stats",
+    "category": "Utility",
+    "summary": "\ud83d\udcca View server stats, leaderboards, and achievements",
+    "description": "\ud83d\udcca View server stats, leaderboards, and achievements",
+    "subcommandsRich": [
+      {
+        "name": "me",
+        "desc": "View your stats in this server"
+      },
+      {
+        "name": "user",
+        "desc": "View another user's stats"
+      },
+      {
+        "name": "leaderboard",
+        "desc": "View the server leaderboard"
+      },
+      {
+        "name": "achievements",
+        "desc": "View your or another user's achievements"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "statschannel",
+    "category": "Utility",
+    "summary": "Configure auto-updating stats voice channels",
+    "description": "Configure auto-updating stats voice channels",
+    "subcommandsRich": [
+      {
+        "name": "set",
+        "desc": "Set a voice channel to display a specific stat"
+      },
+      {
+        "name": "clear",
+        "desc": "Remove a stats channel configuration"
+      },
+      {
+        "name": "list",
+        "desc": "Show all configured stats channels"
+      }
+    ],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "suggest",
+    "category": "Utility",
+    "summary": "Submit a suggestion to the server's suggestions channel",
+    "description": "Submit a suggestion to the server's suggestions channel",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "tag",
+    "category": "Utility",
+    "summary": "Manage and retrieve server tags",
+    "description": "Manage and retrieve server tags",
+    "subcommandsRich": [
+      {
+        "name": "get",
+        "desc": "Get a tag by name"
+      },
+      {
+        "name": "set",
+        "desc": "Create or update a tag [requires Manage Server]"
+      },
+      {
+        "name": "delete",
+        "desc": "Delete a tag [requires Manage Server]"
+      },
+      {
+        "name": "list",
+        "desc": "List all tags in this server"
+      }
+    ],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "theme",
+    "category": "Utility",
+    "summary": "Customize how the bot looks and behaves in this server",
+    "description": "Customize how the bot looks and behaves in this server",
+    "subcommandsRich": [
+      {
+        "name": "color",
+        "desc": "Set a theme color"
+      },
+      {
+        "name": "name",
+        "desc": "Set a custom persona name for the bot in this server"
+      },
+      {
+        "name": "footer",
+        "desc": "Set a custom embed footer text"
+      },
+      {
+        "name": "feature",
+        "desc": "Enable or disable a feature module for this server"
+      },
+      {
+        "name": "preview",
+        "desc": "Preview the current theme for this server"
+      },
+      {
+        "name": "reset-colors",
+        "desc": "Reset all colors to the bot's default palette"
+      },
+      {
+        "name": "reset",
+        "desc": "Reset the entire theme (all customizations) for this server"
+      }
+    ],
+    "permissions": "Moderator",
+    "examples": []
+  },
+  {
+    "name": "tutorials",
+    "category": "Utility",
+    "summary": "Interactive tutorials and quick-start control center",
+    "description": "Interactive tutorials and quick-start control center",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
+  },
+  {
+    "name": "uptime",
+    "category": "Utility",
+    "summary": "Show bot uptime",
+    "description": "Show bot uptime",
+    "subcommandsRich": [],
+    "permissions": "Admin",
+    "examples": []
+  },
+  {
+    "name": "weather",
+    "category": "Utility",
+    "summary": "Current weather for any location (powered by Open-Meteo, no API key needed)",
+    "description": "Current weather for any location (powered by Open-Meteo, no API key needed)",
+    "subcommandsRich": [],
+    "permissions": "Everyone",
+    "examples": []
   }
 ]

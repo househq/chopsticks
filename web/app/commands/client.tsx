@@ -33,12 +33,13 @@ const PREFIX_CAT_META: Record<string, { color: string; Icon: React.FC<{size?:num
   Voice:      { color: '#c084fc', Icon: RadioIcon },
 };
 const SLASH_CAT_META: Record<string, { color: string; Icon: React.FC<{size?:number}> }> = {
-  Config:     { color: '#fb923c', Icon: ServerIcon },
-  Moderation: { color: '#f87171', Icon: ShieldIcon },
-  Music:      { color: '#f472b6', Icon: MusicIcon },
-  Agents:     { color: '#a78bfa', Icon: RadioIcon },
-  AI:         { color: '#38bdf8', Icon: SparkleIcon },
-  Utility:    { color: '#94a3b8', Icon: WrenchIcon },
+  Moderation:   { color: '#f87171', Icon: ShieldIcon },
+  Music:        { color: '#f472b6', Icon: MusicIcon },
+  'Fun & Games':{ color: '#a78bfa', Icon: GamepadIcon },
+  Economy:      { color: '#4ade80', Icon: CoinIcon },
+  Automation:   { color: '#fb923c', Icon: ZapIcon },
+  AI:           { color: '#38bdf8', Icon: SparkleIcon },
+  Utility:      { color: '#94a3b8', Icon: WrenchIcon },
 };
 // Discord permission display — maps exact perm names to badge colour + icon
 const PERM_META: Record<string, { bg: string; color: string; icon: string }> = {
