@@ -1,0 +1,38 @@
+"area:commands":
+  - changed-files:
+    - any-glob-to-any-file: "src/commands/**"
+
+"area:agents":
+  - changed-files:
+    - any-glob-to-any-file: "src/agents/**"
+
+"area:music":
+  - changed-files:
+    - any-glob-to-any-file: "src/commands/music/**"
+
+"area:moderation":
+  - changed-files:
+    - any-glob-to-any-file: "src/commands/moderation/**"
+
+"area:economy":
+  - changed-files:
+    - any-glob-to-any-file: "src/commands/economy/**"
+
+"database":
+  - changed-files:
+    - any-glob-to-any-file: "prisma/**"
+
+"infrastructure":
+  - changed-files:
+    - any-glob-to-any-file:
+      - ".github/**"
+      - "Dockerfile*"
+      - "docker-compose*"
+
+"dependencies":
+  - changed-files:
+    - any-glob-to-any-file: "package*.json"
+
+"docs":
+  - changed-files:
+    - any-glob-to-any-file: "*.md"
