@@ -68,7 +68,7 @@ All messages are JSON objects sent over WebSocket. Messages flow in two directio
   "tag": "MusicBot#1234",
   "ready": true,
   "guildIds": ["1445809891242414226"],
-  "poolId": "pool_goot27"
+  "poolId": "pool_WokSpec"
 }
 ```
 
