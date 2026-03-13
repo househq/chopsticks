@@ -27,5 +27,4 @@ jobs:
         uses: gitleaks/gitleaks-action@v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          config-path: .gitleaks.toml
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE || '7C897F-20022D-E3EC39-74B5DF-A79E83-V3' }}
