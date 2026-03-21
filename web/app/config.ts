@@ -14,7 +14,7 @@ export const Config = {
   supportServer: 'https://discord.gg/QbS47HDdpf',
 
   // GitHub repository link.
-  githubRepo: 'https://github.com/WokSpec/Chopsticks',
+  githubRepo: 'https://github.com/ws-sam/Chopsticks',
 
   // Canonical URL for the project.
   baseUrl: 'https://chopsticks.wokspec.org',

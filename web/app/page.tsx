@@ -473,9 +473,65 @@ const HOW_STEPS = [
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────
+function TransitionNotice() {
+  return (
+    <div style={{
+      background: 'linear-gradient(90deg, rgba(14,14,20,0.98) 0%, rgba(20,14,30,0.98) 100%)',
+      borderBottom: '1px solid rgba(139,92,246,0.2)',
+      padding: '0.875rem 0',
+    }}>
+      <div className="container" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.875rem' }}>
+        <div style={{
+          flexShrink: 0,
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          background: 'rgba(139,92,246,0.15)',
+          border: '1px solid rgba(139,92,246,0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginTop: 2,
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(139,92,246,0.9)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.65 }}>
+          <span style={{ fontWeight: 700, color: 'rgba(200,180,255,0.9)' }}>Chopsticks has a new home.</span>
+          {' '}The original maintainer (goot27) had their GitHub account suspended following the{' '}
+          <a
+            href="https://github.com/autiladus/autiladus"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'rgba(139,92,246,0.85)', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+          >
+            Autiladus
+          </a>
+          {' '}incident — an experimental agent swarm architecture project that was flagged and suspended during active development.
+          Chopsticks is a separate, community-led project with no connection to that experiment.
+          {' '}Development continues under{' '}
+          <a
+            href="https://github.com/ws-sam/Chopsticks"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'rgba(139,92,246,0.85)', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+          >
+            ws-sam/Chopsticks
+          </a>
+          . Still MIT. Still self-hostable. Contributions welcome.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   return (
     <main>
+      <TransitionNotice />
       {/* ── Hero ─────────────────────────────────────── */}
       <section style={{ position: 'relative', overflow: 'hidden', minHeight: '88vh', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }} className="bg-grid hero-section">
         <div className="orb orb-blue"   style={{ width: 700, height: 700, top: -250, left: -200, opacity: 0.45 }} />

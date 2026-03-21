@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { DiscordIcon, GitHubIcon, MusicIcon, ShieldIcon, CoinIcon, SparkleIcon, ZapIcon, BookOpenIcon, ServerIcon, RadioIcon, GamepadIcon } from './icons';
 
 const BOT_INVITE = 'https://discord.com/api/oauth2/authorize?client_id=1466382874587431036&permissions=1099514858544&scope=bot%20applications.commands';
-const GITHUB = 'https://github.com/WokSpec/Chopsticks';
+const GITHUB = 'https://github.com/ws-sam/Chopsticks';
 
 type DropItem = { label: string; href: string; Icon: React.FC<{size?:number}>; desc: string; external?: boolean };
 

@@ -9,9 +9,11 @@
 [![Discord.js](https://img.shields.io/badge/discord.js-v14-5865F2?logo=discord&logoColor=white)](https://discord.js.org)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.laptop.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
-[![GitHub Stars](https://img.shields.io/github/stars/wokspec/Chopsticks?style=social)](https://github.com/wokspec/Chopsticks/stargazers)
+[![GitHub Stars](https://img.shields.io/github/stars/ws-sam/Chopsticks?style=social)](https://github.com/ws-sam/Chopsticks/stargazers)
 
 </div>
+
+> **Notice — New home:** The original maintainer (goot27) had their GitHub account suspended following the [Autiladus](https://github.com/autiladus/autiladus) incident — an experimental agent swarm architecture project that was flagged and shut down during development. Chopsticks is an independent community project with no relation to that experiment. Development continues here under [ws-sam](https://github.com/ws-sam) / WokSpec. Still MIT. Still self-hostable. Contributions welcome.
 
 ---
 
@@ -286,7 +288,7 @@ Agents are connected Discord bot clients, each authenticated with a token contri
 ### Setup
 
 ```bash
-git clone https://github.com/wokspec/Chopsticks.git
+git clone https://github.com/ws-sam/Chopsticks.git
 cd Chopsticks
 npm install
 cp .env.example .env
@@ -453,9 +455,9 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full g
 3. Commit using [Conventional Commits](https://www.conventionalcommits.org): `git commit -m 'feat: add your feature'`
 4. Push and open a pull request against `main`
 
-Issues labeled [`good first issue`](https://github.com/wokspec/Chopsticks/labels/good%20first%20issue) are a good starting point.
+Issues labeled [`good first issue`](https://github.com/ws-sam/Chopsticks/labels/good%20first%20issue) are a good starting point.
 
-Chopsticks is part of the [WokSpec](https://github.com/WokSpec) ecosystem — a collection of open source tools and bots built for Discord communities.
+Chopsticks is part of the [WokSpec](https://github.com/WokSpec) ecosystem — a collection of open source tools and bots built for Discord communities. The project is maintained under [ws-sam](https://github.com/ws-sam) following the suspension of the original goot27 account.
 
 ---
 
@@ -479,6 +481,6 @@ See [LICENSE](LICENSE) for the full text.
 
 <div align="center">
 
-Built with ♥ by [goot27](https://github.com/goot27) · Part of the [WokSpec](https://github.com/WokSpec) ecosystem
+Maintained by [ws-sam](https://github.com/ws-sam) · Originally created by goot27 · Part of the [WokSpec](https://github.com/WokSpec) ecosystem
 
 </div>
