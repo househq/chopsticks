@@ -20,9 +20,15 @@
 - Preserve ws-sam's commit history — do not squash or overwrite existing commits
 - Default branch: main
 
+## Project Status
+- **On hold** — ws-sam is currently focused on building WokSpec. Chopsticks is production-stable and self-hostable; active feature development is paused.
+- Contributions and PRs from the community are still reviewed and merged.
+- The public hosted instance may not be live; self-hosting is the primary path.
+
 ## Stack
-- Discord bot — production, contributor-led
+- Discord bot — production-grade, open-source (MIT), self-hostable
 - discord.js v14, Node.js 22
+- Repo home: github.com/ws-sam/Chopsticks
 
 ---
 
@@ -30,6 +36,20 @@
 
 > This file is the authoritative reference for AI coding agents (Claude, Copilot, etc.) working in
 > the Chopsticks repository. Read it before writing any code.
+
+---
+
+## Web3 Integration Context
+
+Chopsticks operates in a Web3-native ecosystem. The following applies to all Web3-adjacent command development:
+
+- Web3 commands (wallet lookups, ENS resolution, token prices, gas tracking, NFT info, governance alerts) are a first-class feature category
+- **Never ask users to paste private keys or seed phrases** — any Web3 command must be read-only (balance checks, ENS lookups, tx lookups) or use externally signed transactions
+- Use Alchemy/QuickNode RPC via env vars for any on-chain reads — never hard-code RPC URLs
+- ENS resolution: use viem's `getEnsName` / `getEnsAddress` for display; cache results with a short TTL (5 min)
+- Price data: use Chainlink price feeds or a CoinGecko/CoinMarketCap API — never scrape AMM spot prices raw
+- Gas tracking: Ethereum gas price commands should fetch from `eth_gasPrice` or EIP-1559 fee history, not third-party sites
+- Web3 command scope examples: `/wallet`, `/ens`, `/gas`, `/token`, `/nft`, `/dao`, `/tx`, `/defi`
 
 ---
 
