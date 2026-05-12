@@ -1,0 +1,12 @@
+{
+  "name": "chopsticks-og",
+  "type": "bot",
+  "description": "Feature-rich self-hostable Discord bot. Full-featured public product. Run it anywhere.",
+  "stage": "active",
+  "org": "madebymadhouse",
+  "repo": "madebymadhouse/chopsticks",
+  "public": true,
+  "started": "2024-01-01",
+  "updated": "2026-05-11",
+  "notes": "Full product. chopsticks-lean-prod is a stripped personal VPS fork derived from this."
+}
